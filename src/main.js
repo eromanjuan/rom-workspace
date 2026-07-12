@@ -8,12 +8,12 @@ import { renderFeed } from './feed/feed.js';
 import { renderProfile } from './profile/profileView.js';
 import { renderUserProfile } from './profile/userProfile.js';
 import { renderSearch } from './search/searchView.js';
-import { renderSettings } from './settings/settingsView.js';
+import { renderSettings, openCreateWorkspaceModal } from './settings/settingsView.js';
 import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
 import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
-import { getInvite, acceptInvite, getUserProfile, getMyRole } from './workspaces/data.js';
+import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
@@ -86,22 +86,44 @@ if (window.top !== window.self) {
         // membership of the user's default workspace. Removed members are blocked.
         async function mountWorkspace() {
             const master = isMaster(user);
-            let wsId = null; let role = null;
+            let wsId = null; let role = null; let wsExists = false;
             try {
                 const p = await getUserProfile(user.uid);
                 wsId = p?.currentWorkspaceId || null;
-                if (wsId) role = await getMyRole(wsId, user.uid);
+                if (wsId) {
+                    // The selected workspace may have been deleted — verify it still exists.
+                    wsExists = !!(await getWorkspace(wsId));
+                    if (wsExists) role = await getMyRole(wsId, user.uid);
+                }
             } catch { /* ignore */ }
 
-            if (!master && (!wsId || !role)) {
+            // No usable workspace: none selected, or the selected one was deleted.
+            // Show a blank state with a Create Workspace button (for everyone).
+            if (!wsId || !wsExists) {
+                wsHost.dataset.mountedWs = '';
+                clear(wsHost);
+                const createBtn = el('button', { class: 'btn btn--primary' }, [icon('plus'), ' Create workspace']);
+                createBtn.onclick = () => openCreateWorkspaceModal(user, async (newId) => {
+                    try { if (newId) await setCurrentWorkspace(user.uid, newId); } catch { /* ignore */ }
+                    mountWorkspace();
+                });
+                wsHost.append(el('div', { class: 'placeholder' }, [
+                    el('div', { class: 'placeholder-icon' }, icon('layout-dashboard')),
+                    el('h2', {}, 'No workspace yet'),
+                    el('p', { class: 'muted' }, 'Create a workspace to start building apps, tiles and posts.'),
+                    createBtn,
+                ]));
+                return;
+            }
+
+            // A workspace is selected and exists, but this (non-master) user isn't a member.
+            if (!master && !role) {
                 wsHost.dataset.mountedWs = '';
                 clear(wsHost);
                 wsHost.append(el('div', { class: 'placeholder' }, [
-                    el('div', { class: 'placeholder-icon' }, icon(wsId ? 'lock' : 'layout-dashboard')),
-                    el('h2', {}, wsId ? 'No access to this workspace' : 'No workspace selected'),
-                    el('p', { class: 'muted' }, wsId
-                        ? 'You are not a member of this workspace. Ask the owner to invite you, or pick another in Settings.'
-                        : 'Choose or create your default workspace in Settings.'),
+                    el('div', { class: 'placeholder-icon' }, icon('lock')),
+                    el('h2', {}, 'No access to this workspace'),
+                    el('p', { class: 'muted' }, 'You are not a member of this workspace. Ask the owner to invite you, or pick another in Settings.'),
                     el('button', { class: 'btn btn--primary', onclick: () => go('settings') }, 'Go to Settings'),
                 ]));
                 return;

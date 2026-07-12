@@ -326,7 +326,7 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
 
 /* ---- Create-workspace modal: name, description, icon+color OR uploaded image ---- */
 
-function openCreateWorkspaceModal(user, onDone) {
+export function openCreateWorkspaceModal(user, onDone) {
   const state = { mode: 'icon', icon: APP_ICONS[0], color: APP_COLORS[0], file: null, previewUrl: '' };
   const { body, close, iconEl } = openModal({ title: 'Create workspace', iconName: state.icon, iconColor: state.color });
 
@@ -436,10 +436,10 @@ function openCreateWorkspaceModal(user, onDone) {
     try {
       let imageUrl = '';
       if (state.mode === 'image' && state.file) imageUrl = await uploadWorkspaceImage(user, state.file);
-      await createWorkspace(user, { name, description: descInput.value.trim(), icon: state.icon, color: state.color, imageUrl });
+      const newId = await createWorkspace(user, { name, description: descInput.value.trim(), icon: state.icon, color: state.color, imageUrl });
       toast('Workspace created', 'success');
       close();
-      onDone();
+      onDone(newId);
     } catch (err) {
       const c = String(err?.code || err?.message || '');
       toast(c.includes('storage') || c.includes('unauthorized') || c.includes('bucket')
