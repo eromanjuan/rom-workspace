@@ -1,11 +1,9 @@
-// The Profile page: user/owner details, previous posts, and customizable widgets.
-import { el, clear, icon, escapeHtml, timeAgo, toast } from '../ui/dom.js';
+// The Profile page: user/owner details, previous posts, and personal widgets.
+import { el, clear, icon, escapeHtml, timeAgo } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
-import {
-  getUserProfile, listMyPosts, listMyWorkspaces,
-  addWidget, subscribeWidgets, updateWidget, deleteWidget,
-} from '../workspaces/data.js';
+import { getUserProfile, listMyPosts, listMyWorkspaces } from '../workspaces/data.js';
+import { renderWidgetsPanel } from '../feed/widgets.js';
 
 function initials(name) {
   return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
@@ -35,10 +33,8 @@ export function renderProfile(host, user) {
   // --- previous posts ---
   const posts = el('div', { class: 'profile-posts' }, el('p', { class: 'muted' }, 'Loading your posts…'));
 
-  // --- widgets ---
-  const widgets = el('div', { class: 'profile-widgets' }, el('p', { class: 'muted' }, 'Loading widgets…'));
-  const addWidgetBtn = el('button', { class: 'btn btn--ghost btn--sm', onclick: () => openWidgetForm() },
-    [icon('plus'), ' Add widget']);
+  // --- widgets (same personal panel as the Feed) ---
+  const widgetHost = el('aside', { class: 'feed-widgets' });
 
   const workspacesBox = el('div', { class: 'profile-ws-lists' }, el('p', { class: 'muted' }, 'Loading workspaces…'));
 
@@ -55,13 +51,7 @@ export function renderProfile(host, user) {
           el('h3', { class: 'profile-subtitle' }, [icon('news'), ' Previous posts']),
           posts,
         ]),
-        el('section', {}, [
-          el('div', { class: 'profile-widgets-head' }, [
-            el('h3', { class: 'profile-subtitle' }, [icon('layout-grid'), ' Widgets']),
-            addWidgetBtn,
-          ]),
-          widgets,
-        ]),
+        el('section', {}, [widgetHost]),
       ]),
     ]),
   );
@@ -107,46 +97,6 @@ export function renderProfile(host, user) {
     }
   }).catch((err) => { clear(posts); posts.append(el('p', { class: 'error-text' }, err.message)); });
 
-  // widget form
-  function openWidgetForm() {
-    const title = el('input', { class: 'input', placeholder: 'Widget title (e.g. Links)' });
-    const body = el('textarea', { class: 'input', rows: '3', placeholder: 'Widget content…' });
-    const save = el('button', { class: 'btn btn--primary btn--sm' }, 'Add');
-    const form = el('div', { class: 'widget-form card' }, [title, body, el('div', { class: 'row' }, [save])]);
-    save.addEventListener('click', async () => {
-      if (!title.value.trim() && !body.value.trim()) return;
-      save.disabled = true;
-      try { await addWidget(user.uid, { title: title.value.trim(), body: body.value.trim() }); form.remove(); }
-      catch (err) { toast(err.message, 'error'); save.disabled = false; }
-    });
-    widgets.parentElement.insertBefore(form, widgets);
-  }
-
-  // live widgets
-  return subscribeWidgets(user.uid, (list) => {
-    clear(widgets);
-    if (!list.length) { widgets.append(el('p', { class: 'muted' }, 'No widgets yet. Add one to customize your profile.')); return; }
-    for (const w of list) {
-      const bodyEl = el('div', { class: 'widget-body', html: escapeHtml(w.body || '').replace(/\n/g, '<br>') });
-      widgets.append(el('div', { class: 'widget card' }, [
-        el('div', { class: 'widget-head' }, [
-          el('span', { class: 'widget-title' }, w.title || 'Note'),
-          el('button', {
-            class: 'wb-tile-add', title: 'Remove',
-            onclick: async () => { try { await deleteWidget(user.uid, w.id); } catch (err) { toast(err.message, 'error'); } },
-          }, icon('x')),
-        ]),
-        bodyEl,
-        el('button', {
-          class: 'link', onclick: () => {
-            const ta = el('textarea', { class: 'input', rows: '3' }); ta.value = w.body || '';
-            const s = el('button', { class: 'btn btn--primary btn--sm', onclick: async () => {
-              try { await updateWidget(user.uid, w.id, { body: ta.value }); } catch (err) { toast(err.message, 'error'); }
-            } }, 'Save');
-            clear(bodyEl).append(ta, s);
-          },
-        }, 'Edit'),
-      ]));
-    }
-  }, () => {});
+  // Mount the personal widgets panel (shared with the Feed) and return its cleanup.
+  return renderWidgetsPanel(widgetHost, user);
 }

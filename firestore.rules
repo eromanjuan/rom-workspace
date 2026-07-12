@@ -109,11 +109,24 @@ service cloud.firestore {
 
     // --- workspaces ---
     match /workspaces/{wsId} {
-      allow read: if isMember(wsId) || isMaster();
+      // The workspace DOC (name/desc/icon/owner) is readable by any signed-in
+      // user so workspaces can be discovered + searched to request joining. The
+      // sensitive subcollections (members, feed, apps, tiles) keep member-only
+      // rules below, so this only exposes basic identity, not content.
+      allow read: if signedIn();
       // creating a workspace: you must set yourself as the owner
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
       // only the owner (or master) may rename or delete the workspace
       allow update, delete: if isOwner(wsId);
+
+      // --- join requests (user asks to join; owner approves) ---
+      match /joinRequests/{reqUid} {
+        allow read: if request.auth.uid == reqUid || isOwner(wsId);
+        allow create: if signedIn() && request.auth.uid == reqUid
+                      && request.resource.data.uid == reqUid;
+        allow delete: if request.auth.uid == reqUid || isOwner(wsId);
+        allow update: if isOwner(wsId);
+      }
 
       // --- members (the role table) ---
       match /members/{memberUid} {

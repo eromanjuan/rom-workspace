@@ -174,6 +174,49 @@ export async function listMyPosts(uid) {
     .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 }
 
+// --- search / discovery ---
+
+// Recent posts (newest first) for search; the caller filters by text/visibility.
+export async function listRecentPosts(max = 200) {
+  const snap = await getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Every workspace's doc-level info (name/icon/owner) for discovery + search.
+export async function listAllWorkspaces() {
+  const snap = await getDocs(collection(db, 'workspaces'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// --- join requests (user asks to join a workspace; the owner approves) ---
+export async function requestToJoin(wsId, user) {
+  await setDoc(doc(db, 'workspaces', wsId, 'joinRequests', user.uid), {
+    uid: user.uid,
+    email: user.email || '',
+    displayName: user.displayName || user.email || 'User',
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  });
+}
+export async function getMyJoinRequest(wsId, uid) {
+  const snap = await getDoc(doc(db, 'workspaces', wsId, 'joinRequests', uid));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+export async function cancelJoinRequest(wsId, uid) {
+  await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', uid));
+}
+export async function listJoinRequests(wsId) {
+  const snap = await getDocs(collection(db, 'workspaces', wsId, 'joinRequests'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+export async function approveJoinRequest(wsId, req, role = 'viewer') {
+  await addMemberDirect(wsId, { uid: req.uid, email: req.email, displayName: req.displayName }, role);
+  await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', req.uid));
+}
+export async function declineJoinRequest(wsId, reqUid) {
+  await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', reqUid));
+}
+
 // --- uploaded files (Storage blob + Firestore metadata) ---
 
 const safeName = (n) => String(n).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);

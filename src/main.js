@@ -6,6 +6,8 @@ import { renderAuth } from './auth/authView.js';
 import { renderVerify } from './auth/verifyView.js';
 import { renderFeed } from './feed/feed.js';
 import { renderProfile } from './profile/profileView.js';
+import { renderUserProfile } from './profile/userProfile.js';
+import { renderSearch } from './search/searchView.js';
 import { renderSettings } from './settings/settingsView.js';
 import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
@@ -70,7 +72,7 @@ if (window.top !== window.self) {
 
     function renderShell(user) {
         clear(app);
-        const shell = buildShell(user, { onNavigate: onNav });
+        const shell = buildShell(user, { onNavigate: onNav, onSearch: (term) => go('search', term) });
         app.append(shell.root);
         const content = shell.content;
         const wsHost = shell.wsHost;
@@ -111,7 +113,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=9', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=10', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
@@ -128,12 +130,14 @@ if (window.top !== window.self) {
             }
         }
 
-        function go(view, wsId = null) {
+        function go(view, arg = null) {
             if (viewUnsub) { viewUnsub(); viewUnsub = null; }
             state.view = view;
-            state.wsId = wsId;
-            localStorage.setItem(VIEW_KEY, view); // remember across refreshes
-            shell.setActive(view);
+            state.wsId = view === 'workspace' ? arg : null;
+            // search + user profile are transient — don't persist/restore them.
+            const navView = (view === 'search' || view === 'user') ? 'feed' : view;
+            localStorage.setItem(VIEW_KEY, navView); // remember across refreshes
+            shell.setActive(navView);
 
             const isWorkspace = view === 'workspace';
             content.style.display = isWorkspace ? 'none' : '';
@@ -146,6 +150,10 @@ if (window.top !== window.self) {
                 viewUnsub = renderFeed(content, user);
             } else if (view === 'profile') {
                 viewUnsub = renderProfile(content, user);
+            } else if (view === 'search') {
+                viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: (uid) => go('user', uid), onOpenWorkspace: () => go('workspace') });
+            } else if (view === 'user') {
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed') });
             } else if (view === 'settings') {
                 renderSettings(content, user, { onOpenWorkspace: () => go('workspace') });
             } else if (view === 'files') {

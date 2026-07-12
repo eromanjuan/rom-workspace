@@ -17,13 +17,37 @@ export function renderSettings(host, user, { onOpenWorkspace }) {
   host.append(
     el('div', { class: 'settings' }, [
       el('h2', { class: 'section__title' }, 'Settings'),
-      buildProfileSection(user),
-      buildEmailSection(user),
-      buildPasswordSection(user),
-      buildThemeSection(),
-      buildWorkspaceSection(user, onOpenWorkspace),
+      collapsible(buildProfileSection(user)),
+      collapsible(buildEmailSection(user)),
+      collapsible(buildPasswordSection(user)),
+      collapsible(buildThemeSection()),
+      collapsible(buildWorkspaceSection(user, onOpenWorkspace)),
     ]),
   );
+}
+
+// Turn a settings-card <section> (first child = h3.settings-title) into a
+// collapsed accordion: the header stays visible; the body opens only when the
+// edit/header is clicked. Prevents accidental edits.
+function collapsible(section, { open = false } = {}) {
+  const kids = [...section.children];
+  const title = kids[0];
+  const body = el('div', { class: 'settings-body' });
+  kids.slice(1).forEach((c) => body.append(c));
+  const toggle = el('button', { class: 'settings-toggle', type: 'button', 'aria-label': 'Edit' }, icon('pencil'));
+  const header = el('div', { class: 'settings-head' }, [title, toggle]);
+  clear(section).append(header, body);
+  section.classList.add('settings-collapsible');
+  const setOpen = (o) => {
+    section.classList.toggle('is-open', o);
+    body.style.display = o ? '' : 'none';
+    toggle.replaceChildren(icon(o ? 'chevron-up' : 'pencil'));
+    toggle.setAttribute('aria-label', o ? 'Close' : 'Edit');
+    toggle.setAttribute('aria-expanded', String(o));
+  };
+  setOpen(open);
+  header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
+  return section;
 }
 
 /* ---------- profile: name + username + phone ---------- */

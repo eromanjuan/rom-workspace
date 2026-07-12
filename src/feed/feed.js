@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase.js';
 import { el, clear, escapeHtml, timeAgo, toast, icon } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
+import { renderWidgetsPanel } from './widgets.js';
 
 export function renderFeed(root, user) {
   clear(root);
@@ -51,13 +52,18 @@ export function renderFeed(root, user) {
 
   const list = el('div', { class: 'feed__list' }, el('p', { class: 'muted' }, 'Loading feed…'));
 
+  const widgetsAside = el('aside', { class: 'feed-widgets' });
   root.append(
-    el('div', { class: 'feed' }, [
-      el('h2', { class: 'section__title' }, 'Feed'),
-      composer,
-      list,
+    el('div', { class: 'feed-layout' }, [
+      el('div', { class: 'feed' }, [
+        el('h2', { class: 'section__title' }, 'Feed'),
+        composer,
+        list,
+      ]),
+      widgetsAside,
     ]),
   );
+  const widgetsCleanup = renderWidgetsPanel(widgetsAside, user);
 
   // UI state kept across the live re-renders so typing/expanding survives updates.
   const expanded = new Set();       // post ids with the comment thread open
@@ -81,14 +87,14 @@ export function renderFeed(root, user) {
     list.append(el('p', { class: 'error-text' }, `Feed error: ${err.message}`));
   });
 
-  return unsub;
+  return () => { unsub(); widgetsCleanup(); };
 }
 
 // Close any open post menu when clicking elsewhere.
 function closeAllMenus() { document.querySelectorAll('.post__menu.open').forEach((m) => m.classList.remove('open')); }
 document.addEventListener('click', (e) => { if (!e.target.closest('.post__menu-wrap')) closeAllMenus(); });
 
-function postCard(d, user, ui) {
+export function postCard(d, user, ui) {
   const p = d.data();
   const ref = doc(db, 'posts', d.id);
   const when = p.createdAt?.toDate ? timeAgo(p.createdAt.toDate()) : '';

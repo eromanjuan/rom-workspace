@@ -4,6 +4,7 @@ import { el, clear, icon, escapeHtml, toast, openModal } from '../ui/dom.js';
 import {
   getWorkspace, updateWorkspace, listMembers, removeMember, setMemberRole,
   createInvite, listInvites, revokeInvite, listAllUsers, addMemberDirect,
+  listJoinRequests, approveJoinRequest, declineJoinRequest,
 } from './data.js';
 import { APP_ICONS, APP_COLORS } from './appBuilder.js';
 import { WS_PERMISSIONS, ROLE_PRESETS, ASSIGNABLE_ROLES, resolvePerms, roleLabel, isMaster } from './roles.js';
@@ -110,6 +111,7 @@ function renderMembers(panel, wsId, user) {
 
   const memberList = el('div', { class: 'ws-member-list' }, el('p', { class: 'muted' }, 'Loading…'));
   const inviteList = el('div', { class: 'ws-invite-list' });
+  const requestList = el('div', { class: 'ws-member-list' });
 
   // Add existing ROM users directly (no invite needed).
   const searchInput = el('input', { class: 'input', placeholder: 'Search users by name or email…' });
@@ -147,9 +149,28 @@ function renderMembers(panel, wsId, user) {
     searchResults,
     el('label', { class: 'form-label' }, 'Or invite by email'),
     el('div', { class: 'row' }, [emailInput, roleSelect, inviteBtn]),
+    el('label', { class: 'form-label' }, 'Join requests'), requestList,
     el('label', { class: 'form-label' }, 'Members'), memberList,
     el('label', { class: 'form-label' }, 'Pending invites'), inviteList,
   ]));
+
+  async function loadRequests() {
+    try {
+      const reqs = await listJoinRequests(wsId);
+      clear(requestList);
+      if (!reqs.length) { requestList.append(el('p', { class: 'muted' }, 'No join requests.')); return; }
+      for (const r of reqs) {
+        const roleSel = el('select', { class: 'input input--sm' }, ['viewer', 'editor'].map((x) => el('option', { value: x }, roleLabel(x))));
+        requestList.append(el('div', { class: 'ws-member-row' }, [
+          el('div', { class: 'ws-avatar ws-avatar--sm' }, initials(r.displayName || r.email)),
+          el('div', { class: 'ws-member-meta' }, [el('div', { class: 'ws-member-name' }, r.displayName || r.email), el('div', { class: 'muted' }, r.email)]),
+          roleSel,
+          el('button', { class: 'btn btn--primary btn--sm', onclick: async () => { try { await approveJoinRequest(wsId, r, roleSel.value); toast(`Added ${r.displayName || r.email}`, 'success'); loadRequests(); loadMembers(); } catch (err) { toast(err.message, 'error'); } } }, 'Approve'),
+          el('button', { class: 'link-danger', onclick: async () => { try { await declineJoinRequest(wsId, r.uid); loadRequests(); } catch (err) { toast(err.message, 'error'); } } }, 'Decline'),
+        ]));
+      }
+    } catch (err) { clear(requestList); requestList.append(el('p', { class: 'error-text' }, err.message)); }
+  }
 
   async function loadMembers() {
     try {
@@ -186,7 +207,7 @@ function renderMembers(panel, wsId, user) {
       }
     } catch (err) { clear(inviteList); inviteList.append(el('p', { class: 'error-text' }, err.message)); }
   }
-  loadMembers(); loadInvites();
+  loadMembers(); loadInvites(); loadRequests();
 }
 
 /* ---------- Roles & Permissions ---------- */
