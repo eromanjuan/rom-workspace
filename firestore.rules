@@ -95,15 +95,15 @@ service cloud.firestore {
       allow create: if signedIn()
                     && request.resource.data.authorId == request.auth.uid
                     && request.resource.data.text is string
-                    && request.resource.data.text.size() > 0
-                    && request.resource.data.text.size() <= 2000;
+                    && request.resource.data.text.size() <= 4000;
       // authors manage their own posts; the master can moderate any post
       allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isMaster());
       // updates: the author (or master) may change anything (edit text, etc.);
-      // any signed-in user may ONLY toggle the likes/comments fields (react/comment).
+      // any signed-in user may ONLY toggle likes / comments / pollVotes (react,
+      // comment, vote in a poll).
       allow update: if signedIn() && (
         resource.data.authorId == request.auth.uid || isMaster()
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments'])
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments', 'pollVotes'])
       );
     }
 

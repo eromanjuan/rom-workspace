@@ -6,7 +6,7 @@
 // all owner-only. "Hide" sets a `hidden` flag ON THE POST — a hidden post is
 // visible only to its author; every other viewer's feed filters it out.
 import {
-  collection, addDoc, query, orderBy, limit, onSnapshot,
+  collection, query, orderBy, limit, onSnapshot,
   serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
@@ -14,57 +14,19 @@ import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui
 import { displayNameOf } from '../auth/auth.js';
 import { notify } from '../workspaces/data.js';
 import { renderWidgetsPanel } from './widgets.js';
-import { loadMentionUsers, attachMentionAutocomplete, extractMentions, renderBodyWithMentions } from './feedMentions.js';
+import { loadMentionUsers, renderBodyWithMentions } from './feedMentions.js';
+import { renderComposer } from './composer.js';
+import { renderPostExtras } from './postMedia.js';
 
 export function renderFeed(root, user, opts = {}) {
   clear(root);
   const onOpenUser = opts.onOpenUser || null;
 
-  const composerText = el('textarea', {
-    class: 'composer__text', rows: '3',
-    placeholder: `What's on your mind, ${displayNameOf(user)}? Use @ to mention someone.`,
-  });
-  // @mention typeahead over all users.
+  // Rich composer (Post / Photo / Video / File / Link / Question / Note / Poll)
+  // with @mention typeahead over all users.
   let mentionUsers = [];
   loadMentionUsers().then((u) => { mentionUsers = u; });
-  attachMentionAutocomplete(composerText, () => mentionUsers);
-
-  const postBtn = el('button', { class: 'btn btn--primary' }, 'Post');
-  const composer = el('div', { class: 'composer card' }, [
-    composerText,
-    el('div', { class: 'composer__actions' }, [postBtn]),
-  ]);
-
-  postBtn.addEventListener('click', async () => {
-    const text = composerText.value.trim();
-    if (!text) return;
-    postBtn.disabled = true;
-    try {
-      const mentions = extractMentions(text, mentionUsers);
-      await addDoc(collection(db, 'posts'), {
-        authorId: user.uid,
-        authorName: displayNameOf(user),
-        text,
-        mentions,
-        likes: [],
-        comments: [],
-        hidden: false,
-        createdAt: serverTimestamp(),
-      });
-      // Notify everyone mentioned (except yourself).
-      mentions.filter((m) => m.uid && m.uid !== user.uid).forEach((m) => notify(m.uid, {
-        type: 'mention',
-        title: `${displayNameOf(user)} mentioned you in a post`,
-        body: text.slice(0, 80), actorId: user.uid, actorName: displayNameOf(user),
-        link: { view: 'feed' },
-      }));
-      composerText.value = '';
-    } catch (err) {
-      toast(err.message || 'Could not post.', 'error');
-    } finally {
-      postBtn.disabled = false;
-    }
-  });
+  const composer = renderComposer(user, () => mentionUsers);
 
   const list = el('div', { class: 'feed__list' }, el('p', { class: 'muted' }, 'Loading feed…'));
 
@@ -125,12 +87,19 @@ export function postCard(d, user, ui) {
     ? el('button', { class: 'post__author post__author--link', onclick: () => openUser(p.authorId) }, p.authorName || 'Someone')
     : el('span', { class: 'post__author' }, p.authorName || 'Someone');
 
-  const body = el('div', { class: 'post__body', html: renderBodyWithMentions(p.text, p.mentions) });
+  const body = el('div', { class: 'post__body', html: p.text ? renderBodyWithMentions(p.text, p.mentions) : '' });
+  if (!p.text) body.style.display = 'none';
   // Clicking a highlighted @mention opens that user's profile.
   if (openUser) body.addEventListener('click', (e) => {
     const a = e.target.closest('.mention-link[data-uid]');
     if (a) { e.preventDefault(); openUser(a.dataset.uid); }
   });
+
+  // Type badge (question/note) + type-specific content (images/video/file/link/poll).
+  const typeBadge = p.type === 'question'
+    ? el('div', { class: 'post-typebadge' }, [icon('help-circle'), ' Question'])
+    : p.type === 'note' ? el('div', { class: 'post-typebadge' }, [icon('notes'), ' Note']) : null;
+  const extras = renderPostExtras(p, ref, user);
 
   const startEdit = () => {
     const ta = el('textarea', { class: 'composer__text', rows: '3' });
@@ -278,7 +247,9 @@ export function postCard(d, user, ui) {
       ]),
     ]),
     isHidden ? el('div', { class: 'post__hidden-tag' }, [icon('eye-off'), ' Hidden · only you can see this']) : null,
+    typeBadge,
     body,
+    extras,
     el('div', { class: 'post__bar' }, [likeBtn, commentBtn]),
     thread,
   ]);
