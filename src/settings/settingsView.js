@@ -295,7 +295,10 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
             ]),
           ]),
           el('div', { class: 'ws-manage-actions' }, [
-            el('button', { class: 'btn btn--ghost btn--sm', onclick: () => onOpenWorkspace(ws.id) }, 'Open'),
+            el('button', { class: 'btn btn--ghost btn--sm', onclick: async () => {
+                try { if (!isCurrent) await setCurrentWorkspace(user.uid, ws.id); onOpenWorkspace(ws.id); }
+                catch (err) { toast(err.message, 'error'); }
+              } }, 'Open'),
             isCurrent ? null : el('button', {
               class: 'btn btn--ghost btn--sm', onclick: async () => {
                 try { await setCurrentWorkspace(user.uid, ws.id); toast('Set as default', 'success'); load(); }

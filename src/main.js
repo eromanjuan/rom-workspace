@@ -85,7 +85,6 @@ if (window.top !== window.self) {
         // The embedded (quest-hq) Workspace module in a persistent iframe — gated on
         // membership of the user's default workspace. Removed members are blocked.
         async function mountWorkspace() {
-            if (wsHost.dataset.mounted) return; // already mounted with access
             const master = isMaster(user);
             let wsId = null; let role = null;
             try {
@@ -95,6 +94,7 @@ if (window.top !== window.self) {
             } catch { /* ignore */ }
 
             if (!master && (!wsId || !role)) {
+                wsHost.dataset.mountedWs = '';
                 clear(wsHost);
                 wsHost.append(el('div', { class: 'placeholder' }, [
                     el('div', { class: 'placeholder-icon' }, icon(wsId ? 'lock' : 'layout-dashboard')),
@@ -107,13 +107,18 @@ if (window.top !== window.self) {
                 return;
             }
 
-            wsHost.dataset.mounted = '1';
+            // Remount a fresh iframe only when the active workspace actually changes,
+            // so switching workspaces reloads the module with the new workspace's data
+            // (the bridge scopes everything to the current workspace).
+            const key = wsId || (master ? 'master' : '');
+            if (wsHost.dataset.mountedWs === key) return;
+            wsHost.dataset.mountedWs = key;
             clear(wsHost);
             const loading = el('div', { class: 'ws-loading' }, [
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=13', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=14', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 

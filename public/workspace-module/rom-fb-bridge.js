@@ -18,7 +18,7 @@ const firebaseConfig = {
 
 const PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=13';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=14';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -183,12 +183,15 @@ async function boot() {
       if (snap.exists()) {
         applyKeys(snap.data().keys);
       } else {
-        // First time on this workspace doc. Migrate the legacy global doc once so
-        // existing apps/tiles aren't lost; otherwise start this workspace fresh.
+        // First time on this workspace doc. Migrate the legacy global doc ONCE
+        // (into whichever workspace loads first), then delete it so every other
+        // workspace starts empty and stays isolated — installing an app in one
+        // workspace no longer makes it appear in all of them.
         const legacy = await getDoc(legacyRef);
         if (legacy.exists() && Object.keys(legacy.data().keys || {}).length) {
           applyKeys(legacy.data().keys);
           await setDoc(ref, { keys: legacy.data().keys, updatedAt: serverTimestamp() });
+          try { await deleteDoc(legacyRef); } catch (e) { /* best effort */ }
         } else {
           clearLocal(); // don't inherit another workspace's data from this browser
         }
