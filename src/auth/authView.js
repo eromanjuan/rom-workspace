@@ -3,7 +3,7 @@
 // Surname, email, a unique username (live availability check), and a password
 // with a strength meter + confirm field. Inline validation throughout.
 import { el, clear, icon, toast } from '../ui/dom.js';
-import { signUp, logIn, sendPasswordReset } from './auth.js';
+import { signUp, logIn, sendPasswordReset, setAuthPersistence, signInWithGoogle, signInWithFacebook } from './auth.js';
 import { checkPassword, passwordStrength } from './passwordPolicy.js';
 import { isUsernameAvailable, usernameFormatError } from '../workspaces/data.js';
 
@@ -103,6 +103,34 @@ export function renderAuth(root) {
       refreshPass();
     }
 
+    // ---------- remember me + social ----------
+    const remember = el('input', { type: 'checkbox', id: 'au-remember', checked: 'checked' });
+    const rememberRow = el('div', { class: 'auth__row' }, [
+      el('label', { class: 'auth__remember', for: 'au-remember' }, [remember, el('span', {}, 'Remember me')]),
+      forgotLink(email),
+    ]);
+
+    async function doSocial(fn, btn) {
+      const orig = btn.innerHTML;
+      btn.disabled = true; btn.style.opacity = '0.7';
+      try {
+        await setAuthPersistence(remember.checked);
+        await fn();
+        // onAuthStateChanged in main.js takes over.
+      } catch (err) {
+        toast(friendly(err), 'error');
+        btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = orig;
+      }
+    }
+    const gBtn = socialBtn('google', 'brand-google', 'Continue with Google');
+    const fBtn = socialBtn('facebook', 'brand-facebook', 'Continue with Facebook');
+    gBtn.addEventListener('click', () => doSocial(signInWithGoogle, gBtn));
+    fBtn.addEventListener('click', () => doSocial(signInWithFacebook, fBtn));
+    const social = el('div', { class: 'auth__social' }, [
+      el('div', { class: 'auth__divider' }, el('span', {}, 'or')),
+      gBtn, fBtn,
+    ]);
+
     // ---------- submit ----------
     const submit = el('button', { class: 'btn btn--primary auth__submit', type: 'submit' }, isSignup ? 'Create account' : 'Log in');
 
@@ -127,6 +155,7 @@ export function renderAuth(root) {
         submit.innerHTML = '';
         submit.append(el('span', { class: 'spinner spinner--xs' }), ' Please wait…');
         try {
+          await setAuthPersistence(remember.checked);
           if (isSignup) {
             await signUp({ firstName: firstName.value.trim(), lastName: lastName.value.trim(), username: username.value.trim(), email: email.value.trim(), password: pass.value });
           } else {
@@ -153,13 +182,15 @@ export function renderAuth(root) {
 
       isSignup ? field('Username', 'su-username', usernameControl(username), userHint) : null,
 
-      field('Password', 'au-pass', passwordControl(pass), isSignup ? null : forgot(email)),
+      field('Password', 'au-pass', passwordControl(pass), null),
       isSignup ? meterRow : null,
       isSignup ? reqList : null,
 
       isSignup ? field('Confirm password', 'su-confirm', passwordControl(confirm), confirmHint) : null,
 
+      isSignup ? null : rememberRow,
       submit,
+      social,
     ]);
 
     const card = el('div', { class: 'auth__card' }, [
@@ -215,8 +246,8 @@ function hint(forId, text) {
   return el('div', { class: 'field__hint', id: `${forId}-hint`, 'aria-live': 'polite' }, text);
 }
 
-// "Forgot password?" affordance shown under the login password field.
-function forgot(emailInput) {
+// "Forgot password?" link (sends a reset email to the typed address).
+function forgotLink(emailInput) {
   const link = el('button', { class: 'field__link', type: 'button' }, 'Forgot password?');
   link.addEventListener('click', async () => {
     const email = emailInput.value.trim();
@@ -224,7 +255,12 @@ function forgot(emailInput) {
     try { await sendPasswordReset(email); toast('Password reset link sent — check your email.', 'success'); }
     catch (err) { toast(friendly(err), 'error'); }
   });
-  return el('div', { class: 'field__hint field__hint--right' }, link);
+  return link;
+}
+
+// A social sign-in button, e.g. socialBtn('google', 'brand-google', 'Continue with Google').
+function socialBtn(kind, iconName, label) {
+  return el('button', { class: `auth__social-btn auth__social-btn--${kind}`, type: 'button' }, [icon(iconName), el('span', {}, label)]);
 }
 
 function friendly(err) {
@@ -235,6 +271,12 @@ function friendly(err) {
   if (code.includes('weak-password')) return 'Password must be at least 8 characters.';
   if (code.includes('invalid-email')) return 'That email address looks invalid.';
   if (code.includes('too-many-requests')) return 'Too many attempts — please wait a moment and try again.';
+  // social / popup
+  if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) return 'Sign-in was cancelled.';
+  if (code.includes('popup-blocked')) return 'Your browser blocked the popup — allow popups for this site and try again.';
+  if (code.includes('account-exists-with-different-credential')) return 'An account already exists with this email using a different sign-in method. Log in that way first.';
+  if (code.includes('operation-not-allowed')) return "This sign-in method isn't enabled yet (Firebase Console → Authentication → Sign-in method).";
+  if (code.includes('unauthorized-domain')) return 'This domain is not authorized in Firebase (Authentication → Settings → Authorized domains).';
   if (code.includes('configuration') || code.includes('api-key')) return 'Firebase is not configured yet — check your .env.local and enable Email/Password auth.';
   return err?.message || 'Something went wrong.';
 }

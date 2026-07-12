@@ -12,6 +12,12 @@ import {
   reauthenticateWithCredential,
   verifyBeforeUpdateEmail,
   sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase.js';
@@ -69,6 +75,35 @@ export async function logIn({ email, password }) {
   const cred = await signInWithEmailAndPassword(auth, email, password);
   await ensureProfile(cred.user);
   return cred.user;
+}
+
+// "Remember me": local persistence survives browser restarts; session
+// persistence is cleared when the tab/window closes. Call before signing in.
+export async function setAuthPersistence(remember) {
+  try { await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence); }
+  catch { /* non-fatal — keep the default persistence */ }
+}
+
+// Social sign-in (popup). Works once the provider is enabled in the Firebase
+// Console (Authentication → Sign-in method) and the domain is authorized.
+async function socialSignIn(provider) {
+  const cred = await signInWithPopup(auth, provider);
+  const u = cred.user;
+  const dn = (u.displayName || '').trim();
+  await ensureProfile(u, {
+    displayName: dn || (u.email ? u.email.split('@')[0] : 'User'),
+    firstName: dn.split(/\s+/)[0] || '',
+    lastName: dn.split(/\s+/).slice(1).join(' ') || '',
+  });
+  return u;
+}
+export function signInWithGoogle() {
+  const p = new GoogleAuthProvider();
+  p.setCustomParameters({ prompt: 'select_account' });
+  return socialSignIn(p);
+}
+export function signInWithFacebook() {
+  return socialSignIn(new FacebookAuthProvider());
 }
 
 export function logOut() {

@@ -344,16 +344,45 @@ function openCreateWorkspaceModal(user, onDone) {
     }
   }
   search.addEventListener('input', drawGrid);
+  // Color row: preset swatches + a "+" that opens a custom-color POPOVER which
+  // stays open while you pick and closes only when you click outside it.
   const swatches = el('div', { class: 'color-row' });
-  const custom = el('input', { type: 'color', class: 'color-custom', value: state.color });
+  let pop = null;
+  function onDocDown(e) { if (pop && !pop.contains(e.target) && !e.target.closest('.swatch--custom')) closePop(); }
+  function closePop() { if (pop) { pop.remove(); pop = null; document.removeEventListener('mousedown', onDocDown); } }
+  function setColor(c) { state.color = c; refreshHeader(); drawSwatches(); }
+  function openPop(anchor) {
+    const isCustom = !APP_COLORS.includes(state.color);
+    const native = el('input', { type: 'color', class: 'color-pop-native', value: isCustom ? state.color : '#5b8cff' });
+    const hex = el('input', { class: 'input input--sm color-pop-hex', value: state.color, maxlength: '7', spellcheck: 'false' });
+    native.addEventListener('input', () => { hex.value = native.value; state.color = native.value; refreshHeader(); });
+    hex.addEventListener('input', () => { const v = hex.value.trim(); if (/^#[0-9a-fA-F]{6}$/.test(v)) { native.value = v; state.color = v; refreshHeader(); } });
+    pop = el('div', { class: 'color-popover' }, [
+      el('div', { class: 'color-pop-title' }, 'Custom color'),
+      el('div', { class: 'color-pop-row' }, [native, hex]),
+      el('div', { class: 'color-pop-foot' }, el('button', { class: 'btn btn--primary btn--sm', type: 'button', onclick: () => { drawSwatches(); closePop(); } }, 'Done')),
+    ]);
+    anchor.append(pop);
+    setTimeout(() => document.addEventListener('mousedown', onDocDown), 0);
+  }
   function drawSwatches() {
     clear(swatches);
     for (const c of APP_COLORS) {
-      swatches.append(el('button', { class: `swatch ${c === state.color ? 'swatch--active' : ''}`, type: 'button', style: `background:${c}`, onclick: () => { state.color = c; custom.value = c; drawSwatches(); refreshHeader(); } }));
+      swatches.append(el('button', { class: `swatch ${c === state.color ? 'swatch--active' : ''}`, type: 'button', style: `background:${c}`, onclick: () => setColor(c) }));
     }
-    swatches.append(el('label', { class: 'swatch swatch--custom', title: 'Custom color' }, [icon('plus'), custom]));
+    const isCustom = !APP_COLORS.includes(state.color);
+    // A positioned wrapper so the popover is a SIBLING of the trigger button
+    // (inputs inside a <button> would be invalid + steal clicks).
+    const wrap = el('span', { class: 'swatch-custom-wrap' });
+    const trigger = el('button', {
+      class: `swatch swatch--custom ${isCustom ? 'swatch--active' : ''}`, type: 'button', title: 'Custom color',
+      ...(isCustom ? { style: `background:${state.color}` } : {}),
+    }, isCustom ? null : icon('plus'));
+    trigger.addEventListener('click', () => { if (pop) closePop(); else openPop(wrap); });
+    wrap.append(trigger);
+    if (pop) wrap.append(pop); // keep an open popover attached across redraws
+    swatches.append(wrap);
   }
-  custom.addEventListener('input', () => { state.color = custom.value; drawSwatches(); refreshHeader(); });
   drawGrid(); drawSwatches();
   iconPanel.append(el('label', { class: 'form-label' }, 'Icon'), search, grid, el('label', { class: 'form-label' }, 'Icon color'), swatches);
 

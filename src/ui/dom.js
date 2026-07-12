@@ -64,7 +64,10 @@ export function openModal({ title, iconName, iconColor, wide, onClose } = {}) {
     el('button', { class: 'btn wb-modal-close-btn', onclick: close }, 'Close'),
   ]);
   const card = el('div', { class: `modal-card${wide ? ' modal-card--wide' : ''}` }, [header, body]);
-  const overlay = el('div', { class: 'modal-overlay', onclick: (e) => { if (e.target === overlay) close(); } }, [card]);
+  // Do NOT dismiss on a backdrop click — these modals hold form input, and an
+  // accidental outside click would lose it. Close via the Close/Cancel button or
+  // the Escape key only.
+  const overlay = el('div', { class: 'modal-overlay' }, [card]);
   function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);
