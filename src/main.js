@@ -111,8 +111,11 @@ if (window.top !== window.self) {
         app.append(shell.root);
         const content = shell.content;
         const wsHost = shell.wsHost;
-        // Let the embedded module navigate ROM to a user profile (go is hoisted).
-        navigateToUser = (uid) => go('user', uid);
+        // Open a user's profile — your own name goes to your editable profile,
+        // anyone else's to their public profile view. (go is hoisted.)
+        const openUserProfile = (uid) => { if (uid && uid === user.uid) go('profile'); else go('user', uid); };
+        // Let the embedded module navigate ROM to a user profile.
+        navigateToUser = openUserProfile;
         // Notification bell: live badge + panel; navigates to where each was fired.
         if (notifCleanup) notifCleanup();
         notifCleanup = mountNotifications(shell.bell, user, { onNavigate: (view, arg) => go(view, arg) });
@@ -235,15 +238,15 @@ if (window.top !== window.self) {
             clear(content);
             content.style.padding = '';
             if (view === 'feed') {
-                viewUnsub = renderFeed(content, user, { onOpenUser: (uid) => go('user', uid) });
+                viewUnsub = renderFeed(content, user, { onOpenUser: openUserProfile });
             } else if (view === 'profile') {
                 viewUnsub = renderProfile(content, user);
             } else if (view === 'search') {
-                viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: (uid) => go('user', uid), onOpenWorkspace: () => go('workspace') });
+                viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace') });
             } else if (view === 'user') {
-                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: (uid) => go('user', uid) });
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile });
             } else if (view === 'settings') {
-                renderSettings(content, user, { onOpenWorkspace: () => go('workspace') });
+                renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
             } else if (view === 'files') {
                 renderFiles(content, user);
             } else if (view === 'calendar') {

@@ -14,6 +14,7 @@ import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui
 import { displayNameOf } from '../auth/auth.js';
 import { notify } from '../workspaces/data.js';
 import { renderWidgetsPanel } from './widgets.js';
+import { loadMentionUsers, attachMentionAutocomplete, extractMentions, renderBodyWithMentions } from './feedMentions.js';
 
 export function renderFeed(root, user, opts = {}) {
   clear(root);
@@ -21,8 +22,12 @@ export function renderFeed(root, user, opts = {}) {
 
   const composerText = el('textarea', {
     class: 'composer__text', rows: '3',
-    placeholder: `What's on your mind, ${displayNameOf(user)}?`,
+    placeholder: `What's on your mind, ${displayNameOf(user)}? Use @ to mention someone.`,
   });
+  // @mention typeahead over all users.
+  let mentionUsers = [];
+  loadMentionUsers().then((u) => { mentionUsers = u; });
+  attachMentionAutocomplete(composerText, () => mentionUsers);
 
   const postBtn = el('button', { class: 'btn btn--primary' }, 'Post');
   const composer = el('div', { class: 'composer card' }, [
@@ -35,15 +40,24 @@ export function renderFeed(root, user, opts = {}) {
     if (!text) return;
     postBtn.disabled = true;
     try {
+      const mentions = extractMentions(text, mentionUsers);
       await addDoc(collection(db, 'posts'), {
         authorId: user.uid,
         authorName: displayNameOf(user),
         text,
+        mentions,
         likes: [],
         comments: [],
         hidden: false,
         createdAt: serverTimestamp(),
       });
+      // Notify everyone mentioned (except yourself).
+      mentions.filter((m) => m.uid && m.uid !== user.uid).forEach((m) => notify(m.uid, {
+        type: 'mention',
+        title: `${displayNameOf(user)} mentioned you in a post`,
+        body: text.slice(0, 80), actorId: user.uid, actorName: displayNameOf(user),
+        link: { view: 'feed' },
+      }));
       composerText.value = '';
     } catch (err) {
       toast(err.message || 'Could not post.', 'error');
@@ -111,7 +125,12 @@ export function postCard(d, user, ui) {
     ? el('button', { class: 'post__author post__author--link', onclick: () => openUser(p.authorId) }, p.authorName || 'Someone')
     : el('span', { class: 'post__author' }, p.authorName || 'Someone');
 
-  const body = el('div', { class: 'post__body', html: escapeHtml(p.text).replace(/\n/g, '<br>') });
+  const body = el('div', { class: 'post__body', html: renderBodyWithMentions(p.text, p.mentions) });
+  // Clicking a highlighted @mention opens that user's profile.
+  if (openUser) body.addEventListener('click', (e) => {
+    const a = e.target.closest('.mention-link[data-uid]');
+    if (a) { e.preventDefault(); openUser(a.dataset.uid); }
+  });
 
   const startEdit = () => {
     const ta = el('textarea', { class: 'composer__text', rows: '3' });

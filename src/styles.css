@@ -918,6 +918,33 @@ select.input { cursor: pointer; }
 .notif-time { font-size: 11px; margin-top: 3px; }
 .notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
 
+/* @mention typeahead (feed composer) + highlighted mentions in posts */
+.mention-pop {
+  background: var(--surface, #12161d); border: 1px solid var(--border, #232a34);
+  border-radius: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, .45);
+  padding: 4px; max-height: 260px; overflow-y: auto;
+}
+.mention-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 7px 9px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--text); cursor: pointer;
+}
+.mention-item.active, .mention-item:hover { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.mention-av {
+  flex: 0 0 auto; width: 28px; height: 28px; border-radius: 999px;
+  display: inline-grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--primary);
+}
+.mention-meta { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.mention-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-handle { font-size: 11px; color: var(--muted); }
+.mention-link {
+  color: var(--primary); font-weight: 600; cursor: pointer;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 5px; padding: 0 3px; text-decoration: none;
+}
+.mention-link:hover { text-decoration: underline; }
+
 /* Profile visibility settings */
 .vis-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; cursor: pointer; }
 .vis-check { margin-top: 3px; width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--primary); }
