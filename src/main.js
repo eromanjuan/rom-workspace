@@ -13,7 +13,7 @@ import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
 import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
-import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace } from './workspaces/data.js';
+import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
@@ -53,6 +53,31 @@ if (window.top !== window.self) {
     window.addEventListener('message', (e) => {
         if (e.origin === location.origin && e.data && e.data.type === 'rom-open-user' && e.data.uid && navigateToUser) navigateToUser(e.data.uid);
     });
+
+    // --- URL routing -------------------------------------------------------
+    // Each view maps to a real path (/feed, /profile, /workspace/<name>, …) so
+    // links are shareable and the browser back/forward buttons work. routeTo is
+    // wired to go() by renderShell; one popstate listener replays history moves.
+    const slugify = (s) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    function viewToPath(view, arg) {
+        switch (view) {
+            case 'workspace': return arg ? `/workspace/${arg}` : '/workspace';
+            case 'user': return arg ? `/user/${arg}` : '/user';
+            case 'search': return arg ? `/search/${encodeURIComponent(arg)}` : '/search';
+            case 'feed': case 'profile': case 'files': case 'calendar':
+            case 'checklist': case 'notes': case 'settings': return `/${view}`;
+            default: return '/feed';
+        }
+    }
+    function parsePath() {
+        const parts = location.pathname.split('/').filter(Boolean);
+        const seg0 = parts[0] || 'feed';
+        const arg = parts[1] ? decodeURIComponent(parts[1]) : null;
+        if (!validViews.includes(seg0) && !['search', 'user'].includes(seg0)) return { view: 'feed', arg: null };
+        return { view: seg0, arg };
+    }
+    let routeTo = null;
+    window.addEventListener('popstate', () => { const r = parsePath(); if (routeTo) routeTo(r.view, r.arg, { fromPop: true }); });
 
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
@@ -98,18 +123,33 @@ if (window.top !== window.self) {
 
         // The embedded (quest-hq) Workspace module in a persistent iframe — gated on
         // membership of the user's default workspace. Removed members are blocked.
-        async function mountWorkspace() {
+        async function mountWorkspace(slug) {
             const master = isMaster(user);
-            let wsId = null; let role = null; let wsExists = false;
+            let wsId = null; let role = null; let wsExists = false; let wsDoc = null;
             try {
                 const p = await getUserProfile(user.uid);
                 wsId = p?.currentWorkspaceId || null;
+                // Deep link /workspace/<slug>: switch to that workspace if it's mine.
+                if (slug) {
+                    try {
+                        const mine = await listMyWorkspaces(user.uid);
+                        const match = mine.find((w) => w.id === slug || slugify(w.name) === slug);
+                        if (match && match.id !== wsId) { await setCurrentWorkspace(user.uid, match.id); wsId = match.id; }
+                    } catch { /* ignore */ }
+                }
                 if (wsId) {
                     // The selected workspace may have been deleted — verify it still exists.
-                    wsExists = !!(await getWorkspace(wsId));
+                    wsDoc = await getWorkspace(wsId);
+                    wsExists = !!wsDoc;
                     if (wsExists) role = await getMyRole(wsId, user.uid);
                 }
             } catch { /* ignore */ }
+
+            // Canonicalize the URL to the workspace name (e.g. /workspace/dev-nerds).
+            if (wsDoc) {
+                const canonical = `/workspace/${slugify(wsDoc.name) || wsId}`;
+                if (location.pathname !== canonical) history.replaceState({}, '', canonical);
+            }
 
             // No usable workspace: none selected, or the selected one was deleted.
             // Show a blank state with a Create Workspace button (for everyone).
@@ -171,19 +211,25 @@ if (window.top !== window.self) {
             }
         }
 
-        function go(view, arg = null) {
+        function go(view, arg = null, opts = {}) {
             if (viewUnsub) { viewUnsub(); viewUnsub = null; }
             state.view = view;
             state.wsId = view === 'workspace' ? arg : null;
-            // search + user profile are transient — don't persist/restore them.
+            // search + user profile don't highlight a sidebar item.
             const navView = (view === 'search' || view === 'user') ? 'feed' : view;
-            localStorage.setItem(VIEW_KEY, navView); // remember across refreshes
             shell.setActive(navView);
+
+            // Reflect the view in the URL (skip when replaying back/forward).
+            if (!opts.fromPop) {
+                const path = viewToPath(view, arg);
+                if (opts.replace || location.pathname === path) history.replaceState({}, '', path);
+                else history.pushState({}, '', path);
+            }
 
             const isWorkspace = view === 'workspace';
             content.style.display = isWorkspace ? 'none' : '';
             wsHost.style.display = isWorkspace ? 'block' : 'none';
-            if (isWorkspace) { mountWorkspace(); return; }
+            if (isWorkspace) { mountWorkspace(arg); return; }
 
             clear(content);
             content.style.padding = '';
@@ -210,7 +256,10 @@ if (window.top !== window.self) {
             }
         }
 
-        go(state.view, state.wsId);
+        // Navigate to whatever the current URL points at (deep links + refresh).
+        routeTo = go;
+        const initial = parsePath();
+        go(initial.view, initial.arg, { replace: true });
     }
 
     async function tryAcceptInvite(user, inviteId) {
