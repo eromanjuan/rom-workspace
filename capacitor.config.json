@@ -1,0 +1,11 @@
+{
+  "appId": "com.romio.app",
+  "appName": "ROMIO",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

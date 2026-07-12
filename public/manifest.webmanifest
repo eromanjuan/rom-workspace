@@ -1,0 +1,14 @@
+{
+  "name": "ROMIO",
+  "short_name": "ROMIO",
+  "description": "ROMIO — social feed, workspaces, chat and an app builder.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
