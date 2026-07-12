@@ -1,0 +1,43 @@
+{
+  "rom_app": true,
+  "version": 1,
+  "name": "Sprint Task Board",
+  "description": "Plan and run sprints: tasks, story points, subtasks and progress.",
+  "type": "Tasks",
+  "icon": "checklist",
+  "color": "#7c3aed",
+  "fields": [
+    { "key": "task", "label": "Task", "type": "text", "config": { "placeholder": "What needs doing?" } },
+    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
+      { "label": "To Do", "color": "#6b7280" },
+      { "label": "Doing", "color": "#2563eb" },
+      { "label": "Blocked", "color": "#dc2626" },
+      { "label": "Done", "color": "#16a34a" }
+    ] } },
+    { "key": "sprint", "label": "Sprint", "type": "category", "config": { "options": [
+      { "label": "Backlog", "color": "#6b7280" },
+      { "label": "Sprint 1", "color": "#2563eb" },
+      { "label": "Sprint 2", "color": "#7c3aed" },
+      { "label": "Sprint 3", "color": "#0891b2" }
+    ] } },
+    { "key": "priority", "label": "Priority", "type": "category", "config": { "options": [
+      { "label": "Low", "color": "#6b7280" },
+      { "label": "Medium", "color": "#2563eb" },
+      { "label": "High", "color": "#d97706" },
+      { "label": "Urgent", "color": "#dc2626" }
+    ] } },
+    { "key": "story_points", "label": "Story points", "type": "number", "config": { "unit": "pts" } },
+    { "key": "assignee", "label": "Assignee", "type": "user", "config": {} },
+    { "key": "due_date", "label": "Due date", "type": "date", "config": {} },
+    { "key": "progress", "label": "Progress", "type": "progress", "config": {} },
+    { "key": "subtasks", "label": "Subtasks", "type": "checklist", "config": { "steps": ["Design", "Build", "Write tests", "Code review", "Deploy"] } }
+  ],
+  "reports": [
+    { "id": "r_status", "title": "Tasks by status", "groupBy": "status", "metric": "count", "sumField": "" },
+    { "id": "r_points", "title": "Story points by sprint", "groupBy": "sprint", "metric": "sum", "sumField": "story_points" },
+    { "id": "r_sprint", "title": "Tasks by sprint", "groupBy": "sprint", "metric": "count", "sumField": "" }
+  ],
+  "automations": [
+    { "id": "a_block", "trigger": { "fieldKey": "status", "op": "==", "value": "Blocked" }, "actions": [ { "type": "notify", "message": "Task blocked: {Task}" } ] }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "rom_app": true,
+  "version": 1,
+  "name": "Feature Backlog",
+  "description": "Prioritize product ideas — showcases the new field types (auto-number, tags, rating, rich text, days-between, calculation).",
+  "type": "Records",
+  "icon": "bulb",
+  "color": "#7c3aed",
+  "fields": [
+    { "key": "ref", "label": "Ref", "type": "autonumber", "config": { "prefix": "FR-", "pad": 3 } },
+    { "key": "title", "label": "Title", "type": "text", "config": { "placeholder": "Feature idea" } },
+    { "key": "details", "label": "Details", "type": "richtext", "config": {} },
+    { "key": "tags", "label": "Tags", "type": "multiselect", "config": { "options": [
+      { "label": "Frontend", "color": "#2563eb" },
+      { "label": "Backend", "color": "#0d9488" },
+      { "label": "API", "color": "#7c3aed" },
+      { "label": "UX", "color": "#db2777" },
+      { "label": "Infra", "color": "#6b7280" },
+      { "label": "Docs", "color": "#d97706" }
+    ] } },
+    { "key": "impact", "label": "Impact", "type": "rating", "config": { "max": 5 } },
+    { "key": "effort", "label": "Effort", "type": "number", "config": { "unit": "days" } },
+    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
+      { "label": "Idea", "color": "#6b7280" },
+      { "label": "Planned", "color": "#2563eb" },
+      { "label": "Building", "color": "#d97706" },
+      { "label": "Shipped", "color": "#16a34a" },
+      { "label": "Rejected", "color": "#dc2626" }
+    ] } },
+    { "key": "requested", "label": "Requested", "type": "date", "config": {} },
+    { "key": "target", "label": "Target", "type": "date", "config": {} },
+    { "key": "lead_time", "label": "Lead time", "type": "datediff", "config": { "startKey": "requested", "endKey": "target" } },
+    { "key": "score", "label": "Score", "type": "calculation", "config": { "formula": "{Impact} * 10 - {Effort}" } }
+  ],
+  "reports": [
+    { "id": "r_status", "title": "Features by status", "groupBy": "status", "metric": "count", "sumField": "" },
+    { "id": "r_score", "title": "Total score by status", "groupBy": "status", "metric": "sum", "sumField": "score" },
+    { "id": "r_effort", "title": "Effort (days) by status", "groupBy": "status", "metric": "sum", "sumField": "effort" }
+  ],
+  "automations": [
+    { "id": "a_ship", "trigger": { "fieldKey": "status", "op": "==", "value": "Shipped" }, "actions": [ { "type": "notify", "message": "Shipped: {Title}" } ] }
+  ]
+}

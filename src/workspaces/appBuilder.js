@@ -64,12 +64,17 @@ export const FIELD_TYPES = {
   phone: { label: 'Phone Number', icon: 'phone', color: '#16a34a', desc: 'Phone number' },
   location: { label: 'Location', icon: 'map-pin', color: '#dc2626', desc: 'Address or place' },
   yesno: { label: 'Yes / No', icon: 'checkbox', color: '#0d9488', desc: 'True or false toggle' },
+  multiselect: { label: 'Multi-select / Tags', icon: 'tags', color: '#d97706', desc: 'Pick several labels' },
+  rating: { label: 'Rating', icon: 'star', color: '#d97706', desc: '1–5 star rating' },
+  richtext: { label: 'Rich Text', icon: 'file-text', color: '#2563eb', desc: 'Formatted long text (bold, lists…)' },
+  autonumber: { label: 'Auto-number / ID', icon: 'hash', color: '#6b7280', desc: 'Sequential ID like TASK-014' },
+  datediff: { label: 'Days Between', icon: 'calendar-stats', color: '#7c3aed', desc: 'Days between two date fields' },
+  calculation: { label: 'Calculation', icon: 'math-function', color: '#7c3aed', desc: 'Formula over number fields' },
   relationship: { label: 'Relationship', icon: 'link', color: '#0891b2', desc: 'Link to items in another app', soon: true },
-  file: { label: 'File Attachment', icon: 'paperclip', color: '#6b7280', desc: 'Attach documents', soon: true },
-  image: { label: 'Image', icon: 'photo', color: '#0891b2', desc: 'Circular picture, like an avatar', soon: true },
-  calculation: { label: 'Calculation', icon: 'math-function', color: '#7c3aed', desc: 'Formula over number fields', soon: true },
+  file: { label: 'File Attachment', icon: 'paperclip', color: '#6b7280', desc: 'Attach documents (needs Storage)', soon: true },
+  image: { label: 'Image', icon: 'photo', color: '#0891b2', desc: 'Picture / avatar (needs Storage)', soon: true },
 };
-export const FIELD_ORDER = ['text', 'textarea', 'number', 'money', 'duration', 'progress', 'checklist', 'date', 'category', 'status', 'user', 'url', 'email', 'phone', 'location', 'yesno', 'relationship', 'file', 'image', 'calculation'];
+export const FIELD_ORDER = ['text', 'textarea', 'richtext', 'number', 'money', 'duration', 'progress', 'rating', 'checklist', 'date', 'datediff', 'category', 'multiselect', 'status', 'user', 'url', 'email', 'phone', 'location', 'yesno', 'autonumber', 'calculation', 'relationship', 'file', 'image'];
 
 const fieldMeta = (id) => FIELD_TYPES[id] ? { id, ...FIELD_TYPES[id] } : { id: 'text', ...FIELD_TYPES.text };
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'field';
@@ -398,7 +403,9 @@ function renderFields(panel, wsId, app, writer, refreshApp) {
 // One-line summary of a field's config for the field list.
 function fieldSummary(f, meta) {
   const c = f.config || {};
-  if ((f.type === 'category' || f.type === 'status') && c.options?.length) return `${meta.label} · ${c.options.map((o) => o.label).join(', ')}`;
+  if ((f.type === 'category' || f.type === 'status' || f.type === 'multiselect') && c.options?.length) return `${meta.label} · ${c.options.map((o) => o.label).join(', ')}`;
+  if (f.type === 'calculation' && c.formula) return `${meta.label} · ${c.formula}`;
+  if (f.type === 'autonumber') return `${meta.label} · ${c.prefix || ''}###`;
   if (f.type === 'money' && c.currency) return `${meta.label} · ${c.currency}`;
   if (f.type === 'number' && c.unit) return `${meta.label} · ${c.unit}`;
   if (f.type === 'checklist' && c.steps?.length) return `${meta.label} · ${c.steps.length} steps`;
@@ -437,6 +444,8 @@ async function renderItems(panel, wsId, user, app, writer) {
       e.preventDefault();
       const values = {};
       for (const f of fields) values[f.key] = readField(f, inputs[f.key]);
+      // Compute derived fields (calculation / days-between / auto-number) first.
+      await computeDerivedFields(wsId, app, fields, values);
       // Run automations: set-field actions mutate values; notify actions post to the feed.
       const notes = runAutomations(app, values);
       addBtn.disabled = true;
@@ -501,6 +510,35 @@ function fieldInput(f) {
       if (!(c.steps || []).length) box.append(el('span', { class: 'muted' }, 'No steps configured.'));
       return box;
     }
+    case 'multiselect': {
+      const box = el('div', { class: 'multiselect-input' });
+      for (const o of (c.options || [])) box.append(el('label', { class: 'ms-opt' }, [el('input', { type: 'checkbox', value: o.label }), ' ' + o.label]));
+      if (!(c.options || []).length) box.append(el('span', { class: 'muted' }, 'No options.'));
+      return box;
+    }
+    case 'rating': {
+      const max = Math.min(10, Math.max(3, parseInt(c.max, 10) || 5));
+      const wrap = el('div', { class: 'rating-input' }); wrap.dataset.val = '0';
+      const paint = () => { const v = Number(wrap.dataset.val); [...wrap.children].forEach((s, idx) => s.classList.toggle('is-on', idx < v)); };
+      for (let i = 1; i <= max; i += 1) {
+        const star = el('button', { class: 'rating-star', type: 'button' }, icon('star-filled'));
+        star.addEventListener('click', () => { const cur = Number(wrap.dataset.val); wrap.dataset.val = String(cur === i ? i - 1 : i); paint(); });
+        wrap.append(star);
+      }
+      paint();
+      return wrap;
+    }
+    case 'richtext': {
+      const wrap = el('div', { class: 'richtext-input' });
+      const ed = el('div', { class: 'richtext-ed input', contenteditable: 'true' });
+      const btn = (ic, cmd) => { const b = el('button', { class: 'richtext-btn', type: 'button', onmousedown: (e) => { e.preventDefault(); document.execCommand(cmd); ed.focus(); } }, icon(ic)); return b; };
+      wrap.append(el('div', { class: 'richtext-bar' }, [btn('bold', 'bold'), btn('italic', 'italic'), btn('underline', 'underline'), btn('list', 'insertUnorderedList')]), ed);
+      wrap._ed = ed;
+      return wrap;
+    }
+    case 'autonumber': return el('input', { class: 'input', disabled: 'disabled', placeholder: 'Assigned automatically' });
+    case 'datediff':
+    case 'calculation': return el('div', { class: 'input computed-field muted' }, 'Computed when you save');
     default: return el('input', { class: 'input', type: 'text', placeholder: c.placeholder || f.label });
   }
 }
@@ -512,7 +550,44 @@ function readField(f, inp) {
     const checks = [...inp.querySelectorAll('input[type=checkbox]')];
     return steps.map((s, i) => ({ step: s, done: !!checks[i]?.checked }));
   }
+  if (f.type === 'multiselect') return [...inp.querySelectorAll('input:checked')].map((cb) => cb.value);
+  if (f.type === 'rating') return Number(inp.dataset.val) || 0;
+  if (f.type === 'richtext') return inp._ed ? inp._ed.innerHTML : '';
+  // derived fields are computed after all inputs are read (see computeDerivedFields)
+  if (f.type === 'autonumber' || f.type === 'datediff' || f.type === 'calculation') return '';
   return inp.value;
+}
+
+// Derived fields are computed from the other values at save time.
+async function computeDerivedFields(wsId, app, fields, values) {
+  let count = null; // records count, fetched once for auto-number
+  for (const f of fields) {
+    if (f.type === 'calculation') {
+      values[f.key] = evalFormula(f.config?.formula || '', app, values);
+    } else if (f.type === 'datediff') {
+      const a = values[f.config?.startKey];
+      const b = values[f.config?.endKey];
+      if (a && b) { const d = Math.round((new Date(b) - new Date(a)) / 86400000); values[f.key] = Number.isNaN(d) ? '' : d; }
+      else values[f.key] = '';
+    } else if (f.type === 'autonumber') {
+      if (count === null) { try { count = (await listRecords(wsId, app.id)).length; } catch { count = 0; } }
+      const pad = Math.max(0, parseInt(f.config?.pad, 10) || 0);
+      values[f.key] = `${f.config?.prefix || ''}${String(count + 1).padStart(pad, '0')}`;
+    }
+  }
+}
+
+// Safely evaluate a formula like "{Hours} * {Rate}" against numeric field values.
+function evalFormula(formula, app, values) {
+  if (!formula) return '';
+  const expr = formula.replace(/\{([^}]+)\}/g, (m, name) => {
+    const key = name.trim();
+    const f = (app.fields || []).find((x) => x.label.toLowerCase() === key.toLowerCase() || x.key === key);
+    return f ? String(parseFloat(values[f.key]) || 0) : '0';
+  });
+  if (!/^[-+*/.()\d\s]*$/.test(expr)) return '';
+  try { const r = Function(`"use strict";return (${expr})`)(); return (typeof r === 'number' && isFinite(r)) ? Math.round(r * 100) / 100 : ''; }
+  catch { return ''; }
 }
 
 function fieldDisplay(f, value) {
@@ -523,7 +598,20 @@ function fieldDisplay(f, value) {
     const done = arr.filter((s) => s.done).length;
     return el('span', {}, `${done}/${arr.length} · ${Math.round((done / arr.length) * 100)}%`);
   }
+  if (f.type === 'multiselect') {
+    const arr = Array.isArray(value) ? value : [];
+    if (!arr.length) return el('span', { class: 'muted' }, '—');
+    return el('span', { class: 'ms-pills' }, arr.map((v) => { const o = (c.options || []).find((x) => x.label === v); return el('span', { class: 'ms-pill', style: o ? `background:${o.color}22;color:${o.color}` : '' }, v); }));
+  }
+  if (f.type === 'rating') {
+    const max = Math.min(10, Math.max(3, parseInt(c.max, 10) || 5));
+    const v = Number(value) || 0;
+    return el('span', { class: 'rating-show' }, Array.from({ length: max }, (_, i) => icon(i < v ? 'star-filled' : 'star')));
+  }
   if (value == null || value === '') return el('span', { class: 'muted' }, '—');
+  if (f.type === 'richtext') return el('div', { class: 'richtext-show', html: String(value) });
+  if (f.type === 'datediff') return el('span', {}, `${value} days`);
+  if (f.type === 'autonumber' || f.type === 'calculation') return el('span', { class: 'mono' }, String(value));
   if (f.type === 'url') return el('a', { href: value, target: '_blank', rel: 'noopener' }, value);
   if (f.type === 'email') return el('a', { href: `mailto:${value}` }, value);
   if (f.type === 'money') return el('span', {}, `${c.currency || '$'}${value}`);
@@ -538,7 +626,7 @@ function fieldDisplay(f, value) {
 
 /* ============================ Reports ============================ */
 
-const NUMERIC_TYPES = ['number', 'money', 'progress'];
+const NUMERIC_TYPES = ['number', 'money', 'progress', 'rating', 'calculation', 'datediff'];
 const fieldByKey = (app, key) => (app.fields || []).find((f) => f.key === key);
 const uid12 = () => 'r' + Math.abs(Date.now() % 1e9).toString(36) + Math.round(performance.now()).toString(36);
 
@@ -829,6 +917,36 @@ function openFieldModal({ type, field, appFields, onSave }) {
     ta.value = Array.isArray(config.steps) ? config.steps.join('\n') : '';
     cfg.append(el('label', { class: 'form-label' }, ['Default steps ', muted('(one per line)')]), ta);
     readers.push(() => ({ steps: ta.value.split('\n').map((s) => s.trim()).filter(Boolean) }));
+  } else if (type === 'multiselect') {
+    const ed = buildOptionsEditor(config.options?.length ? config.options : [{ label: 'Tag A', color: '#2563eb' }, { label: 'Tag B', color: '#16a34a' }]);
+    cfg.append(el('label', { class: 'form-label' }, 'Options'), ed.el);
+    readers.push(() => ({ options: ed.read() }));
+  } else if (type === 'rating') {
+    const mx = el('input', { class: 'input', type: 'number', min: '3', max: '10', value: config.max || 5, style: 'max-width:120px' });
+    cfg.append(el('label', { class: 'form-label' }, 'Max stars'), mx);
+    readers.push(() => ({ max: Math.min(10, Math.max(3, parseInt(mx.value, 10) || 5)) }));
+  } else if (type === 'autonumber') {
+    const pre = el('input', { class: 'input', value: config.prefix || '', placeholder: 'e.g. TASK-', style: 'max-width:220px' });
+    const pad = el('input', { class: 'input', type: 'number', min: '0', max: '8', value: config.pad ?? 3, style: 'max-width:120px' });
+    cfg.append(el('label', { class: 'form-label' }, ['Prefix ', muted('(optional)')]), pre, el('label', { class: 'form-label' }, 'Zero-pad digits'), pad);
+    readers.push(() => ({ prefix: pre.value, pad: parseInt(pad.value, 10) || 0 }));
+  } else if (type === 'datediff') {
+    const dates = (appFields || []).filter((f) => f.type === 'date');
+    if (!dates.length) { cfg.append(el('p', { class: 'muted' }, 'Add two Date fields first, then configure this field.')); }
+    else {
+      const s = el('select', { class: 'input' }, dates.map((f) => el('option', { value: f.key, ...(config.startKey === f.key ? { selected: 'selected' } : {}) }, f.label)));
+      const e = el('select', { class: 'input' }, dates.map((f) => el('option', { value: f.key, ...(config.endKey === f.key ? { selected: 'selected' } : {}) }, f.label)));
+      cfg.append(el('label', { class: 'form-label' }, 'From date'), s, el('label', { class: 'form-label' }, 'To date'), e);
+      readers.push(() => ({ startKey: s.value, endKey: e.value }));
+    }
+  } else if (type === 'calculation') {
+    const numeric = (appFields || []).filter((f) => ['number', 'money', 'progress', 'rating', 'datediff', 'calculation'].includes(f.type));
+    const ta = el('textarea', { class: 'input', rows: '2', placeholder: '{Hours} * {Rate}', value: config.formula || '' });
+    cfg.append(
+      el('label', { class: 'form-label' }, 'Formula'), ta,
+      el('p', { class: 'muted' }, numeric.length ? `Reference fields with {Field label} and use + - * / ( ). Available: ${numeric.map((f) => f.label).join(', ')}` : 'Add number/money fields first to reference them.'),
+    );
+    readers.push(() => ({ formula: ta.value.trim() }));
   } else {
     cfg.append(el('p', { class: 'muted' }, 'No extra configuration needed for this field type.'));
   }
@@ -839,7 +957,7 @@ function openFieldModal({ type, field, appFields, onSave }) {
     if (!label) return toast('Give the field a label.', 'error');
     const newConfig = {};
     for (const r of readers) Object.assign(newConfig, r());
-    if ((type === 'category' || type === 'status') && !(newConfig.options || []).length) return toast('Add at least one option.', 'error');
+    if ((type === 'category' || type === 'status' || type === 'multiselect') && !(newConfig.options || []).length) return toast('Add at least one option.', 'error');
     onSave({ key: field?.key || slug(label), label, type, config: newConfig });
     close();
   });

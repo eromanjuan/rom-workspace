@@ -1,0 +1,51 @@
+{
+  "rom_app": true,
+  "version": 1,
+  "name": "Bug & Issue Tracker",
+  "description": "Log bugs and feature requests with severity, environment and status.",
+  "type": "Tickets",
+  "icon": "bug",
+  "color": "#dc2626",
+  "fields": [
+    { "key": "title", "label": "Title", "type": "text", "config": { "placeholder": "Short summary of the issue" } },
+    { "key": "description", "label": "Description", "type": "textarea", "config": { "placeholder": "What happened?" } },
+    { "key": "type", "label": "Type", "type": "category", "config": { "options": [
+      { "label": "Bug", "color": "#dc2626" },
+      { "label": "Feature", "color": "#2563eb" },
+      { "label": "Task", "color": "#0d9488" },
+      { "label": "Chore", "color": "#6b7280" }
+    ] } },
+    { "key": "severity", "label": "Severity", "type": "status", "config": { "options": [
+      { "label": "Critical", "color": "#dc2626" },
+      { "label": "High", "color": "#d97706" },
+      { "label": "Medium", "color": "#2563eb" },
+      { "label": "Low", "color": "#6b7280" }
+    ] } },
+    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
+      { "label": "Open", "color": "#6b7280" },
+      { "label": "In Progress", "color": "#2563eb" },
+      { "label": "In Review", "color": "#d97706" },
+      { "label": "Resolved", "color": "#16a34a" },
+      { "label": "Closed", "color": "#4f46e5" }
+    ] } },
+    { "key": "environment", "label": "Environment", "type": "category", "config": { "options": [
+      { "label": "Production", "color": "#dc2626" },
+      { "label": "Staging", "color": "#d97706" },
+      { "label": "Local", "color": "#16a34a" }
+    ] } },
+    { "key": "assignee", "label": "Assignee", "type": "user", "config": {} },
+    { "key": "reported_on", "label": "Reported on", "type": "date", "config": {} },
+    { "key": "estimate_hours", "label": "Estimate (hours)", "type": "number", "config": { "unit": "hrs" } },
+    { "key": "steps", "label": "Steps to reproduce", "type": "textarea", "config": { "placeholder": "1. …\n2. …\n3. …" } },
+    { "key": "link", "label": "Link", "type": "url", "config": { "placeholder": "PR, ticket or reference" } }
+  ],
+  "reports": [
+    { "id": "r_status", "title": "Issues by status", "groupBy": "status", "metric": "count", "sumField": "" },
+    { "id": "r_severity", "title": "Issues by severity", "groupBy": "severity", "metric": "count", "sumField": "" },
+    { "id": "r_type", "title": "Issues by type", "groupBy": "type", "metric": "count", "sumField": "" },
+    { "id": "r_est", "title": "Estimated hours by status", "groupBy": "status", "metric": "sum", "sumField": "estimate_hours" }
+  ],
+  "automations": [
+    { "id": "a_crit", "trigger": { "fieldKey": "severity", "op": "==", "value": "Critical" }, "actions": [ { "type": "notify", "message": "Critical issue reported: {Title}" } ] }
+  ]
+}

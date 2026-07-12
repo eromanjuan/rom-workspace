@@ -1,0 +1,41 @@
+{
+  "rom_app": true,
+  "version": 1,
+  "name": "Time & Deliverables Log",
+  "description": "Log hours and deliverables per project for billing and reporting.",
+  "type": "Records",
+  "icon": "clipboard-check",
+  "color": "#d97706",
+  "fields": [
+    { "key": "summary", "label": "Task summary", "type": "text", "config": { "placeholder": "What did you work on?" } },
+    { "key": "project", "label": "Project", "type": "text", "config": { "placeholder": "Related project" } },
+    { "key": "work_date", "label": "Date", "type": "date", "config": {} },
+    { "key": "hours", "label": "Hours", "type": "number", "config": { "unit": "hrs" } },
+    { "key": "category", "label": "Category", "type": "category", "config": { "options": [
+      { "label": "Development", "color": "#2563eb" },
+      { "label": "Design", "color": "#7c3aed" },
+      { "label": "Meeting", "color": "#6b7280" },
+      { "label": "QA", "color": "#0d9488" },
+      { "label": "Deployment", "color": "#dc2626" },
+      { "label": "Admin", "color": "#d97706" }
+    ] } },
+    { "key": "billable", "label": "Billable", "type": "yesno", "config": {} },
+    { "key": "rate", "label": "Hourly rate", "type": "money", "config": { "currency": "$" } },
+    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
+      { "label": "Draft", "color": "#6b7280" },
+      { "label": "Submitted", "color": "#2563eb" },
+      { "label": "Approved", "color": "#16a34a" },
+      { "label": "Invoiced", "color": "#4f46e5" }
+    ] } },
+    { "key": "deliverable", "label": "Deliverable link", "type": "url", "config": { "placeholder": "Demo, doc or PR" } },
+    { "key": "notes", "label": "Notes", "type": "textarea", "config": { "placeholder": "Optional details" } }
+  ],
+  "reports": [
+    { "id": "r_hours_cat", "title": "Hours by category", "groupBy": "category", "metric": "sum", "sumField": "hours" },
+    { "id": "r_hours_status", "title": "Hours by status", "groupBy": "status", "metric": "sum", "sumField": "hours" },
+    { "id": "r_billable", "title": "Entries by billable", "groupBy": "billable", "metric": "count", "sumField": "" }
+  ],
+  "automations": [
+    { "id": "a_approved", "trigger": { "fieldKey": "status", "op": "==", "value": "Approved" }, "actions": [ { "type": "notify", "message": "Timesheet approved: {Task summary}" } ] }
+  ]
+}
