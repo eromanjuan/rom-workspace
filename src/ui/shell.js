@@ -58,21 +58,31 @@ export function buildShell(user, { onNavigate, onSearch }) {
   // (account card removed — the user's identity/role is shown on the Profile page)
 
   const nav = el('nav', { class: 'sb-nav' });
+  const navBadges = new Map();
   for (const group of NAV_GROUPS) {
     nav.append(el('div', { class: 'sb-group' }, group.title));
     for (const item of group.items) {
+      const badge = el('span', { class: 'sb-badge', style: 'display:none' });
+      navBadges.set(item.id, badge);
       const btn = el('button', {
         class: `sb-item${item.soon ? ' sb-item--soon' : ''}`,
         onclick: () => onNavigate(item.id, item),
       }, [
         icon(item.icon),
-        el('span', {}, item.label),
-        item.soon ? el('span', { class: 'sb-soon' }, 'soon') : null,
+        el('span', { class: 'sb-item-label' }, item.label),
+        item.soon ? el('span', { class: 'sb-soon' }, 'soon') : badge,
       ]);
       navButtons.set(item.id, btn);
       nav.append(btn);
     }
   }
+  // Update a nav item's activity badge (0 hides it).
+  const setNavBadge = (id, count) => {
+    const b = navBadges.get(id);
+    if (!b) return;
+    b.textContent = count > 9 ? '9+' : String(count);
+    b.style.display = count > 0 ? '' : 'none';
+  };
 
   const footAvatar = el('div', { class: 'sb-avatar sb-avatar--sm' }, initials(displayNameOf(user)));
   const foot = el('div', { class: 'sb-foot' }, [
@@ -141,7 +151,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
     applyAvatar(footAvatar, displayNameOf(user), photoURL);
   };
 
-  return { root, content, wsHost, setActive, bell, setAvatar };
+  return { root, content, wsHost, setActive, bell, setAvatar, setNavBadge };
 }
 
 // A simple "coming soon" panel for Phase 2 modules.

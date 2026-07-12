@@ -118,6 +118,7 @@ if (window.top !== window.self) {
         app.append(shell.root);
         const content = shell.content;
         const wsHost = shell.wsHost;
+        let markViewNotifications = null; // set once the bell mounts
         // Open a user's profile — your own name goes to your editable profile,
         // anyone else's to their public profile view. (go is hoisted.)
         const openUserProfile = (uid) => { if (uid && uid === user.uid) go('profile'); else go('user', uid); };
@@ -135,8 +136,18 @@ if (window.top !== window.self) {
         // Let the embedded module navigate ROM to a user profile.
         navigateToUser = openUserProfile;
         // Notification bell: live badge + panel; navigates to where each was fired.
+        // Also drives per-view sidebar activity badges (messages/feed/workspace).
         if (notifCleanup) notifCleanup();
-        notifCleanup = mountNotifications(shell.bell, user, { onNavigate: (view, arg) => go(view, arg) });
+        const navNotif = mountNotifications(shell.bell, user, {
+            onNavigate: (view, arg) => go(view, arg),
+            onCounts: (byView) => {
+                shell.setNavBadge('messages', byView.messages || 0);
+                shell.setNavBadge('feed', byView.feed || 0);
+                shell.setNavBadge('workspace', byView.workspace || 0);
+            },
+        });
+        notifCleanup = navNotif.cleanup;
+        markViewNotifications = navNotif.markViewRead;
         // Load the saved profile photo into the shell avatars + keep them live.
         setShellAvatar = shell.setAvatar;
         getUserProfile(user.uid).then((p) => { if (p?.photoURL) shell.setAvatar(p.photoURL); }).catch(() => {});
@@ -243,6 +254,8 @@ if (window.top !== window.self) {
             // search + user profile don't highlight a sidebar item.
             const navView = (view === 'search' || view === 'user') ? 'feed' : view;
             shell.setActive(navView);
+            // Visiting a view clears its activity badge.
+            if (markViewNotifications && ['feed', 'messages', 'workspace'].includes(navView)) markViewNotifications(navView);
 
             // Reflect the view in the URL (skip when replaying back/forward).
             if (!opts.fromPop) {

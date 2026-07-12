@@ -7,10 +7,11 @@ import { listenNotifications, markNotificationRead, markAllNotificationsRead } f
 const TYPE_ICON = {
   invite: 'mail', joinRequest: 'user-plus', joinApproved: 'check', joinDeclined: 'x',
   memberAdded: 'users', like: 'heart', comment: 'message-circle', newPost: 'note', mention: 'at',
+  message: 'message',
 };
 
 // Wire up the bell element: badge + click-to-open panel. Returns a cleanup fn.
-export function mountNotifications(bell, user, { onNavigate } = {}) {
+export function mountNotifications(bell, user, { onNavigate, onCounts } = {}) {
   const badge = el('span', { class: 'notif-badge', style: 'display:none' });
   bell.append(badge);
   let items = [];
@@ -18,11 +19,25 @@ export function mountNotifications(bell, user, { onNavigate } = {}) {
 
   const unsub = listenNotifications(user.uid, (list) => {
     items = list;
-    const unread = list.filter((n) => !n.read).length;
+    const unreadItems = list.filter((n) => !n.read);
+    const unread = unreadItems.length;
     badge.textContent = unread > 9 ? '9+' : String(unread);
     badge.style.display = unread ? '' : 'none';
+    // Per-target-view counts for the sidebar nav badges.
+    if (onCounts) {
+      const byView = {};
+      for (const n of unreadItems) { const v = n.link && n.link.view; if (v) byView[v] = (byView[v] || 0) + 1; }
+      onCounts(byView);
+    }
     if (panel) renderList();
   });
+
+  // Mark all currently-unread notifications targeting a view as read (called
+  // when the user navigates to that view, so its badge clears).
+  const markViewRead = (view) => {
+    const ids = items.filter((n) => !n.read && n.link && n.link.view === view).map((n) => n.id);
+    if (ids.length) markAllNotificationsRead(user.uid, ids);
+  };
 
   function onDocDown(e) {
     if (panel && !panel.contains(e.target) && !bell.contains(e.target)) closePanel();
@@ -76,5 +91,5 @@ export function mountNotifications(bell, user, { onNavigate } = {}) {
 
   bell.addEventListener('click', (e) => { e.stopPropagation(); openPanel(); });
 
-  return () => { unsub(); closePanel(); badge.remove(); };
+  return { cleanup: () => { unsub(); closePanel(); badge.remove(); }, markViewRead };
 }

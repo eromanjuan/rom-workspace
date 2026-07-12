@@ -2,7 +2,7 @@
 // and workspace group chats live in the same list. New DMs are started by
 // searching people. On mobile, selecting a conversation slides in the thread.
 import { el, clear, icon, toast, timeAgo, openModal } from '../ui/dom.js';
-import { listAllUsers } from '../workspaces/data.js';
+import { listAllUsers, notify } from '../workspaces/data.js';
 import { avatarNode } from '../profile/avatar.js';
 import { listenConversations, listenMessages, sendMessage, getConversation, ensureDirectConversation } from './messagesData.js';
 
@@ -72,7 +72,17 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
     const submit = async () => {
       const t = input.value.trim(); if (!t) return;
       input.value = ''; input.style.height = '';
-      try { await sendMessage(id, user, t); } catch (e) { toast(e.message || 'Could not send.', 'error'); }
+      try {
+        await sendMessage(id, user, t);
+        // Notify the other members so they get a Messages badge + bell entry.
+        const me = user.displayName || user.email;
+        (c.members || []).filter((u) => u !== user.uid).forEach((uid) => notify(uid, {
+          type: 'message',
+          title: c.type === 'group' ? `${me} · ${convTitle(c)}` : `New message from ${me}`,
+          body: t.slice(0, 80), actorId: user.uid, actorName: me,
+          link: { view: 'messages', arg: id },
+        }));
+      } catch (e) { toast(e.message || 'Could not send.', 'error'); }
     };
     sendB.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
