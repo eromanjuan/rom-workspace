@@ -155,8 +155,9 @@ export async function listAllUsers() {
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 }
 
-// Owner adds a user to the workspace directly (no invite needed).
-export async function addMemberDirect(wsId, targetUser, role = 'viewer') {
+// Owner adds a user to the workspace directly (no invite needed). Pass
+// { notify: true } to tell the added user (approve-join sends its own notice).
+export async function addMemberDirect(wsId, targetUser, role = 'viewer', opts = {}) {
   await setDoc(doc(db, 'workspaces', wsId, 'members', targetUser.uid), {
     uid: targetUser.uid,
     email: targetUser.email || '',
@@ -164,6 +165,13 @@ export async function addMemberDirect(wsId, targetUser, role = 'viewer') {
     role,
     joinedAt: serverTimestamp(),
   });
+  if (opts.notify) {
+    await notify(targetUser.uid, {
+      type: 'memberAdded',
+      title: `You were added to ${await workspaceName(wsId)}`,
+      link: { view: 'workspace' },
+    });
+  }
 }
 
 // A user's own posts from the global feed (sorted client-side to avoid a composite index).
@@ -188,6 +196,37 @@ export async function listAllWorkspaces() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// --- notifications ---
+// Each user owns a notifications/{uid}/items subcollection. notify() appends one;
+// the recipient sees it live in the bell. Writes are best-effort (never block the
+// underlying action if a notification fails).
+export async function notify(uid, payload) {
+  if (!uid) return;
+  try {
+    await addDoc(collection(db, 'notifications', uid, 'items'), {
+      read: false,
+      createdAt: serverTimestamp(),
+      ...payload,
+    });
+  } catch (e) { /* non-fatal */ }
+}
+export function listenNotifications(uid, cb, max = 30) {
+  return onSnapshot(
+    query(collection(db, 'notifications', uid, 'items'), orderBy('createdAt', 'desc'), limit(max)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    () => cb([]),
+  );
+}
+export async function markNotificationRead(uid, id) {
+  try { await updateDoc(doc(db, 'notifications', uid, 'items', id), { read: true }); } catch { /* ignore */ }
+}
+export async function markAllNotificationsRead(uid, ids) {
+  await Promise.all((ids || []).map((id) => updateDoc(doc(db, 'notifications', uid, 'items', id), { read: true }).catch(() => {})));
+}
+async function workspaceName(wsId) {
+  try { const ws = await getDoc(doc(db, 'workspaces', wsId)); return ws.exists() ? (ws.data().name || 'the workspace') : 'the workspace'; } catch { return 'the workspace'; }
+}
+
 // --- join requests (user asks to join a workspace; the owner approves) ---
 export async function requestToJoin(wsId, user) {
   await setDoc(doc(db, 'workspaces', wsId, 'joinRequests', user.uid), {
@@ -197,6 +236,18 @@ export async function requestToJoin(wsId, user) {
     status: 'pending',
     createdAt: serverTimestamp(),
   });
+  // Notify the workspace owner that someone wants to join.
+  try {
+    const ws = await getDoc(doc(db, 'workspaces', wsId));
+    if (ws.exists() && ws.data().ownerId) {
+      await notify(ws.data().ownerId, {
+        type: 'joinRequest',
+        title: `${user.displayName || user.email || 'Someone'} asked to join ${ws.data().name || 'your workspace'}`,
+        actorId: user.uid, actorName: user.displayName || user.email || 'User',
+        link: { view: 'workspace' },
+      });
+    }
+  } catch { /* ignore */ }
 }
 export async function getMyJoinRequest(wsId, uid) {
   const snap = await getDoc(doc(db, 'workspaces', wsId, 'joinRequests', uid));
@@ -212,9 +263,19 @@ export async function listJoinRequests(wsId) {
 export async function approveJoinRequest(wsId, req, role = 'viewer') {
   await addMemberDirect(wsId, { uid: req.uid, email: req.email, displayName: req.displayName }, role);
   await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', req.uid));
+  await notify(req.uid, {
+    type: 'joinApproved',
+    title: `You were approved to join ${await workspaceName(wsId)}`,
+    link: { view: 'workspace' },
+  });
 }
 export async function declineJoinRequest(wsId, reqUid) {
   await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', reqUid));
+  await notify(reqUid, {
+    type: 'joinDeclined',
+    title: `Your request to join ${await workspaceName(wsId)} was declined`,
+    link: { view: 'feed' },
+  });
 }
 
 // --- uploaded files (Storage blob + Firestore metadata) ---

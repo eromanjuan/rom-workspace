@@ -18,6 +18,7 @@ export function renderSettings(host, user, { onOpenWorkspace }) {
     el('div', { class: 'settings' }, [
       el('h2', { class: 'section__title' }, 'Settings'),
       collapsible(buildProfileSection(user)),
+      collapsible(buildVisibilitySection(user)),
       collapsible(buildEmailSection(user)),
       collapsible(buildPasswordSection(user)),
       collapsible(buildThemeSection()),
@@ -48,6 +49,54 @@ function collapsible(section, { open = false } = {}) {
   setOpen(open);
   header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
   return section;
+}
+
+/* ---------- profile visibility: what visitors can see ---------- */
+
+// The visible-to-visitors fields and their defaults. Keep in sync with the
+// public profile (userProfile.js) which reads users/{uid}.visibility.
+export const VISIBILITY_FIELDS = [
+  ['posts', 'Posts', 'Show your posts on your public profile'],
+  ['ownedWorkspaces', 'Workspaces you own', 'List the workspaces you own'],
+  ['memberSince', 'Member since', 'Show the date you joined'],
+  ['verified', 'Verified badge', 'Show the verified badge when your email is verified'],
+  ['email', 'Email address', 'Show your email address to visitors'],
+];
+export const VISIBILITY_DEFAULTS = { posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false };
+
+function buildVisibilitySection(user) {
+  const inputs = {};
+  const rows = VISIBILITY_FIELDS.map(([key, label, desc]) => {
+    const cb = el('input', { type: 'checkbox', class: 'vis-check' });
+    inputs[key] = cb;
+    return el('label', { class: 'vis-row' }, [
+      cb,
+      el('div', { class: 'vis-text' }, [
+        el('div', { class: 'vis-label' }, label),
+        el('div', { class: 'muted vis-desc' }, desc),
+      ]),
+    ]);
+  });
+  const save = el('button', { class: 'btn btn--primary' }, 'Save visibility');
+  const status = el('span', { class: 'muted settings-status' });
+  getUserProfile(user.uid).then((p) => {
+    const vis = { ...VISIBILITY_DEFAULTS, ...(p?.visibility || {}) };
+    for (const [key] of VISIBILITY_FIELDS) inputs[key].checked = !!vis[key];
+  }).catch(() => {});
+  save.addEventListener('click', async () => {
+    const visibility = {};
+    for (const [key] of VISIBILITY_FIELDS) visibility[key] = inputs[key].checked;
+    save.disabled = true;
+    try { await updateUserProfile(user.uid, { visibility }); status.textContent = 'Saved.'; }
+    catch (e) { status.textContent = e.message; }
+    finally { save.disabled = false; setTimeout(() => { status.textContent = ''; }, 2500); }
+  });
+  return el('section', { class: 'settings-card' }, [
+    el('h3', { class: 'settings-title' }, [icon('eye'), ' Profile visibility']),
+    el('p', { class: 'muted' }, 'Choose what other people can see when they view your profile.'),
+    ...rows,
+    el('div', { class: 'settings-actions' }, [save, status]),
+  ]);
 }
 
 /* ---------- profile: name + username + phone ---------- */

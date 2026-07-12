@@ -50,6 +50,15 @@ service cloud.firestore {
       }
     }
 
+    // --- notifications (per-user inbox) ---
+    // Any signed-in user may create a notification addressed to another user (e.g.
+    // a like/comment/join event). Only the recipient (or master) can read, mark
+    // read, or delete their own notifications.
+    match /notifications/{uid}/items/{nid} {
+      allow read, update, delete: if signedIn() && (request.auth.uid == uid || isMaster());
+      allow create: if signedIn();
+    }
+
     // --- unique usernames (handles) ---
     // The doc id IS the lowercased handle, so a create can only succeed once →
     // uniqueness. Public read so availability can be checked before sign-up.

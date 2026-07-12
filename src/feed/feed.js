@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase.js';
 import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
+import { notify } from '../workspaces/data.js';
 import { renderWidgetsPanel } from './widgets.js';
 
 export function renderFeed(root, user, opts = {}) {
@@ -167,8 +168,17 @@ export function postCard(d, user, ui) {
     icon(liked ? 'heart-filled' : 'heart'), ` ${likes.length || ''} Like`,
   ]);
   likeBtn.addEventListener('click', async () => {
-    try { await updateDoc(ref, { likes: liked ? arrayRemove(user.uid) : arrayUnion(user.uid) }); }
-    catch (err) { toast(err.message, 'error'); }
+    try {
+      await updateDoc(ref, { likes: liked ? arrayRemove(user.uid) : arrayUnion(user.uid) });
+      // Notify the author when someone else likes their post (not on unlike/self).
+      if (!liked && p.authorId && p.authorId !== user.uid) {
+        notify(p.authorId, {
+          type: 'like', title: `${displayNameOf(user)} liked your post`,
+          body: (p.text || '').slice(0, 80), actorId: user.uid, actorName: displayNameOf(user),
+          link: { view: 'feed' },
+        });
+      }
+    } catch (err) { toast(err.message, 'error'); }
   });
 
   const commentBtn = el('button', { class: 'post__bar-btn' }, [
@@ -219,6 +229,16 @@ export function postCard(d, user, ui) {
           }),
         });
         ui.drafts.delete(d.id);
+        // Notify the post author + everyone already in the thread (except me).
+        const recipients = new Set();
+        if (p.authorId && p.authorId !== user.uid) recipients.add(p.authorId);
+        for (const c of comments) { if (c.authorId && c.authorId !== user.uid) recipients.add(c.authorId); }
+        recipients.forEach((uid) => notify(uid, {
+          type: 'comment',
+          title: `${displayNameOf(user)} commented on ${uid === p.authorId ? 'your' : 'a'} post`,
+          body: text.slice(0, 80), actorId: user.uid, actorName: displayNameOf(user),
+          link: { view: 'feed' },
+        }));
       } catch (err) { toast(err.message, 'error'); send.disabled = false; }
     };
     send.addEventListener('click', submit);

@@ -82,6 +82,8 @@ export function buildShell(user, { onNavigate, onSearch }) {
 
   // Mobile hamburger (opens the sidebar drawer); hidden on desktop via CSS.
   const menuBtn = el('button', { class: 'topbar-menu', title: 'Menu', 'aria-label': 'Open menu' }, icon('menu-2'));
+  // Notification bell (badge + panel wired by mountNotifications in main).
+  const bell = el('button', { class: 'topbar-icon notif-bell', title: 'Notifications', 'aria-label': 'Notifications' }, icon('bell'));
   const topbar = el('header', { class: 'topbar' }, [
     menuBtn,
     (() => {
@@ -90,7 +92,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
       return el('form', { class: 'topbar-search', onsubmit: (e) => { e.preventDefault(); if (onSearch) onSearch(searchInput.value.trim()); } }, [icon('search'), searchInput]);
     })(),
     el('button', { class: 'topbar-icon', title: 'Refresh', onclick: () => location.reload() }, icon('refresh')),
-    el('button', { class: 'topbar-icon', title: 'Notifications' }, icon('bell')),
+    bell,
     el('div', { class: 'topbar-avatar', title: displayNameOf(user) }, initials(displayNameOf(user))),
   ]);
 
@@ -129,7 +131,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
     for (const [id, btn] of navButtons) btn.classList.toggle('sb-item--active', id === viewId);
   }
 
-  return { root, content, wsHost, setActive };
+  return { root, content, wsHost, setActive, bell };
 }
 
 // A simple "coming soon" panel for Phase 2 modules.

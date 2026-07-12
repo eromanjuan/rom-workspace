@@ -130,7 +130,7 @@ function renderMembers(panel, wsId, user) {
       const addBtn = el('button', { class: 'btn btn--primary btn--sm' }, [icon('plus'), ' Add']);
       addBtn.addEventListener('click', async () => {
         addBtn.disabled = true;
-        try { await addMemberDirect(wsId, u, addRoleSelect.value); toast(`Added ${u.displayName || u.email}`, 'success'); searchInput.value = ''; await loadMembers(); }
+        try { await addMemberDirect(wsId, u, addRoleSelect.value, { notify: true }); toast(`Added ${u.displayName || u.email}`, 'success'); searchInput.value = ''; await loadMembers(); }
         catch (err) { toast(err.message, 'error'); addBtn.disabled = false; }
       });
       searchResults.append(el('div', { class: 'ws-member-row' }, [

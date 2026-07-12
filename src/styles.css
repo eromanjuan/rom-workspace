@@ -885,6 +885,56 @@ select.input { cursor: pointer; }
 .confirm-modal__msg { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
 .confirm-modal__actions { display: flex; justify-content: flex-end; gap: 10px; }
 
+/* Notification bell + panel */
+.notif-bell { position: relative; }
+.notif-badge {
+  position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 999px; background: var(--danger, #e5484d);
+  color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+  box-shadow: 0 0 0 2px var(--bg, #0b0e13);
+}
+.notif-panel {
+  width: min(360px, calc(100vw - 24px)); max-height: min(70vh, 520px);
+  display: flex; flex-direction: column; z-index: 1200;
+  background: var(--surface, #12161d); border: 1px solid var(--border, #232a34);
+  border-radius: 14px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); overflow: hidden;
+}
+.notif-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border, #232a34); }
+.notif-readall { background: none; border: 0; color: var(--primary); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+.notif-readall:hover { text-decoration: underline; }
+.notif-list { overflow-y: auto; }
+.notif-empty { padding: 28px 14px; text-align: center; color: var(--muted); font-size: 13px; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  padding: 11px 14px; border: 0; border-bottom: 1px solid var(--border, #232a34);
+  background: transparent; color: var(--text); cursor: pointer;
+}
+.notif-item:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.notif-item.is-unread { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.notif-ic { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; display: inline-grid; place-items: center; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); }
+.notif-main { min-width: 0; flex: 1 1 auto; }
+.notif-title { font-size: 13px; line-height: 1.35; }
+.notif-body { font-size: 12px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-time { font-size: 11px; margin-top: 3px; }
+.notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
+
+/* Profile visibility settings */
+.vis-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; cursor: pointer; }
+.vis-check { margin-top: 3px; width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--primary); }
+.vis-label { font-size: 14px; }
+.vis-desc { font-size: 12px; margin-top: 1px; }
+.settings-status { margin-left: 10px; font-size: 12px; }
+
+/* Public profile: verified badge + owned-workspaces list */
+.profile-verified { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
+.profile-email { margin-top: 2px; }
+.profile-ws-list { display: flex; flex-direction: column; gap: 10px; }
+.profile-ws-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.profile-ws-ic { width: 40px; height: 40px; border-radius: 10px; display: inline-grid; place-items: center; color: #fff; flex: 0 0 auto; }
+.profile-ws-name { font-weight: 600; }
+.profile-private { padding: 16px 0; }
+.profile-sections > section { margin-top: 22px; }
+
 /* Clickable author names → open profile */
 .post__author--link, .comment__author--link {
   background: none; border: 0; padding: 0; margin: 0;

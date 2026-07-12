@@ -127,6 +127,9 @@ export async function ensureProfile(user, extra) {
       createdAt: serverTimestamp(),
     });
   }
+  // Keep the verified flag fresh so the public profile's "Verified" badge is
+  // accurate for visitors (who can't read another user's auth state directly).
+  try { await setDoc(ref, { emailVerified: !!user.emailVerified }, { merge: true }); } catch { /* non-fatal */ }
   return ref;
 }
 

@@ -17,6 +17,7 @@ import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCu
 import { isMaster } from './workspaces/roles.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
+import { mountNotifications } from './notifications/notificationsPanel.js';
 import { el, clear, icon, toast } from './ui/dom.js';
 
 initTheme();
@@ -40,6 +41,7 @@ if (window.top !== window.self) {
     </div>`;
 } else {
     let viewUnsub = null;
+    let notifCleanup = null;
     const VIEW_KEY = 'rom-view';
     const savedView = localStorage.getItem(VIEW_KEY);
     const validViews = ['feed', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
@@ -85,6 +87,9 @@ if (window.top !== window.self) {
         const wsHost = shell.wsHost;
         // Let the embedded module navigate ROM to a user profile (go is hoisted).
         navigateToUser = (uid) => go('user', uid);
+        // Notification bell: live badge + panel; navigates to where each was fired.
+        if (notifCleanup) notifCleanup();
+        notifCleanup = mountNotifications(shell.bell, user, { onNavigate: (view, arg) => go(view, arg) });
 
         function onNav(view, item) {
             if (item?.soon) { toast(`${item.label} is coming soon.`, 'info'); return; }
