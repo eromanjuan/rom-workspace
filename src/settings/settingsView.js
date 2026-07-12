@@ -219,7 +219,7 @@ function buildThemeSection() {
 
   return el('section', { class: 'settings-card card' }, [
     el('h3', { class: 'settings-title' }, [icon('palette'), ' Theme']),
-    el('p', { class: 'muted' }, 'Choose light or dark, then customize the color palette to make ROM your own.'),
+    el('p', { class: 'muted' }, 'Choose light or dark, then customize the color palette to make it your own.'),
     segWrap,
     el('label', { class: 'settings-label' }, 'Custom palette'),
     swatchWrap,

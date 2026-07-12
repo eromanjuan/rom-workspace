@@ -51,7 +51,7 @@ export function renderFiles(host, user) {
     el('div', { class: 'files-head' }, [
       el('div', {}, [
         el('h2', { class: 'section__title' }, 'Files'),
-        el('p', { class: 'muted' }, isMaster(user) ? 'All uploaded files across ROM.' : 'Everything you have uploaded.'),
+        el('p', { class: 'muted' }, isMaster(user) ? 'All uploaded files across YOURS.' : 'Everything you have uploaded.'),
       ]),
       el('div', {}, [uploadBtn, fileInput]),
     ]),

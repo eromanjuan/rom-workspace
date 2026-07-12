@@ -23,12 +23,12 @@ const app = document.getElementById('app');
 // Safety guard: if ROM is ever loaded inside an iframe of itself (same origin),
 // don't render the shell — that would recurse infinitely. Show a link out instead.
 if (window.top !== window.self) {
-    app.innerHTML = '<div class="setup"><h1>ROM</h1><p>Open ROM in its own tab.</p><p><a href="/" target="_top">Go to ROM →</a></p></div>';
+    app.innerHTML = '<div class="setup"><h1>YOURS</h1><p>Open YOURS in its own tab.</p><p><a href="/" target="_top">Go to YOURS →</a></p></div>';
 } else if (!configReady) {
     app.innerHTML = `
     <div class="setup">
-      <h1>ROM</h1>
-      <p>Almost there — ROM needs your Firebase web config before it can run.</p>
+      <h1>YOURS</h1>
+      <p>Almost there — YOURS needs your Firebase web config before it can run.</p>
       <ol>
         <li>Copy <code>.env.example</code> to <code>.env.local</code>.</li>
         <li>Paste your web config from Firebase Console → Project Settings → Your apps.</li>

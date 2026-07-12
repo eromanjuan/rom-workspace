@@ -43,7 +43,7 @@ export function renderVerify(root, user, onVerified) {
   root.append(
     el('div', { class: 'auth' }, [
       el('div', { class: 'auth__form verify' }, [
-        el('h1', { class: 'auth__brand' }, 'ROM'),
+        el('h1', { class: 'auth__brand' }, 'YOURS'),
         el('div', { class: 'verify__icon' }, icon('mail')),
         el('h2', { class: 'verify__title' }, 'Verify your email'),
         el('p', { class: 'muted' }, `We sent a verification link to ${user.email}. Click it to activate your account, then come back here.`),

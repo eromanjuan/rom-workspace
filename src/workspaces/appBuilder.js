@@ -95,7 +95,7 @@ export function openAddAppModal(wsId, user, onCreated) {
       () => renderCreateForm(body, wsId, user, onCreated, close, iconEl)),
     optionCard('file-import', '#16a34a', 'Install from a file', 'Upload a .rom.json you downloaded to recreate that app here.',
       () => renderInstallFromFile(body, wsId, user, onCreated, close)),
-    optionCard('building-store', '#0891b2', 'ROM App Market', 'Browse apps shared by anyone and copy one into this workspace.',
+    optionCard('building-store', '#0891b2', 'YOURS App Market', 'Browse apps shared by anyone and copy one into this workspace.',
       () => renderAppMarket(body, wsId, user, onCreated, close)),
   ]));
 }
@@ -115,7 +115,7 @@ function renderInstallFromFile(body, wsId, user, onCreated, close) {
     const f = fileInput.files[0]; if (!f) return;
     try {
       const parsed = JSON.parse(await f.text());
-      if (!parsed || !parsed.rom_app || !Array.isArray(parsed.fields)) throw new Error('Not a valid ROM app file.');
+      if (!parsed || !parsed.rom_app || !Array.isArray(parsed.fields)) throw new Error('Not a valid YOURS app file.');
       def = parsed;
       clear(preview).append(
         el('div', { class: 'install-card' }, [
@@ -141,7 +141,7 @@ function renderInstallFromFile(body, wsId, user, onCreated, close) {
   });
 
   body.append(el('div', { class: 'field-modal' }, [
-    el('p', { class: 'muted' }, 'Upload a .rom.json file exported from any ROM app to recreate its structure (fields, reports, automations) here. Items are not included.'),
+    el('p', { class: 'muted' }, 'Upload a .rom.json file exported from any YOURS app to recreate its structure (fields, reports, automations) here. Items are not included.'),
     pickBtn, fileInput, preview,
     el('div', { class: 'app-create-foot' }, [installBtn]),
   ]));

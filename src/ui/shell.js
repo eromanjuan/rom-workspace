@@ -45,9 +45,9 @@ export function buildShell(user, { onNavigate }) {
 
   const collapseBtn = el('button', { class: 'sb-collapse', title: 'Collapse sidebar' }, icon('menu-2'));
   const brand = el('div', { class: 'sb-brand' }, [
-    el('div', { class: 'sb-brand-mark' }, icon('bolt')),
+    el('img', { class: 'sb-brand-mark', src: '/logo.svg', alt: '', width: '34', height: '34' }),
     el('div', { class: 'sb-brand-txt' }, [
-      el('div', { class: 'sb-brand-name' }, 'ROM'),
+      el('div', { class: 'sb-brand-name' }, 'YOURS'),
       el('div', { class: 'sb-brand-sub' }, 'COMMAND CENTER'),
     ]),
     collapseBtn,
@@ -83,7 +83,7 @@ export function buildShell(user, { onNavigate }) {
   const topbar = el('header', { class: 'topbar' }, [
     el('div', { class: 'topbar-search' }, [
       icon('search'),
-      el('input', { class: 'topbar-search-input', placeholder: 'Search ROM', type: 'search' }),
+      el('input', { class: 'topbar-search-input', placeholder: 'Search YOURS', type: 'search' }),
     ]),
     el('button', { class: 'topbar-icon', title: 'Refresh', onclick: () => location.reload() }, icon('refresh')),
     el('button', { class: 'topbar-icon', title: 'Notifications' }, icon('bell')),

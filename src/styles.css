@@ -89,7 +89,7 @@ select.input { cursor: pointer; }
               linear-gradient(160deg, #10131a, #191d27); color: #eef1f7; }
 .auth__aside-inner { position: relative; max-width: 420px; margin: auto; }
 .auth__logo { display: inline-flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 1.35rem; letter-spacing: 0.04em; }
-.auth__logo-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 9px; background: var(--primary); color: #fff; font-weight: 800; }
+.auth__logo-mark { width: 2rem; height: 2rem; border-radius: 9px; object-fit: cover; display: block; }
 .auth__logo--mobile { display: none; margin-bottom: 1.25rem; color: var(--text); }
 .auth__aside-title { font-size: clamp(1.6rem, 2.4vw, 2.3rem); line-height: 1.2; margin: 1.75rem 0 0.75rem; font-weight: 800; }
 .auth__aside-sub { color: rgba(255,255,255,0.75); line-height: 1.6; margin: 0 0 2rem; }
@@ -185,7 +185,7 @@ select.input { cursor: pointer; }
 /* sidebar */
 .sidebar { display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border); padding: 0.85rem 0.7rem; overflow-y: auto; }
 .sb-brand { display: flex; align-items: center; gap: 0.6rem; padding: 0.25rem 0.4rem 0.75rem; }
-.sb-brand-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--primary); color: #fff; border-radius: 9px; font-size: 1.1rem; }
+.sb-brand-mark { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; display: block; flex: none; }
 .sb-brand-txt { flex: 1; min-width: 0; }
 .sb-brand-name { font-weight: 800; letter-spacing: 0.04em; }
 .sb-brand-sub { font-size: 0.62rem; letter-spacing: 0.18em; color: var(--muted); }

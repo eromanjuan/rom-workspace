@@ -20,7 +20,7 @@ export function renderAuth(root) {
     // --- brand / marketing aside (hidden on small screens) ---
     const aside = el('aside', { class: 'auth__aside' }, [
       el('div', { class: 'auth__aside-inner' }, [
-        el('div', { class: 'auth__logo' }, [el('span', { class: 'auth__logo-mark' }, 'R'), 'ROM']),
+        el('div', { class: 'auth__logo' }, [el('img', { class: 'auth__logo-mark', src: '/logo.svg', alt: '', width: '32', height: '32' }), 'YOURS']),
         el('h2', { class: 'auth__aside-title' }, 'Your feed, your workspaces, your apps.'),
         el('p', { class: 'auth__aside-sub' }, 'One command center for posting, collaborating, and building no-code apps with your team.'),
         el('ul', { class: 'auth__features' }, [
@@ -140,9 +140,9 @@ export function renderAuth(root) {
         }
       },
     }, [
-      el('div', { class: 'auth__logo auth__logo--mobile' }, [el('span', { class: 'auth__logo-mark' }, 'R'), 'ROM']),
+      el('div', { class: 'auth__logo auth__logo--mobile' }, [el('img', { class: 'auth__logo-mark', src: '/logo.svg', alt: '', width: '32', height: '32' }), 'YOURS']),
       el('h1', { class: 'auth__title' }, isSignup ? 'Create your account' : 'Welcome back'),
-      el('p', { class: 'auth__subtitle' }, isSignup ? 'Join ROM — it only takes a minute.' : 'Log in to your feed and workspaces.'),
+      el('p', { class: 'auth__subtitle' }, isSignup ? 'Join YOURS — it only takes a minute.' : 'Log in to your feed and workspaces.'),
 
       isSignup ? el('div', { class: 'field-row' }, [
         field('First name', 'su-first', firstName),
