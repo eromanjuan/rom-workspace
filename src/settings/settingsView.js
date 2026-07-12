@@ -379,8 +379,9 @@ function buildThemeSection() {
   ]);
 }
 
-// Compress an uploaded background to keep it inside localStorage (max ~1600px).
-function compressBg(file, maxDim = 1600, quality = 0.72) {
+// Compress an uploaded background so the theme (saved on the user doc) stays
+// well under Firestore's 1 MB limit.
+function compressBg(file, maxDim = 1280, quality = 0.68) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => {

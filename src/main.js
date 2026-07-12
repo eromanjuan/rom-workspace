@@ -1,6 +1,6 @@
 import './styles.css';
 import { configReady } from './firebase.js';
-import { initTheme } from './ui/theme.js';
+import { initTheme, applyThemeBundle, getThemeBundle } from './ui/theme.js';
 import { watchAuth } from './auth/auth.js';
 import { renderAuth } from './auth/authView.js';
 import { renderVerify } from './auth/verifyView.js';
@@ -15,7 +15,7 @@ import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
 import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
-import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces } from './workspaces/data.js';
+import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, updateUserProfile } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
@@ -87,6 +87,16 @@ if (window.top !== window.self) {
     let setShellAvatar = null;
     window.addEventListener('rom-avatar-changed', (e) => { if (setShellAvatar) setShellAvatar(e.detail?.photoURL || ''); });
 
+    // Persist theme changes (mode + palette + appearance) to the user's profile
+    // so they follow them across devices. Debounced (sliders fire rapidly).
+    let themeUser = null;
+    let themeSaveTimer = null;
+    window.addEventListener('rom-theme-changed', () => {
+        if (!themeUser) return;
+        clearTimeout(themeSaveTimer);
+        themeSaveTimer = setTimeout(() => { updateUserProfile(themeUser.uid, { theme: getThemeBundle() }).catch(() => {}); }, 800);
+    });
+
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
@@ -109,6 +119,10 @@ if (window.top !== window.self) {
             state.pendingInvite = null;
             clearInviteFromUrl();
         }
+        // Load the user's saved theme (persists across devices/logins). Applied
+        // without emitting a change event so it isn't immediately re-saved.
+        themeUser = user;
+        try { const prof = await getUserProfile(user.uid); if (prof?.theme) applyThemeBundle(prof.theme); } catch { /* ignore */ }
         renderShell(user);
     }
 

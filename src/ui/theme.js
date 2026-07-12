@@ -23,6 +23,11 @@ export const PALETTE_VARS = [
   { var: '--danger', label: 'Danger', def: { dark: '#ff6b6b', light: '#e5484d' } },
 ];
 
+// When true, mutators don't emit rom-theme-changed (used while applying a bundle
+// loaded from the cloud, so we don't immediately save it back).
+let suppress = false;
+function emitThemeChanged() { if (!suppress) { try { window.dispatchEvent(new Event('rom-theme-changed')); } catch { /* ignore */ } } }
+
 export function getTheme() {
   return localStorage.getItem(KEY) === 'light' ? 'light' : 'dark';
 }
@@ -30,6 +35,7 @@ export function getTheme() {
 export function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem(KEY, theme);
+  emitThemeChanged();
 }
 
 export function toggleTheme() {
@@ -57,11 +63,13 @@ export function setPaletteVar(cssVar, value) {
   p[cssVar] = value;
   localStorage.setItem(PKEY, JSON.stringify(p));
   document.documentElement.style.setProperty(cssVar, value);
+  emitThemeChanged();
 }
 
 export function resetPalette() {
   localStorage.removeItem(PKEY);
   for (const { var: v } of PALETTE_VARS) document.documentElement.style.removeProperty(v);
+  emitThemeChanged();
 }
 
 // The effective current value of a palette var (custom override, else theme default).
@@ -80,11 +88,13 @@ export function setAppearance(patch) {
   const a = { ...getAppearance(), ...patch };
   localStorage.setItem(AKEY, JSON.stringify(a));
   applyAppearance();
+  emitThemeChanged();
   return a;
 }
 export function resetAppearance() {
   localStorage.removeItem(AKEY);
   applyAppearance();
+  emitThemeChanged();
 }
 function clearAppBg(root) {
   root.removeAttribute('data-appbg');
@@ -120,6 +130,27 @@ export function applyAppearance() {
       root.style.setProperty('--app-bg-repeat', pat.repeat || 'repeat');
     } else clearAppBg(root);
   } else clearAppBg(root);
+}
+
+// --- cloud sync bundle (persisted on the user's Firestore doc) ---
+export function getThemeBundle() {
+  return { mode: getTheme(), palette: getPalette(), appearance: getAppearance() };
+}
+// Apply a bundle loaded from the cloud without emitting change events (so it
+// isn't immediately saved back).
+export function applyThemeBundle(bundle) {
+  if (!bundle || typeof bundle !== 'object') return;
+  suppress = true;
+  try {
+    localStorage.setItem(KEY, bundle.mode === 'light' ? 'light' : 'dark');
+    if (bundle.palette && Object.keys(bundle.palette).length) localStorage.setItem(PKEY, JSON.stringify(bundle.palette));
+    else localStorage.removeItem(PKEY);
+    if (bundle.appearance && Object.keys(bundle.appearance).length) localStorage.setItem(AKEY, JSON.stringify(bundle.appearance));
+    else localStorage.removeItem(AKEY);
+    applyTheme(getTheme());
+    applyPalette();
+    applyAppearance();
+  } finally { suppress = false; }
 }
 
 export function initTheme() {
