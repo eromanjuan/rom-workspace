@@ -2305,6 +2305,92 @@ let locationPickerMarker = null;
 // all top-level const declarations (e.g. WB_WS_ICONS/WB_PALETTE used by the
 // workspace builder during startup data seeding) are initialized first.
 
+// --- @mention typeahead for the feed composer ---------------------------------
+// When the user types "@" in the composer, suggest workspace members (injected in
+// the ROM embed via __ROM_WS_MEMBERS__). Selecting one inserts "@Full Name " and
+// wbFeedText() highlights it on the posted card. Self-contained: document-level
+// listeners + a floating popover, so it survives the app's frequent re-renders.
+const MENTION_SEL = '[data-wb-compose-text]';
+let mentionPop = null;
+let mentionState = null; // { textarea, at, items, index }
+
+function mentionMemberList() {
+  try { const list = wbMembers(activeCompanyId()); if (Array.isArray(list) && list.length) return list; } catch { /* ignore */ }
+  const rom = window.__ROM_WS_MEMBERS__;
+  return Array.isArray(rom) ? rom.map((m) => ({ id: m.id, name: m.name || m.email || 'Member', color: m.color, avatar_url: m.avatar_url })) : [];
+}
+function closeMentionPop() {
+  if (mentionPop) { mentionPop.remove(); mentionPop = null; }
+  mentionState = null;
+}
+function mentionTokenAt(textarea) {
+  const caret = textarea.selectionStart;
+  if (caret == null || caret !== textarea.selectionEnd) return null;
+  const m = textarea.value.slice(0, caret).match(/(?:^|\s)@([^@\n]{0,30})$/);
+  return m ? { query: m[1], at: caret - m[1].length - 1 } : null;
+}
+function drawMentionPop() {
+  if (!mentionPop || !mentionState) return;
+  mentionPop.innerHTML = mentionState.items.map((m, i) => {
+    const color = m.color || wbColorFor(m.id || m.name || '');
+    const av = m.avatar_url
+      ? `<span class="wb-mention-av has-image"><img src="${h(m.avatar_url)}" alt=""></span>`
+      : `<span class="wb-mention-av" style="background:${h(color)}">${h(wbInitials(m.name || ''))}</span>`;
+    return `<button type="button" class="wb-mention-item ${i === mentionState.index ? 'active' : ''}" data-mention-index="${i}">${av}<span class="wb-mention-name">${h(m.name)}</span></button>`;
+  }).join('');
+}
+function positionMentionPop(textarea) {
+  if (!mentionPop) return;
+  const r = textarea.getBoundingClientRect();
+  mentionPop.style.position = 'fixed';
+  mentionPop.style.left = `${Math.max(8, r.left)}px`;
+  mentionPop.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 8)}px`;
+  mentionPop.style.minWidth = `${Math.min(280, Math.max(200, r.width))}px`;
+  mentionPop.style.zIndex = '9999';
+}
+function showMentionPop(textarea, token) {
+  const q = token.query.trim().toLowerCase();
+  const items = (q ? mentionMemberList().filter((m) => (m.name || '').toLowerCase().includes(q)) : mentionMemberList()).slice(0, 6);
+  if (!items.length) { closeMentionPop(); return; }
+  if (!mentionPop) { mentionPop = document.createElement('div'); mentionPop.className = 'wb-mention-pop'; document.body.appendChild(mentionPop); }
+  mentionState = { textarea, at: token.at, items, index: 0 };
+  drawMentionPop();
+  positionMentionPop(textarea);
+}
+function applyMention(i) {
+  if (!mentionState) return;
+  const { textarea, at, items } = mentionState;
+  const pick = items[i]; if (!pick) return;
+  const caret = textarea.selectionStart;
+  const insert = `@${pick.name} `;
+  textarea.value = textarea.value.slice(0, at) + insert + textarea.value.slice(caret);
+  const pos = at + insert.length;
+  textarea.focus();
+  textarea.setSelectionRange(pos, pos);
+  closeMentionPop();
+}
+function onMentionInput(e) {
+  const t = e.target;
+  if (!t || !t.matches || !t.matches(MENTION_SEL)) return;
+  const token = mentionTokenAt(t);
+  if (!token) { closeMentionPop(); return; }
+  showMentionPop(t, token);
+}
+function onMentionKeydown(e) {
+  if (!mentionState || e.target !== mentionState.textarea) return;
+  const n = mentionState.items.length;
+  if (e.key === 'ArrowDown') { e.preventDefault(); mentionState.index = (mentionState.index + 1) % n; drawMentionPop(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); mentionState.index = (mentionState.index - 1 + n) % n; drawMentionPop(); }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); applyMention(mentionState.index); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMentionPop(); }
+}
+function onMentionMousedown(e) {
+  if (!mentionPop) return;
+  const btn = e.target.closest && e.target.closest('.wb-mention-item');
+  if (btn) { e.preventDefault(); applyMention(Number(btn.dataset.mentionIndex)); return; }
+  if (!mentionPop.contains(e.target) && e.target !== (mentionState && mentionState.textarea)) closeMentionPop();
+}
+
 function init() {
   normalizeLegacyLocation();
   applyTheme();
@@ -2322,6 +2408,12 @@ function init() {
   document.addEventListener('submit', onDocumentSubmit);
   document.addEventListener('input', onDocumentInput);
   document.addEventListener('change', onDocumentChange);
+  // @mention typeahead (keydown in capture phase so it can intercept Enter/Tab/↑↓
+  // before the app's own keydown handler).
+  document.addEventListener('input', onMentionInput);
+  document.addEventListener('keydown', onMentionKeydown, true);
+  document.addEventListener('mousedown', onMentionMousedown);
+  window.addEventListener('scroll', () => { if (mentionState) positionMentionPop(mentionState.textarea); }, true);
   document.addEventListener('dragstart', onPipeDragStart);
   document.addEventListener('dragend', onPipeDragEnd);
   document.addEventListener('dragover', onPipeDragOver);
@@ -10351,10 +10443,19 @@ function wbActivityRow(ev) {
 // Turn free text into safe HTML: escape, highlight @mentions of known members,
 // linkify bare URLs, and preserve line breaks.
 function wbFeedText(companyId, text) {
-  const names = new Set(wbMembers(companyId).map((m) => (m.name || '').toLowerCase()).filter(Boolean));
   let out = h(String(text || ''));
   out = out.replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
-  out = out.replace(/@([A-Za-z][\w'.-]*(?:\s+[A-Za-z][\w'.-]*)?)/g, (full, name) => (names.has(name.toLowerCase()) ? `<span class="wb-mention">@${name}</span>` : full));
+  // Highlight @mentions of known members. Match against full member names of any
+  // length (longest first, so "@Ana Maria" wins over "@Ana") in a single pass so
+  // we never re-enter an already-wrapped span.
+  const names = wbMembers(companyId)
+    .map((m) => (m.name || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  if (names.length) {
+    const alt = names.map((n) => h(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    out = out.replace(new RegExp(`@(${alt})(?=[^\\w]|$)`, 'g'), (full, name) => `<span class="wb-mention">@${name}</span>`);
+  }
   return out.replace(/\n/g, '<br>');
 }
 

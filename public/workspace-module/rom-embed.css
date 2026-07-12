@@ -114,3 +114,36 @@
   .wb-title { font-size: 1.3rem !important; }
   .wb-dash, .wb-page-head, .wb-topbar { padding-left: 10px !important; padding-right: 10px !important; }
 }
+
+/* 7) @mention typeahead popover for the feed composer. */
+.wb-mention-pop {
+  background: var(--surface-1, #10151d);
+  border: 1px solid var(--border, #232a34);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .38);
+  padding: 4px;
+  max-height: 260px;
+  overflow: auto;
+}
+.wb-mention-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; text-align: left;
+  padding: 6px 8px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--text, #e6e9ee);
+  font-size: 13px; cursor: pointer;
+}
+.wb-mention-item.active,
+.wb-mention-item:hover { background: color-mix(in srgb, var(--orange) 16%, transparent); }
+.wb-mention-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-mention-av {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 999px;
+  display: inline-grid; place-items: center; overflow: hidden;
+  font-size: 10px; font-weight: 700; color: #fff;
+}
+.wb-mention-av.has-image { background: none; }
+.wb-mention-av img { width: 100%; height: 100%; object-fit: cover; }
+.wb-mention {
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+  border-radius: 5px; padding: 0 3px; font-weight: 600;
+}
