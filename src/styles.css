@@ -918,6 +918,15 @@ select.input { cursor: pointer; }
 .notif-time { font-size: 11px; margin-top: 3px; }
 .notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
 
+/* Widget config gear + clock time-zone label */
+.widget-head-acts { display: inline-flex; align-items: center; gap: 4px; }
+.widget-cfg {
+  background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px;
+  display: inline-grid; place-items: center; border-radius: 6px;
+}
+.widget-cfg:hover { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.w-clock-zone { font-size: 12px; color: var(--primary); margin-top: 3px; }
+
 /* Rich feed composer (tabs + per-type panels) */
 .composer__tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .composer__tab {

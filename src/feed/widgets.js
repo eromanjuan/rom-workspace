@@ -9,7 +9,7 @@ function saveList(uid, list) { localStorage.setItem(LIST_KEY(uid), JSON.stringif
 
 // ---------- widget registry ----------
 const WIDGETS = {
-  clock: { label: 'Clock', ic: 'clock', render: wClock },
+  clock: { label: 'Clock', ic: 'clock', render: wClock, config: 'clock' },
   date: { label: 'Date', ic: 'calendar-event', render: wDate },
   calendar: { label: 'Calendar', ic: 'calendar', render: wCalendar },
   calculator: { label: 'Calculator', ic: 'calculator', render: wCalc },
@@ -68,7 +68,10 @@ export function renderWidgetsPanel(host, user) {
           manage ? el('span', { class: 'widget-grip', title: 'Drag to reorder' }, icon('grip-vertical')) : null,
           icon(def.ic), ' ', def.label,
         ]),
-        manage ? el('button', { class: 'widget-x', title: 'Remove', onclick: () => { list.splice(i, 1); saveList(user.uid, list); draw(); } }, icon('x')) : null,
+        el('span', { class: 'widget-head-acts' }, [
+          def.config ? el('button', { class: 'widget-cfg', title: 'Configure', onclick: () => openWidgetConfig(w) }, icon('settings')) : null,
+          manage ? el('button', { class: 'widget-x', title: 'Remove', onclick: () => { list.splice(i, 1); saveList(user.uid, list); draw(); } }, icon('x')) : null,
+        ]),
       ]);
       const card = el('div', { class: `widget-card card ${manage ? 'is-manage' : ''}` }, [head, content]);
       if (manage) {
@@ -88,8 +91,25 @@ export function renderWidgetsPanel(host, user) {
         });
       }
       body.append(card);
-      cleanups.push(def.render(content, user));
+      cleanups.push(def.render(content, user, w));
     });
+  }
+
+  // Per-widget configuration (currently just the clock's time zone).
+  function openWidgetConfig(w) {
+    const def = WIDGETS[w.id];
+    if (!def || def.config !== 'clock') return;
+    const { body: mb, close } = openModal({ title: 'Clock time zone', iconName: 'clock' });
+    const sel = el('select', { class: 'input' });
+    sel.append(el('option', { value: '' }, 'Local time (this device)'));
+    for (const z of timeZones()) sel.append(el('option', { value: z, ...(z === (w.tz || '') ? { selected: 'selected' } : {}) }, z.replace(/_/g, ' ')));
+    const save = el('button', { class: 'btn btn--primary' }, 'Save');
+    save.addEventListener('click', () => { w.tz = sel.value; saveList(user.uid, list); draw(); close(); });
+    mb.append(
+      el('label', { class: 'form-label' }, 'Time zone'),
+      sel,
+      el('div', { class: 'confirm-modal__actions', style: 'margin-top:14px' }, [save]),
+    );
   }
 
   function openCatalog() {
@@ -113,14 +133,26 @@ export function renderWidgetsPanel(host, user) {
 
 /* ================= widget renderers ================= */
 
-function wClock(b) {
+// All IANA time zones (fallback to a common subset on older browsers).
+function timeZones() {
+  try { if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone'); } catch { /* ignore */ }
+  return ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow', 'Africa/Cairo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Manila', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Seoul', 'Australia/Sydney', 'Pacific/Auckland'];
+}
+
+function wClock(b, user, w) {
+  const tz = (w && w.tz) || '';
   const time = el('div', { class: 'w-clock-time' });
   const sub = el('div', { class: 'w-clock-sub muted' });
-  b.append(el('div', { class: 'w-clock' }, [time, sub]));
+  const zone = tz ? el('div', { class: 'w-clock-zone' }, tz.replace(/_/g, ' ').split('/').pop()) : null;
+  b.append(el('div', { class: 'w-clock' }, [time, sub, zone]));
   const tick = () => {
     const d = new Date();
-    time.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    sub.textContent = d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    const topt = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    const dopt = { weekday: 'long', month: 'short', day: 'numeric' };
+    try {
+      time.textContent = d.toLocaleTimeString([], tz ? { ...topt, timeZone: tz } : topt);
+      sub.textContent = d.toLocaleDateString([], tz ? { ...dopt, timeZone: tz } : dopt);
+    } catch { /* invalid tz */ }
   };
   tick();
   const iv = setInterval(tick, 1000);

@@ -10188,7 +10188,7 @@ function normalizeFeedPost(p) {
 
 // A dashboard sidebar tile. Types: apps, app (dynamic records), report (pinned
 // chart), tasks, calendar, contacts, text, image, links. `config` is per-type.
-const WB_TILE_TYPES = ['apps', 'app', 'report', 'tasks', 'calendar', 'notes', 'text', 'image', 'links'];
+const WB_TILE_TYPES = ['apps', 'app', 'report', 'tasks', 'calendar', 'notes', 'text', 'image', 'links', 'clock', 'date', 'weather', 'calculator'];
 function normalizeWorkspaceTile(t) {
   const tile = t && typeof t === 'object' ? t : {};
   const type = WB_TILE_TYPES.includes(tile.type) ? tile.type : 'text';
