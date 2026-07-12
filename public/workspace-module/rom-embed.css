@@ -90,3 +90,27 @@
 .wb-tile-cal { display: flex; align-items: center; gap: 8px; }
 .wb-tile-cal-main { flex: 1 1 auto; min-width: 0; }
 .wb-tile-mbtn.danger:hover { color: var(--danger, #e5484d); }
+
+/* 6) Mobile / narrow layout — stack the dashboard so tiles go BELOW the feed
+   (instead of overlapping it), scroll the app-switcher tabs, and shrink chrome. */
+@media (max-width: 760px) {
+  .wb-dash {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+    padding-left: 12px !important; padding-right: 12px !important;
+  }
+  .wb-dash-main, .wb-dash-side { min-width: 0 !important; }
+  .wb-page-head { padding-left: 12px !important; padding-right: 12px !important; flex-wrap: wrap; }
+  .wb-title { font-size: 1.5rem !important; }
+  /* app switcher: horizontal scroll instead of overflowing the row */
+  .wb-topbar { padding-left: 12px !important; padding-right: 12px !important; }
+  .wb-topbar-apps { overflow-x: auto !important; flex-wrap: nowrap !important; scrollbar-width: none; }
+  .wb-topbar-apps::-webkit-scrollbar { display: none; }
+  .wb-topbar-tab, .wb-topbar-add { flex: 0 0 auto !important; }
+  /* feed composer + tiles use the full width */
+  .wb-compose, .wb-feed-card, .wb-tile { min-width: 0 !important; }
+}
+@media (max-width: 460px) {
+  .wb-title { font-size: 1.3rem !important; }
+  .wb-dash, .wb-page-head, .wb-topbar { padding-left: 10px !important; padding-right: 10px !important; }
+}
