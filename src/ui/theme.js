@@ -3,6 +3,16 @@
 // win over the base theme in both dark and light modes. Persisted in localStorage.
 const KEY = 'rom-theme';
 const PKEY = 'rom-palette';
+const AKEY = 'rom-appearance';
+
+// Preset background patterns (theme-aware, pure CSS — no external assets).
+export const BG_PATTERNS = [
+  { id: 'dots', label: 'Dots', image: 'radial-gradient(color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.6px)', size: '16px 16px', repeat: 'repeat' },
+  { id: 'grid', label: 'Grid', image: 'linear-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px)', size: '24px 24px', repeat: 'repeat' },
+  { id: 'diagonal', label: 'Diagonal', image: 'repeating-linear-gradient(45deg, color-mix(in srgb, var(--text) 7%, transparent) 0 1px, transparent 1px 13px)', size: 'auto', repeat: 'repeat' },
+  { id: 'glow', label: 'Glow', image: 'radial-gradient(at 18% 18%, color-mix(in srgb, var(--primary) 24%, transparent), transparent 42%), radial-gradient(at 82% 62%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 46%)', size: 'cover', repeat: 'no-repeat' },
+  { id: 'mesh', label: 'Mesh', image: 'radial-gradient(at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 40%), radial-gradient(at 100% 0%, color-mix(in srgb, var(--danger) 20%, transparent), transparent 42%), radial-gradient(at 60% 100%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 44%)', size: 'cover', repeat: 'no-repeat' },
+];
 
 // The customizable palette variables (label + which CSS var + sensible defaults per theme).
 export const PALETTE_VARS = [
@@ -61,7 +71,59 @@ export function currentPaletteValue(entry) {
   return entry.def[getTheme()];
 }
 
+// --- appearance (card glass/blur + background image/pattern) ---
+// Defaults to the plain current look when nothing is set.
+export function getAppearance() {
+  try { return JSON.parse(localStorage.getItem(AKEY)) || {}; } catch { return {}; }
+}
+export function setAppearance(patch) {
+  const a = { ...getAppearance(), ...patch };
+  localStorage.setItem(AKEY, JSON.stringify(a));
+  applyAppearance();
+  return a;
+}
+export function resetAppearance() {
+  localStorage.removeItem(AKEY);
+  applyAppearance();
+}
+function clearAppBg(root) {
+  root.removeAttribute('data-appbg');
+  root.style.removeProperty('--app-bg-image');
+  root.style.removeProperty('--app-bg-size');
+  root.style.removeProperty('--app-bg-repeat');
+}
+export function applyAppearance() {
+  const a = getAppearance();
+  const root = document.documentElement;
+  // Cards: solid (default) or frosted glass with a blur level + opacity.
+  if (a.cardStyle === 'glass') {
+    root.setAttribute('data-cards', 'glass');
+    root.style.setProperty('--card-blur', `${a.cardBlur != null ? a.cardBlur : 10}px`);
+    root.style.setProperty('--card-opacity', `${a.cardOpacity != null ? a.cardOpacity : 65}%`);
+  } else {
+    root.removeAttribute('data-cards');
+    root.style.removeProperty('--card-blur');
+    root.style.removeProperty('--card-opacity');
+  }
+  // Background: uploaded image or a preset pattern (else the plain default bg).
+  if (a.bgType === 'image' && a.bgImage) {
+    root.setAttribute('data-appbg', 'image');
+    root.style.setProperty('--app-bg-image', `url("${a.bgImage}")`);
+    root.style.setProperty('--app-bg-size', 'cover');
+    root.style.setProperty('--app-bg-repeat', 'no-repeat');
+  } else if (a.bgType === 'pattern' && a.bgPattern) {
+    const pat = BG_PATTERNS.find((p) => p.id === a.bgPattern);
+    if (pat) {
+      root.setAttribute('data-appbg', 'pattern');
+      root.style.setProperty('--app-bg-image', pat.image);
+      root.style.setProperty('--app-bg-size', pat.size || 'auto');
+      root.style.setProperty('--app-bg-repeat', pat.repeat || 'repeat');
+    } else clearAppBg(root);
+  } else clearAppBg(root);
+}
+
 export function initTheme() {
   applyTheme(getTheme());
   applyPalette();
+  applyAppearance();
 }

@@ -3,7 +3,7 @@
 import { el, clear, icon, toast, openModal } from '../ui/dom.js';
 import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf, verifyPassword } from '../auth/auth.js';
 import { checkPassword } from '../auth/passwordPolicy.js';
-import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue } from '../ui/theme.js';
+import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue, getAppearance, setAppearance, resetAppearance, BG_PATTERNS } from '../ui/theme.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
 import { APP_ICONS, APP_COLORS } from '../workspaces/appBuilder.js';
 import {
@@ -295,17 +295,111 @@ function buildThemeSection() {
   }
   drawSwatches();
 
+  // --- card style: solid (default) or frosted glass with blur + opacity ---
+  const cardWrap = el('div', {});
+  const glassCtl = el('div', {});
+  function drawCardStyle() {
+    const a = getAppearance();
+    const glass = a.cardStyle === 'glass';
+    const mk = (val, label, ic) => el('button', {
+      class: `seg ${((val === 'glass') === glass) ? 'seg--active' : ''}`,
+      onclick: () => { setAppearance({ cardStyle: val }); drawCardStyle(); },
+    }, [icon(ic), ' ' + label]);
+    clear(cardWrap).append(el('div', { class: 'seg-group' }, [mk('solid', 'Solid', 'square'), mk('glass', 'Glass', 'sparkles')]));
+    clear(glassCtl);
+    if (glass) {
+      const blur = el('input', { type: 'range', min: '0', max: '24', step: '1', value: String(a.cardBlur != null ? a.cardBlur : 10) });
+      blur.addEventListener('input', () => setAppearance({ cardBlur: Number(blur.value) }));
+      const op = el('input', { type: 'range', min: '30', max: '95', step: '1', value: String(a.cardOpacity != null ? a.cardOpacity : 65) });
+      op.addEventListener('input', () => setAppearance({ cardOpacity: Number(op.value) }));
+      glassCtl.append(
+        el('div', { class: 'theme-slider-row' }, [el('label', {}, 'Blur'), blur]),
+        el('div', { class: 'theme-slider-row' }, [el('label', {}, 'Opacity'), op]),
+      );
+    }
+  }
+  drawCardStyle();
+
+  // --- background: none (default) / preset pattern / uploaded image ---
+  const bgWrap = el('div', {});
+  const bgDetail = el('div', {});
+  const bgFile = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+  bgFile.addEventListener('change', async () => {
+    const f = bgFile.files && bgFile.files[0];
+    bgFile.value = '';
+    if (!f) return;
+    try { const url = await compressBg(f); setAppearance({ bgType: 'image', bgImage: url }); drawBg(); toast('Background updated', 'success'); }
+    catch { toast('Could not load that image.', 'error'); }
+  });
+  function drawBg() {
+    const a = getAppearance();
+    const type = a.bgType || 'none';
+    const mk = (val, label, ic) => el('button', {
+      class: `seg ${type === val ? 'seg--active' : ''}`,
+      onclick: () => { if (val === 'none') { setAppearance({ bgType: 'none' }); } else { setAppearance({ bgType: val }); } drawBg(); },
+    }, [icon(ic), ' ' + label]);
+    clear(bgWrap).append(el('div', { class: 'seg-group' }, [mk('none', 'None', 'ban'), mk('pattern', 'Pattern', 'grid-dots'), mk('image', 'Image', 'photo')]));
+    clear(bgDetail);
+    if (type === 'pattern') {
+      const row = el('div', { class: 'bg-pattern-row' });
+      for (const pat of BG_PATTERNS) {
+        const sw = el('button', { class: `bg-pattern ${a.bgPattern === pat.id ? 'is-active' : ''}`, title: pat.label, type: 'button' });
+        sw.style.setProperty('--bgp-size', pat.size || 'auto');
+        sw.style.setProperty('--bgp-repeat', pat.repeat || 'repeat');
+        sw.style.backgroundImage = pat.image;
+        sw.addEventListener('click', () => { setAppearance({ bgType: 'pattern', bgPattern: pat.id }); drawBg(); });
+        row.append(sw);
+      }
+      bgDetail.append(row);
+    } else if (type === 'image') {
+      const pick = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' }, [icon('upload'), a.bgImage ? ' Replace image' : ' Upload image']);
+      pick.addEventListener('click', () => bgFile.click());
+      bgDetail.append(el('div', { class: 'theme-slider-row', style: 'margin-top:10px' }, [pick, a.bgImage ? el('span', { class: 'muted', style: 'font-size:12px' }, 'Image set') : null]));
+    }
+  }
+  drawBg();
+
   const resetBtn = el('button', { class: 'btn btn--ghost btn--sm' }, [icon('refresh'), ' Reset to default']);
-  resetBtn.addEventListener('click', () => { resetPalette(); drawSwatches(); toast('Palette reset.', 'success'); });
+  resetBtn.addEventListener('click', () => { resetPalette(); resetAppearance(); drawSwatches(); drawCardStyle(); drawBg(); toast('Theme reset to default.', 'success'); });
 
   return el('section', { class: 'settings-card card' }, [
     el('h3', { class: 'settings-title' }, [icon('palette'), ' Theme']),
-    el('p', { class: 'muted' }, 'Choose light or dark, then customize the color palette to make it your own.'),
+    el('p', { class: 'muted' }, 'Choose light or dark, customize colors, card style and the background.'),
     segWrap,
     el('label', { class: 'settings-label' }, 'Custom palette'),
     swatchWrap,
-    el('div', { class: 'row' }, [resetBtn]),
+    el('span', { class: 'theme-sub' }, 'Card style'),
+    cardWrap,
+    glassCtl,
+    el('span', { class: 'theme-sub' }, 'Background'),
+    bgWrap,
+    bgDetail,
+    bgFile,
+    el('div', { class: 'row', style: 'margin-top:16px' }, [resetBtn]),
   ]);
+}
+
+// Compress an uploaded background to keep it inside localStorage (max ~1600px).
+function compressBg(file, maxDim = 1600, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale);
+        const h = Math.round(img.naturalHeight * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = r.result;
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
 }
 
 // Normalize a CSS color value to a 6-digit hex for <input type=color>.

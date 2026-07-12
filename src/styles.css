@@ -918,6 +918,39 @@ select.input { cursor: pointer; }
 .notif-time { font-size: 11px; margin-top: 3px; }
 .notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
 
+/* Frosted-glass cards (Theme → card style: Glass) */
+:root[data-cards="glass"] .card {
+  background-color: color-mix(in srgb, var(--surface) var(--card-opacity, 65%), transparent) !important;
+  backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.2);
+}
+
+/* Custom app background (uploaded image or preset pattern) behind everything */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: var(--app-bg-image, none);
+  background-size: var(--app-bg-size, auto);
+  background-repeat: var(--app-bg-repeat, repeat);
+  background-position: center;
+}
+:root[data-appbg] .app-shell,
+:root[data-appbg] .content,
+:root[data-appbg] .app-main { background: transparent; }
+
+/* Theme: appearance controls */
+.theme-sub { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
+.theme-slider-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.theme-slider-row label { font-size: 12px; color: var(--muted); min-width: 58px; }
+.theme-slider-row input[type="range"] { flex: 1 1 auto; accent-color: var(--primary); }
+.bg-pattern-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.bg-pattern {
+  width: 74px; height: 52px; border-radius: 10px; cursor: pointer; overflow: hidden;
+  border: 2px solid var(--border, #232a34); background-color: var(--surface);
+  background-size: var(--bgp-size, auto); background-repeat: var(--bgp-repeat, repeat); color: var(--text);
+}
+.bg-pattern.is-active { border-color: var(--primary); }
+.bg-pattern--none { display: grid; place-items: center; font-size: 11px; color: var(--muted); }
+
 /* Widget config gear + clock time-zone label */
 .widget-head-acts { display: inline-flex; align-items: center; gap: 4px; }
 .widget-cfg {
