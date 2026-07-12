@@ -1,6 +1,6 @@
 // The Settings page: change password, switch theme, and manage workspaces
 // (add / open / set-as-current / delete).
-import { el, clear, icon, toast, openModal } from '../ui/dom.js';
+import { el, clear, icon, toast, openModal, confirmModal } from '../ui/dom.js';
 import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf } from '../auth/auth.js';
 import { checkPassword } from '../auth/passwordPolicy.js';
 import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue } from '../ui/theme.js';
@@ -307,7 +307,7 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
             }, 'Set default'),
             canDelete ? el('button', {
               class: 'btn btn--danger btn--sm', onclick: async () => {
-                if (!confirm(`Delete workspace "${ws.name}"? This cannot be undone.`)) return;
+                if (!(await confirmModal({ title: 'Delete workspace?', message: `"${ws.name}" and its data will be permanently deleted. This cannot be undone.`, confirmLabel: 'Delete', danger: true }))) return;
                 try { await deleteWorkspace(ws.id, user.uid); toast('Workspace deleted', 'success'); load(); }
                 catch (err) { toast(err.message, 'error'); }
               },

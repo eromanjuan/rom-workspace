@@ -2391,6 +2391,43 @@ function onMentionMousedown(e) {
   if (!mentionPop.contains(e.target) && e.target !== (mentionState && mentionState.textarea)) closeMentionPop();
 }
 
+// A professional confirm dialog for the module (replaces window.confirm). Returns
+// a Promise<boolean>. Self-contained overlay appended to <body>.
+function wbConfirmModal({ title = 'Are you sure?', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (settled) return; settled = true; document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v); };
+    const overlay = document.createElement('div');
+    overlay.className = 'wb-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="wb-confirm-card" role="dialog" aria-modal="true">
+        <div class="wb-confirm-title">${h(title)}</div>
+        ${message ? `<div class="wb-confirm-msg">${h(message)}</div>` : ''}
+        <div class="wb-confirm-acts">
+          <button type="button" class="btn btn-sm" data-wb-confirm-cancel>${h(cancelLabel)}</button>
+          <button type="button" class="btn btn-sm ${danger ? 'wb-confirm-danger' : 'btn-primary'}" data-wb-confirm-ok>${h(confirmLabel)}</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelector('[data-wb-confirm-cancel]').addEventListener('click', () => done(false));
+    overlay.querySelector('[data-wb-confirm-ok]').addEventListener('click', () => done(true));
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.stopPropagation(); done(true); } }
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    const ok = overlay.querySelector('[data-wb-confirm-ok]'); if (ok) ok.focus();
+  });
+}
+
+// Open a ROM user profile from inside the embed by asking the parent to navigate.
+function wbOpenUserProfile(uid) {
+  if (!uid) return;
+  try { window.parent.postMessage({ type: 'rom-open-user', uid }, window.location.origin); } catch { /* ignore */ }
+}
+function onMentionClick(e) {
+  const m = e.target.closest && e.target.closest('.wb-mention[data-uid]');
+  if (m) { e.preventDefault(); wbOpenUserProfile(m.dataset.uid); }
+}
+
 function init() {
   normalizeLegacyLocation();
   applyTheme();
@@ -2413,6 +2450,7 @@ function init() {
   document.addEventListener('input', onMentionInput);
   document.addEventListener('keydown', onMentionKeydown, true);
   document.addEventListener('mousedown', onMentionMousedown);
+  document.addEventListener('click', onMentionClick);
   window.addEventListener('scroll', () => { if (mentionState) positionMentionPop(mentionState.textarea); }, true);
   document.addEventListener('dragstart', onPipeDragStart);
   document.addEventListener('dragend', onPipeDragEnd);
@@ -10448,13 +10486,17 @@ function wbFeedText(companyId, text) {
   // Highlight @mentions of known members. Match against full member names of any
   // length (longest first, so "@Ana Maria" wins over "@Ana") in a single pass so
   // we never re-enter an already-wrapped span.
-  const names = wbMembers(companyId)
-    .map((m) => (m.name || '').trim())
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
-  if (names.length) {
-    const alt = names.map((n) => h(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    out = out.replace(new RegExp(`@(${alt})(?=[^\\w]|$)`, 'g'), (full, name) => `<span class="wb-mention">@${name}</span>`);
+  const members = wbMembers(companyId)
+    .map((m) => ({ name: (m.name || '').trim(), id: m.id }))
+    .filter((m) => m.name)
+    .sort((a, b) => b.name.length - a.name.length);
+  if (members.length) {
+    const byEsc = new Map(members.map((m) => [h(m.name).toLowerCase(), m.id]));
+    const alt = members.map((m) => h(m.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    out = out.replace(new RegExp(`@(${alt})(?=[^\\w]|$)`, 'g'), (full, name) => {
+      const uid = byEsc.get(String(name).toLowerCase());
+      return `<span class="wb-mention"${uid ? ` data-uid="${h(uid)}"` : ''}>@${name}</span>`;
+    });
   }
   return out.replace(/\n/g, '<br>');
 }
@@ -10466,6 +10508,13 @@ function wbFeedPost(companyId, workspace, post) {
   const live = member && member.name && member.name !== 'Unknown' ? member : null;
   const name = live ? live.name : (post.author || 'User');
   const avatar = wbAvatar(live || { name, color: '#6b7280' }, 34);
+  // Resolve the author to a workspace member (ROM uid) so the name links to their
+  // profile. Falls back to a name match when authorId isn't a member id.
+  const authorMember = live || wbMembers(companyId).find((m) => m.name && m.name.toLowerCase() === String(name).toLowerCase());
+  const authorUid = authorMember && authorMember.id ? authorMember.id : '';
+  const nameHtml = authorUid
+    ? `<b class="wb-post-author-link" data-wb-open-user="${h(authorUid)}">${h(name)}</b>`
+    : `<b>${h(name)}</b>`;
   const myId = activeSession().profile?.id || '';
   const mine = wbPostIsMine(post);
   const liked = myId && post.likes.includes(myId);
@@ -10485,7 +10534,7 @@ function wbFeedPost(companyId, workspace, post) {
     <article class="wb-feed-card wb-post" data-wb-post="${h(post.id)}">
       <div class="wb-post-head">
         ${avatar}
-        <div class="wb-post-by"><b>${h(name)}</b><span>${wbTimeAgo(post.ts)}${post.editedAt ? ' · edited' : ''}</span></div>
+        <div class="wb-post-by">${nameHtml}<span>${wbTimeAgo(post.ts)}${post.editedAt ? ' · edited' : ''}</span></div>
         ${acts}
       </div>
       ${bodyBlock}
@@ -11144,13 +11193,14 @@ function wbAddFeedComment(companyId, postId) {
   render();
 }
 
-function wbDeleteFeedComment(companyId, postId, commentId) {
+async function wbDeleteFeedComment(companyId, postId, commentId) {
   const myId = activeSession().profile?.id || '';
   const { post } = wbFeedFindPost(companyId, postId);
   if (!post) return;
   const c = post.comments.find((x) => x.id === commentId);
   if (!c) return;
   if (c.authorId !== myId) { showToast('You can only delete your own comments.', 'local', 'Workspaces'); return; }
+  if (!(await wbConfirmModal({ title: 'Delete comment?', message: 'This comment will be permanently removed.', confirmLabel: 'Delete', danger: true }))) return;
   post.comments = post.comments.filter((x) => x.id !== commentId);
   wbSave(companyId);
   render();
@@ -11183,11 +11233,12 @@ function wbSaveEditFeedPost(companyId, postId) {
   render();
 }
 
-function wbDeleteFeedPost(companyId, postId) {
+async function wbDeleteFeedPost(companyId, postId) {
   const { workspace, post } = wbFeedFindPost(companyId, postId);
   if (!workspace || !post) return;
   // Only the post's own author may delete it. No workspace-manage override.
   if (!wbPostIsMine(post)) { showToast('You can only delete your own posts.', 'local', 'Workspaces'); return; }
+  if (!(await wbConfirmModal({ title: 'Delete post?', message: 'This permanently removes your post from the feed.', confirmLabel: 'Delete', danger: true }))) return;
   workspace.feed = workspace.feed.filter((p) => p.id !== postId);
   wbSave(companyId);
   showToast('Post removed.', 'local', 'Workspaces');
@@ -13998,6 +14049,7 @@ function mountWorkspaceBuilder() {
     // Workspace activity feed (dashboard home): publisher + posts.
     wbMountComposer(companyId);
     bind('[data-wb-compose-share]', () => wbComposerShare(companyId));
+    bind('[data-wb-open-user]', (el) => wbOpenUserProfile(el.dataset.wbOpenUser));
     bind('[data-wb-post-like]', (el) => wbToggleFeedLike(companyId, el.dataset.wbPostLike));
     bind('[data-wb-post-del]', (el) => wbDeleteFeedPost(companyId, el.dataset.wbPostDel));
     bind('[data-wb-post-edit]', (el) => { state.wbEditPostId = el.dataset.wbPostEdit; render(); });
@@ -23536,7 +23588,7 @@ async function setCompanyPlugin(companyId, pluginId, status, options = {}) {
   const conflictIds = conflictingPluginIds(companyId, plugin.id, nextStatus);
   if (conflictIds.length) {
     const conflictLabels = conflictIds.map((conflictId) => pluginById(conflictId)?.label || conflictId).join(', ');
-    if (!window.confirm(`Installing ${plugin.label} will disable ${conflictLabels}. Continue?`)) return;
+    if (!(await wbConfirmModal({ title: 'Install plugin?', message: `Installing ${plugin.label} will disable ${conflictLabels}.`, confirmLabel: 'Install' }))) return;
   }
   state.sync = { label: 'Updating plugin...', mode: 'loading' };
   render();
@@ -25178,7 +25230,7 @@ function copyClientPortalLink(portalId) {
 async function regenerateClientPortalLink(portalId) {
   const portal = clientPortalById(portalId);
   if (!portal || !requirePermission('client_portals.manage', portal.company_id, 'Your role cannot regenerate portal links.', 'Client Portal')) return;
-  if (!window.confirm(`Regenerate the public link for ${portal.title}? The old link will stop opening.`)) return;
+  if (!(await wbConfirmModal({ title: 'Regenerate link?', message: `The old public link for ${portal.title} will stop opening.`, confirmLabel: 'Regenerate' }))) return;
   const rawToken = randomPortalToken();
   const tokenHash = await digestHex(rawToken);
   const next = normalizeClientPortal({ ...portal, token_hash: tokenHash, status: 'active', revoked_at: null, updated_at: new Date().toISOString(), raw_token: rawToken });
@@ -25201,7 +25253,7 @@ async function regenerateClientPortalLink(portalId) {
 async function revokeClientPortal(portalId) {
   const portal = clientPortalById(portalId);
   if (!portal || !requirePermission('client_portals.manage', portal.company_id, 'Your role cannot revoke portals.', 'Client Portal')) return;
-  if (!window.confirm(`Revoke ${portal.title}? Existing guests will lose access.`)) return;
+  if (!(await wbConfirmModal({ title: 'Revoke portal?', message: `${portal.title} will be revoked and existing guests will lose access.`, confirmLabel: 'Revoke', danger: true }))) return;
   const next = normalizeClientPortal({ ...portal, status: 'revoked', revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() });
   const client = createSupabaseClient();
   if (isLiveSupabaseSession() && client) {

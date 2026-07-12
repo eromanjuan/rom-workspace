@@ -1,5 +1,5 @@
 // The Files section: upload files and view everything you've uploaded.
-import { el, clear, icon, toast } from '../ui/dom.js';
+import { el, clear, icon, toast, confirmModal } from '../ui/dom.js';
 import { isMaster } from '../workspaces/roles.js';
 import { uploadFile, listFiles, deleteFile } from '../workspaces/data.js';
 
@@ -97,7 +97,7 @@ function renderFileCard(f, user) {
       el('button', {
         class: 'btn btn--danger btn--sm', onclick: async (e) => {
           const card = e.currentTarget.closest('.file-card');
-          if (!confirm(`Delete "${f.name}"?`)) return;
+          if (!(await confirmModal({ title: 'Delete file?', message: `"${f.name}" will be permanently deleted.`, confirmLabel: 'Delete', danger: true }))) return;
           try { await deleteFile(f); card.remove(); toast('File deleted', 'success'); }
           catch (err) { toast(err.message, 'error'); }
         },

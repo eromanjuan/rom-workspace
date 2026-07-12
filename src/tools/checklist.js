@@ -2,7 +2,7 @@
 // freely create checklists, add items, and mark done/undone — no workspace or
 // permission gating. Data lives at users/{uid}/checklists. A workspace
 // Checklist tile can snapshot a chosen checklist onto a dashboard.
-import { el, clear, icon, toast } from '../ui/dom.js';
+import { el, clear, icon, toast, confirmModal } from '../ui/dom.js';
 import { addUserDoc, subscribeUserDocs, updateUserDoc, deleteUserDoc } from '../workspaces/data.js';
 
 export function renderChecklist(host, user) {
@@ -51,7 +51,7 @@ export function renderChecklist(host, user) {
     return el('div', { class: 'cl-card card' }, [
       el('div', { class: 'cl-head' }, [
         el('div', { class: 'cl-title' }, cl.title),
-        el('button', { class: 'link-danger', title: 'Delete', onclick: async () => { if (!confirm(`Delete "${cl.title}"?`)) return; try { await deleteUserDoc(user.uid, 'checklists', cl.id); } catch (e) { toast(e.message, 'error'); } } }, icon('trash')),
+        el('button', { class: 'link-danger', title: 'Delete', onclick: async () => { if (!(await confirmModal({ title: 'Delete checklist?', message: `"${cl.title}" will be permanently deleted.`, confirmLabel: 'Delete', danger: true }))) return; try { await deleteUserDoc(user.uid, 'checklists', cl.id); } catch (e) { toast(e.message, 'error'); } } }, icon('trash')),
       ]),
       el('div', { class: 'cl-progress' }, [
         el('div', { class: 'cl-progress-track' }, el('div', { class: 'cl-progress-bar', style: `width:${pct}%` })),

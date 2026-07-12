@@ -1,6 +1,6 @@
 // Owner-only Workspace Settings: General (name/desc/icon/color), Members
 // (view/invite/remove), and Roles & Permissions (per-member role + custom matrix).
-import { el, clear, icon, escapeHtml, toast, openModal } from '../ui/dom.js';
+import { el, clear, icon, escapeHtml, toast, openModal, confirmModal } from '../ui/dom.js';
 import {
   getWorkspace, updateWorkspace, listMembers, removeMember, setMemberRole,
   createInvite, listInvites, revokeInvite, listAllUsers, addMemberDirect,
@@ -185,7 +185,7 @@ function renderMembers(panel, wsId, user) {
           el('div', { class: 'ws-member-meta' }, [el('div', { class: 'ws-member-name' }, m.displayName || m.email), el('div', { class: 'muted' }, `${m.email} · ${roleLabel(m.role)}`)]),
           isOwnerRow ? null : el('button', {
             class: 'link-danger', onclick: async () => {
-              if (!confirm(`Remove ${m.email}?`)) return;
+              if (!(await confirmModal({ title: 'Remove member?', message: `${m.email} will lose access to this workspace.`, confirmLabel: 'Remove', danger: true }))) return;
               try { await removeMember(wsId, m.uid); loadMembers(); } catch (err) { toast(err.message, 'error'); }
             },
           }, 'Remove'),
@@ -273,7 +273,7 @@ function renderRoles(panel, wsId, user) {
   }
 
   bulkBtn.addEventListener('click', async () => {
-    if (!confirm(`Set all non-owner members to ${roleLabel(bulkRole.value)}?`)) return;
+    if (!(await confirmModal({ title: 'Bulk change roles?', message: `Set all non-owner members to ${roleLabel(bulkRole.value)}?`, confirmLabel: 'Apply' }))) return;
     bulkBtn.disabled = true;
     try {
       for (const m of members) { if (m.role !== 'owner') await setMemberRole(wsId, m.uid, bulkRole.value); }

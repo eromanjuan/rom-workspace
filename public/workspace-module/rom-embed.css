@@ -147,3 +147,26 @@
   background: color-mix(in srgb, var(--orange) 14%, transparent);
   border-radius: 5px; padding: 0 3px; font-weight: 600;
 }
+.wb-mention[data-uid] { cursor: pointer; }
+.wb-mention[data-uid]:hover { text-decoration: underline; }
+.wb-post-author-link { cursor: pointer; }
+.wb-post-author-link:hover { color: var(--orange); text-decoration: underline; }
+
+/* 8) Confirm dialog (wbConfirmModal) — replaces window.confirm in the embed. */
+.wb-confirm-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: grid; place-items: center;
+  background: rgba(0, 0, 0, .5); padding: 20px;
+}
+.wb-confirm-card {
+  width: 100%; max-width: 380px;
+  background: var(--surface-1, #10151d);
+  border: 1px solid var(--border, #232a34);
+  border-radius: 14px; padding: 20px 20px 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+}
+.wb-confirm-title { font-size: 16px; font-weight: 700; color: var(--text, #e6e9ee); }
+.wb-confirm-msg { margin-top: 8px; font-size: 13.5px; line-height: 1.55; color: var(--muted, #8a8f98); }
+.wb-confirm-acts { margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px; }
+.wb-confirm-danger { background: #e5484d !important; border-color: #e5484d !important; color: #fff !important; }
+.wb-confirm-danger:hover { filter: brightness(1.08); }

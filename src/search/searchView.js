@@ -111,7 +111,7 @@ export function renderSearch(host, user, initialTerm, { onOpenUser, onOpenWorksp
       return (p.hidden !== true || p.authorId === user.uid) && (p.text || '').toLowerCase().includes(q);
     }).slice(0, 20);
     if (!vis.length) { postsBox.append(empty('No posts match.')); return; }
-    for (const d of vis) postsBox.append(postCard(d, user, { expanded, drafts, paint: renderPosts }));
+    for (const d of vis) postsBox.append(postCard(d, user, { expanded, drafts, paint: renderPosts, onOpenUser }));
   }
 
   // debounced refine

@@ -74,6 +74,27 @@ export function openModal({ title, iconName, iconColor, wide, onClose } = {}) {
   return { overlay, body, close, iconEl };
 }
 
+// A professional confirmation dialog that replaces the native confirm(). Returns
+// a Promise resolving true if confirmed, false if cancelled/closed/Escape.
+export function confirmModal({ title = 'Are you sure?', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false, iconName } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const { body, close } = openModal({
+      title,
+      iconName: iconName || (danger ? 'trash' : 'help-circle'),
+      onClose: () => { if (!settled) { settled = true; resolve(false); } },
+    });
+    const done = (v) => { if (settled) return; settled = true; close(); resolve(v); };
+    const cancelBtn = el('button', { class: 'btn btn--ghost', onclick: () => done(false) }, cancelLabel);
+    const okBtn = el('button', { class: `btn ${danger ? 'btn--danger' : 'btn--primary'}`, onclick: () => done(true) }, confirmLabel);
+    body.append(
+      message ? el('p', { class: 'confirm-modal__msg' }, message) : null,
+      el('div', { class: 'confirm-modal__actions' }, [cancelBtn, okBtn]),
+    );
+    okBtn.focus();
+  });
+}
+
 // Trigger a client-side file download of text content.
 export function downloadFile(filename, text, mime = 'application/json') {
   const blob = new Blob([text], { type: mime });

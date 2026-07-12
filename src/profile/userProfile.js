@@ -8,7 +8,7 @@ import { postCard } from '../feed/feed.js';
 
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 
-export function renderUserProfile(host, targetUid, currentUser, { onBack }) {
+export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpenUser }) {
   clear(host);
 
   const head = el('div', { class: 'profile-head card' }, el('p', { class: 'muted' }, 'Loading profile…'));
@@ -46,7 +46,7 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack }) {
       .filter((d) => d.data().hidden !== true)
       .sort((a, b) => (b.data().createdAt?.toMillis?.() || 0) - (a.data().createdAt?.toMillis?.() || 0));
     if (!vis.length) { postsBox.append(el('p', { class: 'muted' }, 'No posts to show.')); return; }
-    for (const d of vis) postsBox.append(postCard(d, currentUser, { expanded, drafts, paint }));
+    for (const d of vis) postsBox.append(postCard(d, currentUser, { expanded, drafts, paint, onOpenUser }));
   }
   const unsub = onSnapshot(query(collection(db, 'posts'), where('authorId', '==', targetUid)), (snap) => { lastDocs = snap.docs; paint(); }, () => {
     clear(postsBox); postsBox.append(el('p', { class: 'error-text' }, 'Could not load posts.'));

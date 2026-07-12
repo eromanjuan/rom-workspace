@@ -880,3 +880,15 @@ select.input { cursor: pointer; }
 .toast--show { opacity: 1; transform: translate(-50%, 0); }
 .toast--error { border-color: var(--danger); }
 .toast--success { border-color: #43c67a; }
+
+/* Confirm dialog (confirmModal) */
+.confirm-modal__msg { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
+.confirm-modal__actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* Clickable author names → open profile */
+.post__author--link, .comment__author--link {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; font-weight: 600; color: inherit; cursor: pointer;
+}
+.comment__author--link { font-size: 0.8rem; }
+.post__author--link:hover, .comment__author--link:hover { color: var(--primary); text-decoration: underline; }

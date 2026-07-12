@@ -10,12 +10,13 @@ import {
   serverTimestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
-import { el, clear, escapeHtml, timeAgo, toast, icon } from '../ui/dom.js';
+import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
 import { renderWidgetsPanel } from './widgets.js';
 
-export function renderFeed(root, user) {
+export function renderFeed(root, user, opts = {}) {
   clear(root);
+  const onOpenUser = opts.onOpenUser || null;
 
   const composerText = el('textarea', {
     class: 'composer__text', rows: '3',
@@ -81,7 +82,7 @@ export function renderFeed(root, user) {
       list.append(el('p', { class: 'muted' }, 'No posts yet. Be the first!'));
       return;
     }
-    for (const d of visible) list.append(postCard(d, user, { expanded, drafts }));
+    for (const d of visible) list.append(postCard(d, user, { expanded, drafts, onOpenUser }));
   }, (err) => {
     clear(list);
     list.append(el('p', { class: 'error-text' }, `Feed error: ${err.message}`));
@@ -103,6 +104,11 @@ export function postCard(d, user, ui) {
   const likes = Array.isArray(p.likes) ? p.likes : [];
   const comments = Array.isArray(p.comments) ? p.comments : [];
   const liked = likes.includes(user.uid);
+
+  const openUser = ui.onOpenUser || null;
+  const authorEl = (openUser && p.authorId)
+    ? el('button', { class: 'post__author post__author--link', onclick: () => openUser(p.authorId) }, p.authorName || 'Someone')
+    : el('span', { class: 'post__author' }, p.authorName || 'Someone');
 
   const body = el('div', { class: 'post__body', html: escapeHtml(p.text).replace(/\n/g, '<br>') });
 
@@ -143,7 +149,7 @@ export function postCard(d, user, ui) {
       } catch (err) { toast(err.message, 'error'); }
     }));
     menu.append(menuItem('trash', 'Delete', true, async () => {
-      if (!confirm('Delete this post?')) return;
+      if (!(await confirmModal({ title: 'Delete post?', message: 'This permanently removes your post for everyone.', confirmLabel: 'Delete', danger: true }))) return;
       try { await deleteDoc(ref); } catch (err) { toast(err.message, 'error'); }
     }));
     const kebab = el('button', { class: 'post__kebab', title: 'Options', 'aria-label': 'Post options' }, icon('dots'));
@@ -178,7 +184,9 @@ export function postCard(d, user, ui) {
       const cMine = c.authorId === user.uid;
       thread.append(el('div', { class: 'comment' }, [
         el('div', { class: 'comment__main' }, [
-          el('span', { class: 'comment__author' }, c.authorName || 'Someone'),
+          (openUser && c.authorId)
+            ? el('button', { class: 'comment__author comment__author--link', onclick: () => openUser(c.authorId) }, c.authorName || 'Someone')
+            : el('span', { class: 'comment__author' }, c.authorName || 'Someone'),
           el('span', { class: 'comment__text' }, c.text || ''),
         ]),
         cMine
@@ -224,7 +232,7 @@ export function postCard(d, user, ui) {
 
   const card = el('div', { class: `post card ${isHidden ? 'is-hidden' : ''}` }, [
     el('div', { class: 'post__head' }, [
-      el('span', { class: 'post__author' }, p.authorName || 'Someone'),
+      authorEl,
       el('div', { class: 'post__head-right' }, [
         menuWrap,
         el('span', { class: 'post__time muted' }, `${when}${p.editedAt ? ' · edited' : ''}`),

@@ -45,6 +45,13 @@ if (window.top !== window.self) {
     const validViews = ['feed', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
     const state = { view: validViews.includes(savedView) ? savedView : 'feed', wsId: null, pendingInvite: getInviteIdFromUrl() };
 
+    // The embedded Workspace module can ask ROM to open a user's profile (e.g.
+    // clicking an author name or @mention inside the iframe). Set by renderShell.
+    let navigateToUser = null;
+    window.addEventListener('message', (e) => {
+        if (e.origin === location.origin && e.data && e.data.type === 'rom-open-user' && e.data.uid && navigateToUser) navigateToUser(e.data.uid);
+    });
+
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
@@ -76,6 +83,8 @@ if (window.top !== window.self) {
         app.append(shell.root);
         const content = shell.content;
         const wsHost = shell.wsHost;
+        // Let the embedded module navigate ROM to a user profile (go is hoisted).
+        navigateToUser = (uid) => go('user', uid);
 
         function onNav(view, item) {
             if (item?.soon) { toast(`${item.label} is coming soon.`, 'info'); return; }
@@ -140,7 +149,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=15', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=16', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
@@ -174,13 +183,13 @@ if (window.top !== window.self) {
             clear(content);
             content.style.padding = '';
             if (view === 'feed') {
-                viewUnsub = renderFeed(content, user);
+                viewUnsub = renderFeed(content, user, { onOpenUser: (uid) => go('user', uid) });
             } else if (view === 'profile') {
                 viewUnsub = renderProfile(content, user);
             } else if (view === 'search') {
                 viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: (uid) => go('user', uid), onOpenWorkspace: () => go('workspace') });
             } else if (view === 'user') {
-                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed') });
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: (uid) => go('user', uid) });
             } else if (view === 'settings') {
                 renderSettings(content, user, { onOpenWorkspace: () => go('workspace') });
             } else if (view === 'files') {

@@ -3,7 +3,7 @@
 // Everyone can freely create/edit their own — no workspace or permission
 // gating. Data lives at users/{uid}/notes. A workspace Notes tile can pin a
 // chosen note onto a dashboard.
-import { el, clear, icon, toast, openModal } from '../ui/dom.js';
+import { el, clear, icon, toast, openModal, confirmModal } from '../ui/dom.js';
 import { addUserDoc, subscribeUserDocs, updateUserDoc, deleteUserDoc } from '../workspaces/data.js';
 
 const stripHtml = (html) => { const d = document.createElement('div'); d.innerHTML = html || ''; return (d.textContent || '').trim(); };
@@ -99,7 +99,7 @@ export function renderNotes(host, user) {
     });
 
     const foot = [el('button', { class: 'btn btn--ghost', onclick: close }, 'Cancel')];
-    if (note) foot.push(el('button', { class: 'btn btn--danger', onclick: async () => { if (!confirm('Delete this note?')) return; try { await deleteUserDoc(user.uid, 'notes', note.id); close(); } catch (e) { toast(e.message, 'error'); } } }, [icon('trash'), ' Delete']));
+    if (note) foot.push(el('button', { class: 'btn btn--danger', onclick: async () => { if (!(await confirmModal({ title: 'Delete note?', message: 'This note will be permanently deleted.', confirmLabel: 'Delete', danger: true }))) return; try { await deleteUserDoc(user.uid, 'notes', note.id); close(); } catch (e) { toast(e.message, 'error'); } } }, [icon('trash'), ' Delete']));
     foot.push(save);
 
     body.append(el('div', { class: 'field-modal' }, [
