@@ -6,9 +6,9 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 import { db } from '../firebase.js';
 import { getUserProfile } from '../workspaces/data.js';
 import { postCard } from '../feed/feed.js';
+import { avatarNode } from './avatar.js';
 
 const VISIBILITY_DEFAULTS = { posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false };
-const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 
 export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpenUser }) {
   clear(host);
@@ -31,7 +31,7 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
     const since = p?.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : null;
 
     clear(head).append(
-      el('div', { class: 'profile-avatar' }, initials(name)),
+      avatarNode(name, p?.photoURL, 'profile-avatar'),
       el('div', {}, [
         el('div', { class: 'profile-name' }, name),
         p?.username ? el('div', { class: 'muted profile-username' }, `@${p.username}`) : null,

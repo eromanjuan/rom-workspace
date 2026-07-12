@@ -2,6 +2,7 @@
 // quest-hq command center. Views render into the returned `content` element.
 import { el, clear, icon } from './dom.js';
 import { displayNameOf, logOut } from '../auth/auth.js';
+import { applyAvatar } from '../profile/avatar.js';
 
 // Sidebar navigation.
 const NAV_GROUPS = [
@@ -72,8 +73,9 @@ export function buildShell(user, { onNavigate, onSearch }) {
     }
   }
 
+  const footAvatar = el('div', { class: 'sb-avatar sb-avatar--sm' }, initials(displayNameOf(user)));
   const foot = el('div', { class: 'sb-foot' }, [
-    el('div', { class: 'sb-avatar sb-avatar--sm' }, initials(displayNameOf(user))),
+    footAvatar,
     el('div', { class: 'sb-foot-name' }, displayNameOf(user)),
     el('button', { class: 'sb-logout', title: 'Log out', onclick: () => logOut() }, icon('logout')),
   ]);
@@ -84,6 +86,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
   const menuBtn = el('button', { class: 'topbar-menu', title: 'Menu', 'aria-label': 'Open menu' }, icon('menu-2'));
   // Notification bell (badge + panel wired by mountNotifications in main).
   const bell = el('button', { class: 'topbar-icon notif-bell', title: 'Notifications', 'aria-label': 'Notifications' }, icon('bell'));
+  const topAvatar = el('div', { class: 'topbar-avatar', title: displayNameOf(user) }, initials(displayNameOf(user)));
   const topbar = el('header', { class: 'topbar' }, [
     menuBtn,
     (() => {
@@ -93,7 +96,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
     })(),
     el('button', { class: 'topbar-icon', title: 'Refresh', onclick: () => location.reload() }, icon('refresh')),
     bell,
-    el('div', { class: 'topbar-avatar', title: displayNameOf(user) }, initials(displayNameOf(user))),
+    topAvatar,
   ]);
 
   const content = el('main', { class: 'content' });
@@ -131,7 +134,13 @@ export function buildShell(user, { onNavigate, onSearch }) {
     for (const [id, btn] of navButtons) btn.classList.toggle('sb-item--active', id === viewId);
   }
 
-  return { root, content, wsHost, setActive, bell };
+  // Reflect a chosen profile photo in the topbar + sidebar avatars.
+  const setAvatar = (photoURL) => {
+    applyAvatar(topAvatar, displayNameOf(user), photoURL);
+    applyAvatar(footAvatar, displayNameOf(user), photoURL);
+  };
+
+  return { root, content, wsHost, setActive, bell, setAvatar };
 }
 
 // A simple "coming soon" panel for Phase 2 modules.

@@ -4,19 +4,23 @@ import { displayNameOf } from '../auth/auth.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
 import { getUserProfile, listMyPosts, listMyWorkspaces } from '../workspaces/data.js';
 import { renderWidgetsPanel } from '../feed/widgets.js';
-
-function initials(name) {
-  return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
-}
+import { avatarNode, applyAvatar, pickAndEditAvatar, removeAvatar } from './avatar.js';
 
 // Returns an unsubscribe function (for the live widgets listener).
 export function renderProfile(host, user) {
   clear(host);
   const name = displayNameOf(user);
 
-  // --- details ---
+  // --- details (editable avatar) ---
+  const avatar = avatarNode(name, null, 'profile-avatar');
+  const editAvatarBtn = el('button', { class: 'avatar-edit-btn', title: 'Change photo', 'aria-label': 'Change photo' }, icon('camera'));
+  editAvatarBtn.addEventListener('click', () => pickAndEditAvatar(user, (url) => applyAvatar(avatar, name, url)));
+  const removeAvatarBtn = el('button', { class: 'avatar-remove-btn', title: 'Remove photo', style: 'display:none' }, icon('trash'));
+  removeAvatarBtn.addEventListener('click', () => removeAvatar(user, () => { applyAvatar(avatar, name, null); removeAvatarBtn.style.display = 'none'; }));
+  const avatarWrap = el('div', { class: 'profile-avatar-wrap' }, [avatar, editAvatarBtn, removeAvatarBtn]);
+
   const details = el('div', { class: 'profile-head card' }, [
-    el('div', { class: 'profile-avatar' }, initials(name)),
+    avatarWrap,
     el('div', {}, [
       el('div', { class: 'profile-name' }, name),
       el('div', { class: 'muted profile-username', id: 'profile-username' }, ''),
@@ -77,11 +81,12 @@ export function renderProfile(host, user) {
     workspacesBox.append(group('Owned by me', owned), group('Member of', member));
   }).catch((err) => { clear(workspacesBox); workspacesBox.append(el('p', { class: 'error-text' }, err.message)); });
 
-  // fill username + "member since"
+  // fill username + "member since" + current photo
   getUserProfile(user.uid).then((p) => {
     if (p?.username) document.getElementById('profile-username').textContent = `@${p.username}`;
     const since = p?.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : null;
     if (since) document.getElementById('profile-since').textContent = `Member since ${since}`;
+    if (p?.photoURL) { applyAvatar(avatar, name, p.photoURL); removeAvatarBtn.style.display = ''; }
   }).catch(() => {});
 
   // load previous posts

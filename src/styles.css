@@ -918,6 +918,49 @@ select.input { cursor: pointer; }
 .notif-time { font-size: 11px; margin-top: 3px; }
 .notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
 
+/* Avatars showing a saved photo (topbar, sidebar, profile, public profile) */
+.topbar-avatar.has-photo, .sb-avatar.has-photo, .profile-avatar.has-photo { overflow: hidden; padding: 0; }
+.topbar-avatar.has-photo img, .sb-avatar.has-photo img, .profile-avatar.has-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit;
+}
+
+/* Editable avatar on My Profile */
+.profile-avatar-wrap { position: relative; width: max-content; }
+.avatar-edit-btn, .avatar-remove-btn {
+  position: absolute; width: 30px; height: 30px; border-radius: 999px;
+  display: grid; place-items: center; cursor: pointer; border: 2px solid var(--bg, #0b0e13);
+  color: #fff; background: var(--primary);
+}
+.avatar-edit-btn { bottom: -2px; right: -2px; }
+.avatar-remove-btn { top: -2px; right: -2px; background: var(--danger, #e5484d); }
+.avatar-edit-btn:hover, .avatar-remove-btn:hover { filter: brightness(1.1); }
+.avatar-edit-btn .ti, .avatar-remove-btn .ti { font-size: 15px; }
+
+/* Avatar editor (crop / zoom / rotate / flip) */
+.avatar-editor-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: rgba(0,0,0,.6); padding: 16px; }
+.avatar-editor-card {
+  width: 100%; max-width: 380px; background: var(--surface, #12161d);
+  border: 1px solid var(--border, #232a34); border-radius: 16px; padding: 18px;
+  box-shadow: 0 30px 70px rgba(0,0,0,.55);
+}
+.avatar-editor-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.avatar-stage { position: relative; width: 320px; max-width: 100%; aspect-ratio: 1; margin: 0 auto; border-radius: 12px; overflow: hidden; touch-action: none; }
+.avatar-canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.avatar-canvas:active { cursor: grabbing; }
+/* circular crop guide */
+.avatar-crop-ring { position: absolute; inset: 0; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,.42); border-radius: 50%; }
+.avatar-zoom-row { display: flex; align-items: center; gap: 10px; margin: 16px 2px 4px; color: var(--muted); }
+.avatar-zoom { flex: 1 1 auto; accent-color: var(--primary); }
+.avatar-tools { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.avatar-tool {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; cursor: pointer;
+  background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--text);
+  border: 1px solid var(--border, #232a34);
+}
+.avatar-tool:hover { background: color-mix(in srgb, var(--primary) 20%, transparent); }
+.avatar-tool .ti { font-size: 18px; }
+.avatar-editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
 /* @mention typeahead (feed composer) + highlighted mentions in posts */
 .mention-pop {
   background: var(--surface, #12161d); border: 1px solid var(--border, #232a34);

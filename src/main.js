@@ -80,6 +80,10 @@ if (window.top !== window.self) {
     let routeTo = null;
     window.addEventListener('popstate', () => { const r = parsePath(); if (routeTo) routeTo(r.view, r.arg, { fromPop: true }); });
 
+    // Keep the shell avatars (topbar + sidebar) in sync with the saved photo.
+    let setShellAvatar = null;
+    window.addEventListener('rom-avatar-changed', (e) => { if (setShellAvatar) setShellAvatar(e.detail?.photoURL || ''); });
+
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
@@ -119,6 +123,9 @@ if (window.top !== window.self) {
         // Notification bell: live badge + panel; navigates to where each was fired.
         if (notifCleanup) notifCleanup();
         notifCleanup = mountNotifications(shell.bell, user, { onNavigate: (view, arg) => go(view, arg) });
+        // Load the saved profile photo into the shell avatars + keep them live.
+        setShellAvatar = shell.setAvatar;
+        getUserProfile(user.uid).then((p) => { if (p?.photoURL) shell.setAvatar(p.photoURL); }).catch(() => {});
 
         function onNav(view, item) {
             if (item?.soon) { toast(`${item.label} is coming soon.`, 'info'); return; }
