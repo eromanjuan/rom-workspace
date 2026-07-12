@@ -1,0 +1,22 @@
+{
+  "name": "rom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ROM - social feed + workspaces with role-based access and an app builder, on Firebase.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build:module": "npm --prefix workspace-module run build",
+    "build:app": "vite build",
+    "build": "npm run build:module && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules",
+    "rules:deploy": "firebase deploy --only firestore:rules"
+  },
+  "dependencies": {
+    "firebase": "^11.1.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.6"
+  }
+}

@@ -1,0 +1,208 @@
+rules_version = '2';
+
+// ROM security model
+// -------------------
+// Feed:       every signed-in user can read all posts; you may only write your own.
+// Workspaces: only members can read a workspace; only the owner can rename/delete it.
+// Roles:      owner (full), editor (read+write), viewer (read only) — stored per member.
+// Invites:    a signed-in user joins a workspace by presenting a matching invite (by id + email).
+// Apps:       the "app builder" — apps and their records live under a workspace and follow its roles.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The master / super-admin account — full access everywhere.
+    function isMaster() {
+      return signedIn() && request.auth.token.email == 'eugenioiromanjuan@gmail.com';
+    }
+
+    // --- workspace membership helpers ---
+    function memberPath(wsId) {
+      return /databases/$(database)/documents/workspaces/$(wsId)/members/$(request.auth.uid);
+    }
+    function isMember(wsId) {
+      return signedIn() && exists(memberPath(wsId));
+    }
+    function myRole(wsId) {
+      return get(memberPath(wsId)).data.role;
+    }
+    function canWrite(wsId) {
+      // master, owner and editor may write; viewer may not
+      return isMaster() || (isMember(wsId) && myRole(wsId) in ['owner', 'editor']);
+    }
+    function isOwner(wsId) {
+      return isMaster() || (isMember(wsId) && myRole(wsId) == 'owner');
+    }
+
+    // --- user profiles ---
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && (request.auth.uid == uid || isMaster());
+      allow delete: if isMaster();
+
+      // per-user subcollections (widgets, events, checklists, notes, …) — owner (or master) only
+      match /{sub}/{docId} {
+        allow read, write: if signedIn() && (request.auth.uid == uid || isMaster());
+      }
+    }
+
+    // --- unique usernames (handles) ---
+    // The doc id IS the lowercased handle, so a create can only succeed once →
+    // uniqueness. Public read so availability can be checked before sign-up.
+    match /usernames/{handle} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false; // handles are immutable; a change = delete + create
+    }
+
+    // --- embedded Workspace Builder module state (shared, collaborative) ---
+    // One doc holds the module's localStorage blob; any signed-in user reads/writes it.
+    match /workspaceBuilder/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    // --- ROM App Market (shared app definitions, browsable by anyone) ---
+    match /appMarket/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.publishedBy == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.publishedBy == request.auth.uid || isMaster());
+    }
+
+    // --- uploaded files (metadata; the blobs live in Storage) ---
+    match /files/{fileId} {
+      allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());
+    }
+
+    // --- global feed ---
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() > 0
+                    && request.resource.data.text.size() <= 2000;
+      // authors manage their own posts; the master can moderate any post
+      allow delete: if signedIn() && (resource.data.authorId == request.auth.uid || isMaster());
+      // updates: the author (or master) may change anything (edit text, etc.);
+      // any signed-in user may ONLY toggle the likes/comments fields (react/comment).
+      allow update: if signedIn() && (
+        resource.data.authorId == request.auth.uid || isMaster()
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments'])
+      );
+    }
+
+    // Collection-group read for "list my workspaces": the app runs
+    // collectionGroup('members').where('uid','==',me). A collectionGroup query
+    // is NOT covered by the nested workspaces/{wsId}/members rule below — it
+    // needs this recursive-wildcard rule. Keyed on the `uid` field so the query
+    // is statically provable. (Writes are still governed by the nested rule.)
+    match /{path=**}/members/{memberUid} {
+      allow read: if resource.data.uid == request.auth.uid;
+    }
+
+    // --- workspaces ---
+    match /workspaces/{wsId} {
+      allow read: if isMember(wsId) || isMaster();
+      // creating a workspace: you must set yourself as the owner
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      // only the owner (or master) may rename or delete the workspace
+      allow update, delete: if isOwner(wsId);
+
+      // --- members (the role table) ---
+      match /members/{memberUid} {
+        // Reading own membership is keyed on the `uid` FIELD (not the doc id) so
+        // that the collectionGroup query `where('uid','==',me)` used by
+        // "list my workspaces" is statically provable and permitted. Members can
+        // read the whole roster; master reads everything.
+        allow read: if isMember(wsId) || isMaster();
+
+        // 0) the workspace owner (or master) adding any user directly
+        // 1) the workspace owner creating their own owner membership at setup time
+        // 2) a user accepting an invite that matches their email + the requested role
+        allow create: if isOwner(wsId) || (signedIn() && request.auth.uid == memberUid && (
+          get(/databases/$(database)/documents/workspaces/$(wsId)).data.ownerId == request.auth.uid
+          || (
+            request.resource.data.inviteId is string
+            && exists(/databases/$(database)/documents/invites/$(request.resource.data.inviteId))
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.workspaceId == wsId
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.email == request.auth.token.email
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.role == request.resource.data.role
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.status == 'pending'
+          )
+        ));
+
+        // owner manages roles; a member may remove themselves (leave)
+        allow update: if isOwner(wsId);
+        allow delete: if isOwner(wsId) || request.auth.uid == memberUid;
+      }
+
+      // --- workspace activity feed (the builder home) ---
+      match /feed/{postId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create: if canWrite(wsId) && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if signedIn() && (resource.data.authorId == request.auth.uid || isOwner(wsId));
+      }
+
+      // --- dashboard tiles (the no-code dashboard) ---
+      match /tiles/{tileId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+      }
+
+      // --- workspace tasks (used by the Tasks tile) ---
+      match /tasks/{taskId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+      }
+
+      // --- shared calendar events + checklists (view: members; edit: canWrite) ---
+      match /events/{eventId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+      }
+      match /checklists/{listId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+      }
+      match /notes/{noteId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+      }
+
+      // --- app builder: apps + their records follow workspace roles ---
+      match /apps/{appId} {
+        allow read: if isMember(wsId) || isMaster();
+        allow create, update, delete: if canWrite(wsId);
+
+        match /records/{recordId} {
+          allow read: if isMember(wsId);
+          allow create, update, delete: if canWrite(wsId);
+        }
+      }
+    }
+
+    // --- invites ---
+    match /invites/{inviteId} {
+      // an invitee reads the invite to accept it; members can list a workspace's invites
+      allow read: if signedIn();
+      // only owner/editor of the target workspace may invite people
+      allow create: if signedIn()
+                    && canWrite(request.resource.data.workspaceId)
+                    && request.resource.data.role in ['editor', 'viewer'];
+      // owner can revoke; the accepting user flips status to 'accepted'
+      allow update: if signedIn() && (
+        isOwner(resource.data.workspaceId)
+        || (resource.data.email == request.auth.token.email
+            && request.resource.data.status == 'accepted')
+      );
+      allow delete: if signedIn() && isOwner(resource.data.workspaceId);
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "__commonjsHelpers-Cpj98o6Y.js": {
+    "file": "assets/_commonjsHelpers-Cpj98o6Y.js",
+    "name": "_commonjsHelpers"
+  },
+  "_jszip.min-DXD3Oxvq.js": {
+    "file": "assets/jszip.min-DXD3Oxvq.js",
+    "name": "jszip.min",
+    "isDynamicEntry": true,
+    "imports": [
+      "__commonjsHelpers-Cpj98o6Y.js"
+    ]
+  },
+  "_leaflet-src-DuSulP-V.js": {
+    "file": "assets/leaflet-src-DuSulP-V.js",
+    "name": "leaflet-src",
+    "isDynamicEntry": true,
+    "imports": [
+      "__commonjsHelpers-Cpj98o6Y.js"
+    ]
+  },
+  "_vendor-supabase-WrSHdWqO.js": {
+    "file": "assets/vendor-supabase-WrSHdWqO.js",
+    "name": "vendor-supabase"
+  },
+  "node_modules/leaflet/dist/leaflet.css": {
+    "file": "assets/leaflet-CIGW-MKW.css",
+    "src": "node_modules/leaflet/dist/leaflet.css"
+  },
+  "node_modules/pdfjs-dist/build/pdf.mjs": {
+    "file": "assets/pdf-BjAALUVx.js",
+    "name": "pdf",
+    "src": "node_modules/pdfjs-dist/build/pdf.mjs",
+    "isDynamicEntry": true
+  },
+  "node_modules/pdfjs-dist/build/pdf.worker.mjs": {
+    "file": "assets/pdf.worker-CPbhI6B3.mjs",
+    "src": "node_modules/pdfjs-dist/build/pdf.worker.mjs"
+  },
+  "src/assets/quest-hq-logo-mark.png": {
+    "file": "assets/quest-hq-logo-mark-Be0bYUH5.png",
+    "src": "src/assets/quest-hq-logo-mark.png"
+  },
+  "src/assets/quest-hq-ops-command-hero.png": {
+    "file": "assets/quest-hq-ops-command-hero-Dc_5E_zX.png",
+    "src": "src/assets/quest-hq-ops-command-hero.png"
+  },
+  "src/main.js": {
+    "file": "assets/rom-module-entry.js",
+    "name": "main",
+    "src": "src/main.js",
+    "isEntry": true,
+    "imports": [
+      "_vendor-supabase-WrSHdWqO.js"
+    ],
+    "dynamicImports": [
+      "_leaflet-src-DuSulP-V.js",
+      "node_modules/pdfjs-dist/build/pdf.mjs",
+      "_jszip.min-DXD3Oxvq.js"
+    ],
+    "css": [
+      "assets/rom-module.css"
+    ],
+    "assets": [
+      "assets/pdf.worker-CPbhI6B3.mjs",
+      "assets/quest-hq-logo-mark-Be0bYUH5.png"
+    ]
+  }
+}

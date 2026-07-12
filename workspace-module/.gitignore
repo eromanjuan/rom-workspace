@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+build/
+.vite/
+
+# Local environment
+.env
+.env.*
+!.env.example
+taskmanagement/env.json
+docs/taskmanagement/env.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime and package manager state
+*.pid
+*.seed
+*.pid.lock
+.npm/
+.pnpm-store/
+
+# Coverage and reports
+coverage/
+playwright-report/
+test-results/
+
+# Generated local artifacts
+artifacts/
+exports/
+output/
+supabase/.temp/
+*.tsbuildinfo
+
+# Local assistant/session notes
+.claude/
+handoff.md
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Vercel local metadata
+.vercel/
+.vercel
+.env*

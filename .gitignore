@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local env with the Firebase web config
+.env
+.env.local
+.env.*.local
+
+# Service account keys / secrets — NEVER commit these
+*serviceAccount*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+secrets/
+*.key
+
+# Editor / OS
+.DS_Store
+.vscode/
+.firebase/
+*.log

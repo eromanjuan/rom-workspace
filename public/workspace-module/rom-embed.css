@@ -1,0 +1,92 @@
+/* ROM embed overrides — loaded AFTER the module's own CSS.
+   Hides the Quest HQ header + sidebar so only the workspace dashboard shows,
+   and points the module's accent at ROM's live theme accent (set by the bridge). */
+
+/* 1) Hide the top header, left sidebar, and mobile chrome. */
+.topbar,
+.deck,
+.mobile-status-rail,
+.mobile-tabbar,
+.mobile-more-sheet,
+.role-preview-banner,
+.read-only-demo-banner {
+  display: none !important;
+}
+
+/* 2) Collapse the app grid to a single full-bleed cell = the workspace surface. */
+.quest-app {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  padding: 0 !important;
+  min-height: 100vh;
+  background: var(--surface-2) !important;
+}
+.work-surface {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: 100vh;
+}
+
+/* 3) Follow ROM's live theme accent (bridge sets --orange/--amber). */
+.wb-topbar-ic-home { background: var(--orange) !important; }
+.wb-tab.active { color: var(--orange) !important; border-bottom-color: var(--orange) !important; }
+.wb-modal-ic { background: var(--orange) !important; }
+.btn-primary,
+.wb-compose-tab.active,
+.wb-compose-mode.active {
+  background: var(--orange) !important;
+  border-color: var(--orange) !important;
+  color: #fff !important;
+}
+.btn-primary:hover { filter: brightness(1.1); }
+
+/* 3b) The workspace/app title badge (icon/color/image injected by the bridge). */
+.wb-title-ic {
+  width: 34px; height: 34px; border-radius: 9px; margin-right: 10px;
+  display: inline-grid; place-items: center; color: #fff; font-size: 18px;
+  vertical-align: middle; overflow: hidden;
+  background-size: cover; background-position: center;
+}
+
+/* 3c) Bigger workspace title. */
+.wb-title { font-size: 2.15rem !important; }
+
+/* 3d) Own-post edit/delete controls. */
+.wb-post-menu { display: inline-flex; gap: 4px; }
+.wb-post-act.danger:hover { color: #e5484d; }
+.wb-post-body > textarea.wb-input { width: 100%; resize: vertical; }
+
+/* 3e) Notes tile: renders a saved workspace note's rich text. */
+.wb-tile-note { font-size: 13px; line-height: 1.5; max-height: 320px; overflow: auto; word-break: break-word; }
+.wb-tile-note :is(h1, h2, h3) { margin: .3em 0; }
+.wb-tile-note ul, .wb-tile-note ol { padding-left: 1.2em; margin: .3em 0; }
+.wb-tile-note-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.wb-tile-note-tag { font-size: 11px; color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); border-radius: 999px; padding: 1px 8px; }
+
+/* 4) Tile fit: keep the header controls from overflowing/clipping. */
+.wb-tile-head { gap: 6px; padding: 10px 12px; min-width: 0; }
+.wb-tile-head > span:first-child { min-width: 0; flex: 1 1 auto; overflow: hidden; }
+.wb-tile-mng, .wb-tile-head-acts { flex: 0 0 auto; gap: 4px; }
+.wb-tile-mbtn { width: 24px; height: 24px; font-size: 13px; }
+.wb-dash { grid-template-columns: minmax(0, 1fr) clamp(300px, 32vw, 560px) !important; }
+
+/* 5) ROM shared Checklist tile. */
+.wb-tile-cllist { display: flex; flex-direction: column; gap: 14px; }
+.wb-tile-clbox { display: flex; flex-direction: column; gap: 6px; }
+.wb-tile-clhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wb-tile-clhead b { font-size: 13px; }
+.wb-tile-clcount { font-size: 12px; color: var(--muted, #8a8f98); flex: 0 0 auto; }
+.wb-tile-clbar { height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--orange) 18%, transparent); overflow: hidden; }
+.wb-tile-clbar-fill { height: 100%; background: var(--orange); border-radius: 999px; transition: width .2s ease; }
+.wb-tile-clitem-add { display: flex; gap: 6px; margin-top: 2px; }
+.wb-tile-clitem-add .wb-input { flex: 1 1 auto; }
+.wb-input-sm { padding: 5px 8px !important; font-size: 12px !important; }
+.wb-tile-taskadd-row { display: flex; gap: 6px; }
+.wb-tile-taskadd-row .wb-input { flex: 1 1 0; min-width: 0; }
+/* Calendar tile: delete button sits at the right of each upcoming row. */
+.wb-tile-cal { display: flex; align-items: center; gap: 8px; }
+.wb-tile-cal-main { flex: 1 1 auto; min-width: 0; }
+.wb-tile-mbtn.danger:hover { color: var(--danger, #e5484d); }

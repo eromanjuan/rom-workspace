@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firebase firestore:delete \"workspaces/smoke_ws\" --recursive --force --project rom-database-0909)",
+      "Bash(echo \"exit smoke: $?\")",
+      "Bash(firebase firestore:delete \"workspaces/wb_ws\" --recursive --force --project rom-database-0909)",
+      "Bash(echo \"exit wb: $?\")",
+      "Read(//c/Users/ROM/Work/quest-hq-command-center-rom/src/**)"
+    ]
+  }
+}
