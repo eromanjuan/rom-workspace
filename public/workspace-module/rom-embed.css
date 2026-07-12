@@ -170,3 +170,35 @@
 .wb-confirm-acts { margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px; }
 .wb-confirm-danger { background: #e5484d !important; border-color: #e5484d !important; color: #fff !important; }
 .wb-confirm-danger:hover { filter: brightness(1.08); }
+
+/* 9) General-purpose widget tiles (clock / date / weather / calculator). */
+.wb-widget { text-align: center; padding: 6px 2px; }
+.wb-widget .wb-sub { color: var(--muted, #8a8f98); }
+.wb-widget-clock .wb-clock-time { font-size: 30px; font-weight: 700; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+.wb-widget-clock .wb-clock-date { font-size: 13px; margin-top: 2px; }
+.wb-widget-clock .wb-clock-zone { font-size: 12px; margin-top: 4px; color: var(--orange); }
+.wb-widget-date .wb-date-day { font-size: 14px; font-weight: 600; }
+.wb-widget-date .wb-date-num { font-size: 46px; font-weight: 800; line-height: 1.05; }
+.wb-widget-date .wb-date-mon { font-size: 13px; }
+.wb-widget-weather { min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.wb-widget-weather .wb-weather-main { display: inline-flex; align-items: center; gap: 8px; }
+.wb-widget-weather .wb-weather-main .ti { font-size: 26px; color: var(--orange); }
+.wb-widget-weather .wb-weather-temp { font-size: 32px; font-weight: 700; }
+.wb-widget-weather .wb-weather-desc { font-size: 13px; }
+.wb-widget-calc { padding: 2px; }
+.wb-calc-display {
+  width: 100%; text-align: right; font-size: 22px; font-variant-numeric: tabular-nums;
+  padding: 8px 10px; margin-bottom: 8px; border-radius: 8px;
+  background: var(--surface-2, #0d1117); border: 1px solid var(--border, #232a34); color: var(--text, #e6e9ee);
+}
+.wb-calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.wb-calc-key {
+  padding: 10px 0; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;
+  background: color-mix(in srgb, var(--orange) 8%, transparent);
+  border: 1px solid var(--border, #232a34); color: var(--text, #e6e9ee);
+}
+.wb-calc-key:hover { background: color-mix(in srgb, var(--orange) 16%, transparent); }
+.wb-calc-key.fn { color: var(--muted, #8a8f98); }
+.wb-calc-key.op { color: var(--orange); }
+.wb-calc-key.eq { background: var(--orange); border-color: var(--orange); color: #fff; }
+.wb-calc-key.zero { grid-column: span 2; }

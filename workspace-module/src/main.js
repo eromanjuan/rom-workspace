@@ -2451,6 +2451,9 @@ function init() {
   document.addEventListener('keydown', onMentionKeydown, true);
   document.addEventListener('mousedown', onMentionMousedown);
   document.addEventListener('click', onMentionClick);
+  // Widget tiles: a shared 1-second clock ticker + delegated calculator clicks.
+  if (!state.wbClockTimer) { state.wbClockTimer = setInterval(wbTickClocks, 1000); }
+  document.addEventListener('click', onWbCalcClick);
   window.addEventListener('scroll', () => { if (mentionState) positionMentionPop(mentionState.textarea); }, true);
   document.addEventListener('dragstart', onPipeDragStart);
   document.addEventListener('dragend', onPipeDragEnd);
@@ -10636,6 +10639,10 @@ function wbTileMeta(companyId, workspace, tile) {
     case 'apps': return { title: 'Apps', icon: 'ti-apps', config: false };
     case 'app': { const a = (workspace.apps || []).find((x) => x.id === tile.config.appId); return { title: a ? a.name : 'App', icon: a ? a.icon : 'ti-layout-grid', config: true, app: a }; }
     case 'report': { const a = (workspace.apps || []).find((x) => x.id === tile.config.appId); return { title: a ? `${a.name} · Report` : 'Report', icon: 'ti-chart-bar', config: true, app: a }; }
+    case 'clock': { const tz = tile.config.tz; return { title: tz ? tz.replace(/_/g, ' ').split('/').pop() : 'Clock', icon: 'ti-clock', config: true }; }
+    case 'date': return { title: 'Date', icon: 'ti-calendar-event', config: false };
+    case 'weather': return { title: 'Weather', icon: 'ti-cloud', config: false };
+    case 'calculator': return { title: 'Calculator', icon: 'ti-calculator', config: false };
     case 'tasks': return { title: tile.config.title || 'Checklist', icon: 'ti-checklist', config: true };
     case 'calendar': return { title: 'Calendar', icon: 'ti-calendar', config: true };
     case 'notes': return { title: tile.config.title || 'Notes', icon: 'ti-notes', config: true };
@@ -10680,8 +10687,112 @@ function wbTileBody(companyId, workspace, tile, meta) {
     case 'text': return wbTileText(tile);
     case 'image': return wbTileImage(tile);
     case 'links': return wbTileLinks(tile);
+    case 'clock': return wbTileClock(tile);
+    case 'date': return wbTileDate();
+    case 'weather': return wbTileWeather();
+    case 'calculator': return wbTileCalculator();
     default: return `<div class="wb-tile-empty">Unknown tile.</div>`;
   }
+}
+
+// --- General-purpose widget tiles (clock / date / weather / calculator) -------
+function wbTimeZones() {
+  try { if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone'); } catch { /* ignore */ }
+  return ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Moscow', 'Africa/Cairo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Manila', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Seoul', 'Australia/Sydney', 'Pacific/Auckland'];
+}
+function wbTileClock(tile) {
+  const tz = (tile.config && tile.config.tz) || '';
+  const label = tz ? tz.replace(/_/g, ' ').split('/').pop() : 'Local time';
+  return `<div class="wb-widget wb-widget-clock" data-wb-clock data-tz="${h(tz)}">
+    <div class="wb-clock-time">--:--:--</div>
+    <div class="wb-clock-date wb-sub"></div>
+    <div class="wb-clock-zone wb-sub">${h(label)}</div>
+  </div>`;
+}
+function wbTickClocks() {
+  const now = new Date();
+  document.querySelectorAll('[data-wb-clock]').forEach((node) => {
+    const tz = node.dataset.tz || undefined;
+    const topt = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+    const dopt = { weekday: 'short', month: 'short', day: 'numeric' };
+    try {
+      const t = node.querySelector('.wb-clock-time'); if (t) t.textContent = now.toLocaleTimeString([], tz ? { ...topt, timeZone: tz } : topt);
+      const d = node.querySelector('.wb-clock-date'); if (d) d.textContent = now.toLocaleDateString([], tz ? { ...dopt, timeZone: tz } : dopt);
+    } catch { /* invalid tz */ }
+  });
+}
+function wbTileDate() {
+  const now = new Date();
+  return `<div class="wb-widget wb-widget-date">
+    <div class="wb-date-day">${h(now.toLocaleDateString([], { weekday: 'long' }))}</div>
+    <div class="wb-date-num">${now.getDate()}</div>
+    <div class="wb-date-mon wb-sub">${h(now.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</div>
+  </div>`;
+}
+function wbTileWeather() {
+  return `<div class="wb-widget wb-widget-weather" data-wb-weather><div class="wb-sub">Loading weather…</div></div>`;
+}
+let wbWeatherCache = null;
+function wbWeatherDesc(code) {
+  const map = { 0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers', 81: 'Rain showers', 82: 'Violent showers', 95: 'Thunderstorm', 96: 'Thunderstorm', 99: 'Thunderstorm' };
+  return map[code] || 'Weather';
+}
+function wbMountWeather() {
+  const nodes = document.querySelectorAll('[data-wb-weather]');
+  if (!nodes.length) return;
+  const paint = (html) => nodes.forEach((n) => { n.innerHTML = html; });
+  if (wbWeatherCache) { paint(wbWeatherCache); return; }
+  const fetchAt = (lat, lon) => {
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`)
+      .then((r) => r.json())
+      .then((d) => {
+        const c = d.current || {};
+        wbWeatherCache = `<div class="wb-weather-main"><i class="ti ti-cloud"></i><div class="wb-weather-temp">${Math.round(c.temperature_2m)}°</div></div><div class="wb-weather-desc wb-sub">${h(wbWeatherDesc(c.weather_code))}</div>`;
+        paint(wbWeatherCache);
+      })
+      .catch(() => paint('<div class="wb-sub">Weather unavailable.</div>'));
+  };
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => fetchAt(pos.coords.latitude.toFixed(3), pos.coords.longitude.toFixed(3)),
+      () => fetchAt('14.6', '121.0'),
+      { timeout: 8000 });
+  } else { fetchAt('14.6', '121.0'); }
+}
+function wbTileCalculator() {
+  const keys = ['C', '⌫', '%', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', '0', '.', '='];
+  return `<div class="wb-widget wb-widget-calc">
+    <input class="wb-calc-display" data-wb-calc-display value="0" readonly>
+    <div class="wb-calc-grid">${keys.map((k) => {
+    const op = ['÷', '×', '−', '+'].includes(k); const eq = k === '=';
+    const fn = ['C', '⌫', '%'].includes(k);
+    return `<button type="button" class="wb-calc-key${op ? ' op' : ''}${eq ? ' eq' : ''}${fn ? ' fn' : ''}${k === '0' ? ' zero' : ''}" data-wb-calc="${h(k)}">${h(k)}</button>`;
+  }).join('')}</div>
+  </div>`;
+}
+function onWbCalcClick(e) {
+  const b = e.target.closest && e.target.closest('[data-wb-calc]');
+  if (!b) return;
+  const box = b.closest('.wb-widget-calc'); if (!box) return;
+  const disp = box.querySelector('[data-wb-calc-display]'); if (!disp) return;
+  const k = b.dataset.wbCalc;
+  const cur = disp.value;
+  const setD = (v) => { disp.value = v; };
+  const compute = (a, op, c) => {
+    const x = parseFloat(a); const y = parseFloat(c); let r = y;
+    if (op === '+') r = x + y; else if (op === '−') r = x - y; else if (op === '×') r = x * y; else if (op === '÷') r = y === 0 ? NaN : x / y;
+    return Number.isFinite(r) ? String(Math.round(r * 1e10) / 1e10) : 'Error';
+  };
+  if (/[0-9]/.test(k)) { if (box.dataset.fresh === '1' || cur === '0' || cur === 'Error') { setD(k); box.dataset.fresh = '0'; } else setD(cur + k); return; }
+  if (k === '.') { if (box.dataset.fresh === '1') { setD('0.'); box.dataset.fresh = '0'; } else if (!cur.includes('.')) setD(cur + '.'); return; }
+  if (k === 'C') { setD('0'); box.dataset.acc = ''; box.dataset.op = ''; box.dataset.fresh = '0'; return; }
+  if (k === '⌫') { setD(cur.length > 1 && cur !== 'Error' ? cur.slice(0, -1) : '0'); return; }
+  if (k === '%') { setD(String(parseFloat(cur) / 100)); return; }
+  if (['+', '−', '×', '÷'].includes(k)) {
+    if (box.dataset.op && box.dataset.fresh !== '1') { const r = compute(box.dataset.acc, box.dataset.op, cur); box.dataset.acc = r; setD(r); } else box.dataset.acc = cur;
+    box.dataset.op = k; box.dataset.fresh = '1'; return;
+  }
+  if (k === '=') { if (box.dataset.op) { const r = compute(box.dataset.acc, box.dataset.op, cur); setD(r); box.dataset.acc = ''; box.dataset.op = ''; box.dataset.fresh = '1'; } }
 }
 
 function wbTileApps(companyId, workspace) {
@@ -11308,7 +11419,7 @@ function wbAddTile(companyId, type) {
   workspace.tiles.push(tile);
   wbSave(companyId);
   state.builderModal = null;
-  if (['app', 'report', 'text', 'image', 'links'].includes(type)) { openWbTileConfig(companyId, tile.id); return; }
+  if (['app', 'report', 'text', 'image', 'links', 'clock'].includes(type)) { openWbTileConfig(companyId, tile.id); return; }
   render();
 }
 function wbRemoveTile(companyId, tileId) {
@@ -11392,7 +11503,8 @@ function wbSaveTileConfig(companyId) {
   const tile = workspace ? workspace.tiles.find((t) => t.id === m.tileId) : null;
   if (!tile) return;
   const val = (sel) => (document.querySelector(sel)?.value || '').trim();
-  if (tile.type === 'app') { tile.config.appId = val('[data-wb-tilecfg-app]'); }
+  if (tile.type === 'clock') { tile.config.tz = val('[data-wb-tilecfg-tz]'); }
+  else if (tile.type === 'app') { tile.config.appId = val('[data-wb-tilecfg-app]'); }
   else if (tile.type === 'report') { tile.config.appId = val('[data-wb-tilecfg-app]'); tile.config.reportId = val('[data-wb-tilecfg-report]') || 'recent'; }
   else if (tile.type === 'text') { tile.config.title = val('[data-wb-tilecfg-title]'); tile.config.body = document.querySelector('[data-wb-tilecfg-body]')?.value || ''; }
   else if (tile.type === 'notes') {
@@ -13100,6 +13212,10 @@ function renderWorkspaceBuilderModal() {
   }
   if (m.kind === 'tile-add') {
     const catalog = [
+      ['clock', 'ti-clock', 'Clock', 'A live clock — pick any time zone'],
+      ['date', 'ti-calendar-event', 'Date', "Today's date"],
+      ['weather', 'ti-cloud', 'Weather', 'Current local weather'],
+      ['calculator', 'ti-calculator', 'Calculator', 'A quick calculator'],
       ['app', 'ti-layout-grid', 'App records', 'Latest records from an app, paginated'],
       ['report', 'ti-chart-bar', 'Report / Chart', 'A pinned summary chart from an app'],
       ['tasks', 'ti-checklist', 'Checklist', 'Shared workspace checklists'],
@@ -13121,7 +13237,15 @@ function renderWorkspaceBuilderModal() {
     const apps = workspace.apps || [];
     const appSelect = (selected) => `<select class="wb-input" data-wb-tilecfg-app>${apps.length ? apps.map((a) => `<option value="${h(a.id)}" ${a.id === selected ? 'selected' : ''}>${h(a.name)}</option>`).join('') : '<option value="">No apps yet</option>'}</select>`;
     let form = '';
-    if (tile.type === 'app') form = `<div class="wb-field"><label>Show records from</label>${appSelect(m.draft.appId)}</div>`;
+    if (tile.type === 'clock') {
+      const cur = m.draft.tz || '';
+      form = `<div class="wb-field"><label>Time zone</label>
+        <select class="wb-input" data-wb-tilecfg-tz>
+          <option value="" ${!cur ? 'selected' : ''}>Local time (this device)</option>
+          ${wbTimeZones().map((z) => `<option value="${h(z)}" ${z === cur ? 'selected' : ''}>${h(z.replace(/_/g, ' '))}</option>`).join('')}
+        </select>
+        <div class="wb-sub">The clock shows the current time in the selected zone.</div></div>`;
+    } else if (tile.type === 'app') form = `<div class="wb-field"><label>Show records from</label>${appSelect(m.draft.appId)}</div>`;
     else if (tile.type === 'report') {
       const app = apps.find((a) => a.id === (m.draft.appId || apps[0]?.id));
       const reportOpts = app ? wbAppReportOptions(app) : [];
@@ -14063,6 +14187,8 @@ function mountWorkspaceBuilder() {
     // Sidebar widget tiles: customize toggle, add/reorder/config/remove, and per-tile actions.
     bind('[data-wb-tile-manage]', () => { state.wbTileManage = !state.wbTileManage; render(); });
     wbMountTileDnD(companyId);
+    wbTickClocks(); // fill clock widgets immediately (ticker keeps them live)
+    wbMountWeather(); // fetch + fill weather widgets (cached after first load)
     wbLayoutTiles();
     // Images load async and change tile height — re-pack once they're ready.
     document.querySelectorAll('[data-wb-tile-grid] .wb-tile-img img').forEach((img) => { if (!img.complete) img.onload = () => wbLayoutTiles(); });
