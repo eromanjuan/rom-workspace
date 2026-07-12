@@ -2,7 +2,7 @@
 // and workspace group chats live in the same list. New DMs are started by
 // searching people. On mobile, selecting a conversation slides in the thread.
 import { el, clear, icon, toast, timeAgo, openModal } from '../ui/dom.js';
-import { listAllUsers, notify } from '../workspaces/data.js';
+import { listAllUsers, notify, getWorkspace } from '../workspaces/data.js';
 import { avatarNode } from '../profile/avatar.js';
 import { listenConversations, listenMessages, sendMessage, getConversation, ensureDirectConversation } from './messagesData.js';
 
@@ -11,13 +11,36 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
   let convs = [];
   let activeId = null;
   let msgUnsub = null;
+  const usersById = {};    // live profile name + photo (current, not the snapshot on the conv)
+  const wsById = {};       // workspace icon/color/image for group chats
+  const wsLoading = new Set();
 
   const otherOf = (c) => (c.members || []).find((u) => u !== user.uid);
-  const convTitle = (c) => (c.type === 'group' ? (c.name || 'Workspace') : ((c.memberNames && c.memberNames[otherOf(c)]) || 'Direct message'));
-  const convPhoto = (c) => (c.type === 'group' ? '' : (c.memberPhotos && c.memberPhotos[otherOf(c)]) || '');
-  const convAvatar = (c) => (c.type === 'group'
-    ? el('div', { class: 'msg-avatar msg-avatar--group' }, icon('users'))
-    : avatarNode(convTitle(c), convPhoto(c), 'msg-avatar'));
+  const convTitle = (c) => {
+    if (c.type === 'group') { const w = wsById[c.workspaceId]; return (w && w.name) || c.name || 'Workspace'; }
+    const o = otherOf(c);
+    return (usersById[o] && usersById[o].displayName) || (c.memberNames && c.memberNames[o]) || 'Direct message';
+  };
+  const convPhoto = (c) => {
+    if (c.type === 'group') return '';
+    const o = otherOf(c);
+    return (usersById[o] && usersById[o].photoURL) || (c.memberPhotos && c.memberPhotos[o]) || '';
+  };
+  function ensureWs(wsId) {
+    if (!wsId || wsById[wsId] || wsLoading.has(wsId)) return;
+    wsLoading.add(wsId);
+    getWorkspace(wsId).then((w) => { if (w) { wsById[wsId] = w; drawList(); } }).catch(() => {}).finally(() => wsLoading.delete(wsId));
+  }
+  const convAvatar = (c) => {
+    if (c.type === 'group') {
+      const w = wsById[c.workspaceId];
+      if (w && w.imageUrl) return el('div', { class: 'msg-avatar has-photo' }, el('img', { src: w.imageUrl, alt: '' }));
+      if (w) return el('div', { class: 'msg-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard'));
+      ensureWs(c.workspaceId);
+      return el('div', { class: 'msg-avatar msg-avatar--group' }, icon('users'));
+    }
+    return avatarNode(convTitle(c), convPhoto(c), 'msg-avatar');
+  };
 
   const listBox = el('div', { class: 'msg-conv-list' }, el('p', { class: 'muted' }, 'Loading…'));
   const newBtn = el('button', { class: 'btn btn--primary btn--sm' }, [icon('edit'), ' New']);
@@ -116,7 +139,10 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
     const results = el('div', { class: 'msg-people' }, el('p', { class: 'muted' }, 'Loading people…'));
     body.append(search, results);
     let all = [];
-    listAllUsers().then((u) => { all = u.filter((x) => x.uid !== user.uid); draw(''); }).catch(() => { clear(results); results.append(el('p', { class: 'muted' }, 'Could not load people.')); });
+    const loaded = Object.values(usersById);
+    const seed = (u) => { all = u.filter((x) => x.uid !== user.uid); draw(''); };
+    if (loaded.length) seed(loaded);
+    else listAllUsers().then((u) => { for (const x of u) usersById[x.uid] = x; seed(u); }).catch(() => { clear(results); results.append(el('p', { class: 'muted' }, 'Could not load people.')); });
     function draw(q) {
       clear(results);
       const ql = q.trim().toLowerCase();
@@ -143,8 +169,12 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
     search.addEventListener('input', () => draw(search.value));
   }
 
+  // Load all users once for current names/photos (also powers New-message search).
+  listAllUsers().then((list) => { for (const u of list) usersById[u.uid] = u; drawList(); }).catch(() => {});
+
   const convUnsub = listenConversations(user.uid, (list) => {
     convs = list;
+    for (const c of list) if (c.type === 'group' && c.workspaceId) ensureWs(c.workspaceId);
     drawList();
     // Refresh the open thread's header once its conversation metadata arrives.
     if (activeId && convs.find((c) => c.id === activeId) && !chatPane.querySelector('.msg-thread')) openConv(activeId);

@@ -120,19 +120,22 @@ if (window.top !== window.self) {
             clearInviteFromUrl();
         }
         // Load the user's saved theme (persists across devices/logins). Applied
-        // without emitting a change event so it isn't immediately re-saved.
+        // without emitting a change event so it isn't immediately re-saved. The
+        // profile is fetched once here and reused by the shell (avatar).
         themeUser = user;
-        try { const prof = await getUserProfile(user.uid); if (prof?.theme) applyThemeBundle(prof.theme); } catch { /* ignore */ }
-        renderShell(user);
+        let prof = null;
+        try { prof = await getUserProfile(user.uid); if (prof?.theme) applyThemeBundle(prof.theme); } catch { /* ignore */ }
+        renderShell(user, prof);
     }
 
-    function renderShell(user) {
+    function renderShell(user, profile) {
         clear(app);
         const shell = buildShell(user, { onNavigate: onNav, onSearch: (term) => go('search', term) });
         app.append(shell.root);
         const content = shell.content;
         const wsHost = shell.wsHost;
         let markViewNotifications = null; // set once the bell mounts
+        let wsReadyHandler = null; // current iframe 'ready' listener (avoids leaks)
         // Open a user's profile — your own name goes to your editable profile,
         // anyone else's to their public profile view. (go is hoisted.)
         const openUserProfile = (uid) => { if (uid && uid === user.uid) go('profile'); else go('user', uid); };
@@ -162,9 +165,9 @@ if (window.top !== window.self) {
         });
         notifCleanup = navNotif.cleanup;
         markViewNotifications = navNotif.markViewRead;
-        // Load the saved profile photo into the shell avatars + keep them live.
+        // Apply the saved profile photo to the shell avatars + keep them live.
         setShellAvatar = shell.setAvatar;
-        getUserProfile(user.uid).then((p) => { if (p?.photoURL) shell.setAvatar(p.photoURL); }).catch(() => {});
+        if (profile?.photoURL) shell.setAvatar(profile.photoURL);
 
         function onNav(view, item) {
             if (item?.soon) { toast(`${item.label} is coming soon.`, 'info'); return; }
@@ -248,10 +251,16 @@ if (window.top !== window.self) {
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
-            window.addEventListener('message', (e) => {
-                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') loading.remove();
-            });
-            setTimeout(() => loading.remove(), 12000);
+            // Hide the spinner when the module signals ready. Self-removing +
+            // clears any previous handler so switching workspaces doesn't leak
+            // a growing pile of 'message' listeners.
+            if (wsReadyHandler) window.removeEventListener('message', wsReadyHandler);
+            const clearReady = () => { if (wsReadyHandler) { window.removeEventListener('message', wsReadyHandler); wsReadyHandler = null; } };
+            wsReadyHandler = (e) => {
+                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') { loading.remove(); clearReady(); }
+            };
+            window.addEventListener('message', wsReadyHandler);
+            setTimeout(() => { loading.remove(); clearReady(); }, 12000);
 
             if (wsId && (role === 'owner' || master)) {
                 gear.style.display = '';
@@ -296,7 +305,7 @@ if (window.top !== window.self) {
             } else if (view === 'user') {
                 viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage });
             } else if (view === 'settings') {
-                renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
+                viewUnsub = renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
             } else if (view === 'files') {
                 renderFiles(content, user);
             } else if (view === 'calendar') {

@@ -33,6 +33,10 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
     const opened = host.querySelector('.settings-collapsible.is-open');
     if (opened) setTimeout(() => opened.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   }
+  // Refresh the workspace list instantly when a workspace is added/removed.
+  const onWsChange = () => { try { wsSection._reloadWorkspaces && wsSection._reloadWorkspaces(); } catch { /* ignore */ } };
+  window.addEventListener('rom-workspaces-changed', onWsChange);
+  return () => window.removeEventListener('rom-workspaces-changed', onWsChange);
 }
 
 // Turn a settings-card <section> (first child = h3.settings-title) into a
@@ -469,6 +473,7 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
     }
   }
   load();
+  section._reloadWorkspaces = load; // let renderSettings refresh on external changes
   return section;
 }
 

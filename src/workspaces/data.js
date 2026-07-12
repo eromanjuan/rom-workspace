@@ -9,6 +9,10 @@ import { auth, db, storage } from '../firebase.js';
 import { isMaster } from './roles.js';
 import { ensureWorkspaceConversation, addWorkspaceConversationMember, removeWorkspaceConversationMember, renameWorkspaceConversation } from '../messages/messagesData.js';
 
+// Broadcast so mounted views (Settings, Profile, the Workspace tab) refresh
+// their workspace lists instantly without a page reload.
+function workspacesChanged() { try { window.dispatchEvent(new Event('rom-workspaces-changed')); } catch { /* ignore */ } }
+
 // --- workspaces ---
 
 // Create a workspace and make the caller its owner.
@@ -39,6 +43,7 @@ export async function createWorkspace(user, opts) {
   });
   // Auto-create the workspace group chat (owner is the first member).
   await ensureWorkspaceConversation(wsRef.id, { uid: user.uid, name: user.displayName || user.email }, o.name);
+  workspacesChanged();
   return wsRef.id;
 }
 
@@ -70,11 +75,14 @@ export async function getWorkspace(wsId) {
 export async function renameWorkspace(wsId, name) {
   await updateDoc(doc(db, 'workspaces', wsId), { name });
   await renameWorkspaceConversation(wsId, name);
+  workspacesChanged();
 }
 
 // Update workspace metadata (name/description/icon/color/imageUrl).
 export async function updateWorkspace(wsId, patch) {
   await updateDoc(doc(db, 'workspaces', wsId), patch);
+  if (patch && patch.name) await renameWorkspaceConversation(wsId, patch.name);
+  workspacesChanged();
 }
 
 // Set a member's role, and (for the 'custom' role) their permission set.
@@ -95,6 +103,7 @@ export async function deleteWorkspace(wsId, ownerUid) {
   }
   await deleteDoc(doc(db, 'workspaces', wsId));
   await deleteDoc(doc(db, 'workspaces', wsId, 'members', ownerUid));
+  workspacesChanged();
 }
 
 // --- user profile + preferences ---

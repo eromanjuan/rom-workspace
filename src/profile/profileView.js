@@ -60,26 +60,31 @@ export function renderProfile(host, user) {
     ]),
   );
 
-  // load workspaces the user owns / is a member of
-  listMyWorkspaces(user.uid).then((spaces) => {
-    clear(workspacesBox);
-    const owned = spaces.filter((w) => w.myRole === 'owner');
-    const member = spaces.filter((w) => w.myRole !== 'owner');
-    const wsCard = (w) => el('div', { class: 'profile-ws-card card' }, [
-      w.imageUrl
-        ? el('div', { class: 'ws-avatar ws-avatar--img' }, el('img', { src: w.imageUrl, alt: w.name }))
-        : el('div', { class: 'ws-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard')),
-      el('div', { class: 'profile-ws-meta' }, [
-        el('div', { class: 'profile-ws-name' }, w.name),
-        el('div', { class: 'muted' }, roleLabel(w.myRole)),
-      ]),
-    ]);
-    const group = (title, items) => el('div', { class: 'profile-ws-group' }, [
-      el('div', { class: 'profile-ws-grouptitle muted' }, `${title} (${items.length})`),
-      items.length ? el('div', { class: 'profile-ws-grid' }, items.map(wsCard)) : el('p', { class: 'muted' }, 'None yet.'),
-    ]);
-    workspacesBox.append(group('Owned by me', owned), group('Member of', member));
-  }).catch((err) => { clear(workspacesBox); workspacesBox.append(el('p', { class: 'error-text' }, err.message)); });
+  // load workspaces the user owns / is a member of (re-runs on changes)
+  function loadWorkspaces() {
+    listMyWorkspaces(user.uid).then((spaces) => {
+      clear(workspacesBox);
+      const owned = spaces.filter((w) => w.myRole === 'owner');
+      const member = spaces.filter((w) => w.myRole !== 'owner');
+      const wsCard = (w) => el('div', { class: 'profile-ws-card card' }, [
+        w.imageUrl
+          ? el('div', { class: 'ws-avatar ws-avatar--img' }, el('img', { src: w.imageUrl, alt: w.name }))
+          : el('div', { class: 'ws-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard')),
+        el('div', { class: 'profile-ws-meta' }, [
+          el('div', { class: 'profile-ws-name' }, w.name),
+          el('div', { class: 'muted' }, roleLabel(w.myRole)),
+        ]),
+      ]);
+      const group = (title, items) => el('div', { class: 'profile-ws-group' }, [
+        el('div', { class: 'profile-ws-grouptitle muted' }, `${title} (${items.length})`),
+        items.length ? el('div', { class: 'profile-ws-grid' }, items.map(wsCard)) : el('p', { class: 'muted' }, 'None yet.'),
+      ]);
+      workspacesBox.append(group('Owned by me', owned), group('Member of', member));
+    }).catch((err) => { clear(workspacesBox); workspacesBox.append(el('p', { class: 'error-text' }, err.message)); });
+  }
+  loadWorkspaces();
+  const onWsChange = () => loadWorkspaces();
+  window.addEventListener('rom-workspaces-changed', onWsChange);
 
   // fill username + "member since" + current photo
   getUserProfile(user.uid).then((p) => {
@@ -102,6 +107,7 @@ export function renderProfile(host, user) {
     }
   }).catch((err) => { clear(posts); posts.append(el('p', { class: 'error-text' }, err.message)); });
 
-  // Mount the personal widgets panel (shared with the Feed) and return its cleanup.
-  return renderWidgetsPanel(widgetHost, user);
+  // Mount the personal widgets panel (shared with the Feed).
+  const widgetsCleanup = renderWidgetsPanel(widgetHost, user);
+  return () => { widgetsCleanup(); window.removeEventListener('rom-workspaces-changed', onWsChange); };
 }
