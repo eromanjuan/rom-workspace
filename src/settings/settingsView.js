@@ -1,7 +1,7 @@
 // The Settings page: change password, switch theme, and manage workspaces
 // (add / open / set-as-current / delete).
-import { el, clear, icon, toast, openModal, confirmModal } from '../ui/dom.js';
-import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf } from '../auth/auth.js';
+import { el, clear, icon, toast, openModal } from '../ui/dom.js';
+import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf, verifyPassword } from '../auth/auth.js';
 import { checkPassword } from '../auth/passwordPolicy.js';
 import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue } from '../ui/theme.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
@@ -363,11 +363,7 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
               },
             }, 'Set default'),
             canDelete ? el('button', {
-              class: 'btn btn--danger btn--sm', onclick: async () => {
-                if (!(await confirmModal({ title: 'Delete workspace?', message: `"${ws.name}" and its data will be permanently deleted. This cannot be undone.`, confirmLabel: 'Delete', danger: true }))) return;
-                try { await deleteWorkspace(ws.id, user.uid); toast('Workspace deleted', 'success'); load(); }
-                catch (err) { toast(err.message, 'error'); }
-              },
+              class: 'btn btn--danger btn--sm', onclick: () => openDeleteWorkspaceModal(user, ws, load),
             }, 'Delete') : null,
           ]),
         ]));
@@ -382,6 +378,54 @@ function buildWorkspaceSection(user, onOpenWorkspace) {
 }
 
 /* ---- Create-workspace modal: name, description, icon+color OR uploaded image ---- */
+
+// Hardened workspace deletion: type the exact workspace name + your password
+// twice (verified by reauthentication) before the destructive delete proceeds.
+function openDeleteWorkspaceModal(user, ws, onDeleted) {
+  const { body, close } = openModal({ title: 'Delete workspace', iconName: 'trash' });
+  const nameInput = el('input', { class: 'input', placeholder: ws.name, autocomplete: 'off', spellcheck: 'false' });
+  const pw1 = el('input', { class: 'input', type: 'password', placeholder: 'Your password', autocomplete: 'current-password' });
+  const pw2 = el('input', { class: 'input', type: 'password', placeholder: 'Confirm password', autocomplete: 'current-password' });
+  const err = el('div', { class: 'error-text', style: 'display:none; margin-top:6px' });
+  const showErr = (m) => { err.textContent = m || ''; err.style.display = m ? '' : 'none'; };
+
+  const delBtn = el('button', { class: 'btn btn--danger', disabled: 'disabled' }, [icon('trash'), ' Delete forever']);
+  const cancelBtn = el('button', { class: 'btn btn--ghost', onclick: close }, 'Cancel');
+
+  const nameMatches = () => nameInput.value.trim() === ws.name;
+  nameInput.addEventListener('input', () => { delBtn.disabled = !nameMatches(); showErr(''); });
+
+  delBtn.addEventListener('click', async () => {
+    if (!nameMatches()) { showErr('The workspace name does not match.'); return; }
+    if (!pw1.value || !pw2.value) { showErr('Enter your password in both fields.'); return; }
+    if (pw1.value !== pw2.value) { showErr('The two passwords do not match.'); return; }
+    delBtn.disabled = true;
+    try {
+      await verifyPassword(pw1.value);
+      await deleteWorkspace(ws.id, user.uid);
+      toast('Workspace deleted', 'success');
+      close();
+      if (onDeleted) onDeleted();
+    } catch (e) {
+      const c = String(e?.code || e?.message || '');
+      showErr(c.includes('wrong-password') || c.includes('invalid-credential') ? 'Incorrect password.' : (e.message || 'Could not delete workspace.'));
+      delBtn.disabled = false;
+    }
+  });
+
+  body.append(
+    el('p', { class: 'muted' }, ['This permanently deletes ', el('b', {}, ws.name), ' and all of its data. This cannot be undone.']),
+    el('label', { class: 'form-label' }, ['Type ', el('b', {}, ws.name), ' to confirm']),
+    nameInput,
+    el('label', { class: 'form-label' }, 'Enter your password'),
+    pw1,
+    el('label', { class: 'form-label' }, 'Confirm your password'),
+    pw2,
+    err,
+    el('div', { class: 'confirm-modal__actions', style: 'margin-top:16px' }, [cancelBtn, delBtn]),
+  );
+  nameInput.focus();
+}
 
 export function openCreateWorkspaceModal(user, onDone) {
   const state = { mode: 'icon', icon: APP_ICONS[0], color: APP_COLORS[0], file: null, previewUrl: '' };

@@ -162,6 +162,15 @@ export async function sendPasswordReset(email) {
 
 // Change the signed-in user's password, enforcing the same policy as sign-up.
 // Firebase requires a recent login; we re-authenticate with the current password.
+// Verify the signed-in user's password by reauthenticating. Throws on mismatch.
+export async function verifyPassword(password) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in.');
+  const cred = EmailAuthProvider.credential(user.email, password);
+  await reauthenticateWithCredential(user, cred);
+  return true;
+}
+
 export async function changePassword(currentPassword, newPassword) {
   const { valid, firstError } = checkPassword(newPassword);
   if (!valid) { const e = new Error(`Password needs: ${firstError}.`); e.code = 'auth/weak-password-policy'; throw e; }
