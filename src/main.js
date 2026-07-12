@@ -64,8 +64,9 @@ if (window.top !== window.self) {
             case 'workspace': return arg ? `/workspace/${arg}` : '/workspace';
             case 'user': return arg ? `/user/${arg}` : '/user';
             case 'search': return arg ? `/search/${encodeURIComponent(arg)}` : '/search';
+            case 'settings': return arg ? `/settings/${arg}` : '/settings';
             case 'feed': case 'profile': case 'files': case 'calendar':
-            case 'checklist': case 'notes': case 'settings': return `/${view}`;
+            case 'checklist': case 'notes': return `/${view}`;
             default: return '/feed';
         }
     }

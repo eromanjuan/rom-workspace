@@ -12,19 +12,27 @@ import {
   isUsernameAvailable, usernameFormatError, changeUsername, normalizeUsername,
 } from '../workspaces/data.js';
 
-export function renderSettings(host, user, { onOpenWorkspace }) {
+export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
+  // Deep-linked sub-section (e.g. /settings/workspace) opens that accordion.
+  const openIf = (key) => ({ open: section === key });
+  const wsSection = collapsible(buildWorkspaceSection(user, onOpenWorkspace), openIf('workspace'));
   host.append(
     el('div', { class: 'settings' }, [
       el('h2', { class: 'section__title' }, 'Settings'),
-      collapsible(buildProfileSection(user)),
-      collapsible(buildVisibilitySection(user)),
-      collapsible(buildEmailSection(user)),
-      collapsible(buildPasswordSection(user)),
-      collapsible(buildThemeSection()),
-      collapsible(buildWorkspaceSection(user, onOpenWorkspace)),
+      collapsible(buildProfileSection(user), openIf('profile')),
+      collapsible(buildVisibilitySection(user), openIf('visibility')),
+      collapsible(buildEmailSection(user), openIf('email')),
+      collapsible(buildPasswordSection(user), openIf('password')),
+      collapsible(buildThemeSection(), openIf('theme')),
+      wsSection,
     ]),
   );
+  // Bring a deep-linked section into view.
+  if (section) {
+    const opened = host.querySelector('.settings-collapsible.is-open');
+    if (opened) setTimeout(() => opened.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }
 }
 
 // Turn a settings-card <section> (first child = h3.settings-title) into a
@@ -91,7 +99,7 @@ function buildVisibilitySection(user) {
     catch (e) { status.textContent = e.message; }
     finally { save.disabled = false; setTimeout(() => { status.textContent = ''; }, 2500); }
   });
-  return el('section', { class: 'settings-card' }, [
+  return el('section', { class: 'settings-card card' }, [
     el('h3', { class: 'settings-title' }, [icon('eye'), ' Profile visibility']),
     el('p', { class: 'muted' }, 'Choose what other people can see when they view your profile.'),
     ...rows,
