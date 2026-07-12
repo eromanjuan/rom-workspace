@@ -8,6 +8,8 @@ import { renderFeed } from './feed/feed.js';
 import { renderProfile } from './profile/profileView.js';
 import { renderUserProfile } from './profile/userProfile.js';
 import { renderSearch } from './search/searchView.js';
+import { renderMessages } from './messages/messagesView.js';
+import { ensureDirectConversation } from './messages/messagesData.js';
 import { renderSettings, openCreateWorkspaceModal } from './settings/settingsView.js';
 import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
@@ -44,7 +46,7 @@ if (window.top !== window.self) {
     let notifCleanup = null;
     const VIEW_KEY = 'rom-view';
     const savedView = localStorage.getItem(VIEW_KEY);
-    const validViews = ['feed', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
+    const validViews = ['feed', 'messages', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
     const state = { view: validViews.includes(savedView) ? savedView : 'feed', wsId: null, pendingInvite: getInviteIdFromUrl() };
 
     // The embedded Workspace module can ask ROM to open a user's profile (e.g.
@@ -65,6 +67,7 @@ if (window.top !== window.self) {
             case 'user': return arg ? `/user/${arg}` : '/user';
             case 'search': return arg ? `/search/${encodeURIComponent(arg)}` : '/search';
             case 'settings': return arg ? `/settings/${arg}` : '/settings';
+            case 'messages': return arg ? `/messages/${arg}` : '/messages';
             case 'feed': case 'profile': case 'files': case 'calendar':
             case 'checklist': case 'notes': return `/${view}`;
             default: return '/feed';
@@ -118,6 +121,17 @@ if (window.top !== window.self) {
         // Open a user's profile — your own name goes to your editable profile,
         // anyone else's to their public profile view. (go is hoisted.)
         const openUserProfile = (uid) => { if (uid && uid === user.uid) go('profile'); else go('user', uid); };
+        // Start (or open) a direct chat with someone, then jump to Messages.
+        const openDirectMessage = async (targetUid, targetName) => {
+            if (!targetUid || targetUid === user.uid) return;
+            try {
+                const cid = await ensureDirectConversation(
+                    { uid: user.uid, name: user.displayName || user.email },
+                    { uid: targetUid, name: targetName || '' },
+                );
+                go('messages', cid);
+            } catch (err) { toast(err.message || 'Could not open chat.', 'error'); }
+        };
         // Let the embedded module navigate ROM to a user profile.
         navigateToUser = openUserProfile;
         // Notification bell: live badge + panel; navigates to where each was fired.
@@ -246,12 +260,14 @@ if (window.top !== window.self) {
             content.style.padding = '';
             if (view === 'feed') {
                 viewUnsub = renderFeed(content, user, { onOpenUser: openUserProfile });
+            } else if (view === 'messages') {
+                viewUnsub = renderMessages(content, user, { initialConvId: arg, onOpenUser: openUserProfile });
             } else if (view === 'profile') {
                 viewUnsub = renderProfile(content, user);
             } else if (view === 'search') {
-                viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace') });
+                viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace'), onMessage: openDirectMessage });
             } else if (view === 'user') {
-                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile });
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage });
             } else if (view === 'settings') {
                 renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
             } else if (view === 'files') {

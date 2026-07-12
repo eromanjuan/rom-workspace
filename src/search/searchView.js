@@ -13,7 +13,7 @@ import { postCard } from '../feed/feed.js';
 
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 
-export function renderSearch(host, user, initialTerm, { onOpenUser, onOpenWorkspace }) {
+export function renderSearch(host, user, initialTerm, { onOpenUser, onOpenWorkspace, onMessage }) {
   clear(host);
   let users = [];
   let workspaces = [];
@@ -50,14 +50,16 @@ export function renderSearch(host, user, initialTerm, { onOpenUser, onOpenWorksp
     if (!res.length) { peopleBox.append(empty('No people found.')); return; }
     for (const u of res) {
       const name = u.displayName || u.email || 'User';
-      peopleBox.append(el('button', { class: 'search-row', onclick: () => onOpenUser(u.uid) }, [
+      const open = el('button', { class: 'search-row search-row--grow', onclick: () => onOpenUser(u.uid) }, [
         el('span', { class: 'search-avatar' }, initials(name)),
         el('span', { class: 'search-row-main' }, [
           el('b', {}, name),
           el('span', { class: 'muted' }, u.username ? `@${u.username}` : (u.email || '')),
         ]),
         el('span', { class: 'search-go muted' }, icon('chevron-right')),
-      ]));
+      ]);
+      const msg = onMessage ? el('button', { class: 'btn btn--ghost btn--sm search-msg', title: 'Message', onclick: () => onMessage(u.uid, name) }, icon('message')) : null;
+      peopleBox.append(el('div', { class: 'search-row-wrap' }, [open, msg]));
     }
   }
 

@@ -10,7 +10,7 @@ import { avatarNode } from './avatar.js';
 
 const VISIBILITY_DEFAULTS = { posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false };
 
-export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpenUser }) {
+export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpenUser, onMessage }) {
   clear(host);
 
   const head = el('div', { class: 'profile-head card' }, el('p', { class: 'muted' }, 'Loading profile…'));
@@ -30,14 +30,19 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
     const name = p?.displayName || 'User';
     const since = p?.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : null;
 
+    const notSelf = targetUid && currentUser && targetUid !== currentUser.uid;
+    const msgBtn = (notSelf && onMessage)
+      ? el('button', { class: 'btn btn--primary btn--sm profile-msg-btn', onclick: () => onMessage(targetUid, name) }, [icon('message'), ' Message'])
+      : null;
     clear(head).append(
       avatarNode(name, p?.photoURL, 'profile-avatar'),
-      el('div', {}, [
+      el('div', { class: 'profile-head-main' }, [
         el('div', { class: 'profile-name' }, name),
         p?.username ? el('div', { class: 'muted profile-username' }, `@${p.username}`) : null,
         vis.email && p?.email ? el('div', { class: 'muted profile-email' }, p.email) : null,
         vis.verified && p?.emailVerified ? el('span', { class: 'pill pill--editor profile-verified' }, [icon('circle-check'), ' Verified']) : null,
         vis.memberSince && since ? el('div', { class: 'muted profile-since' }, `Member since ${since}`) : null,
+        msgBtn,
       ]),
     );
 

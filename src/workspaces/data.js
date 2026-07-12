@@ -7,6 +7,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../firebase.js';
 import { isMaster } from './roles.js';
+import { ensureWorkspaceConversation, addWorkspaceConversationMember, removeWorkspaceConversationMember, renameWorkspaceConversation } from '../messages/messagesData.js';
 
 // --- workspaces ---
 
@@ -36,6 +37,8 @@ export async function createWorkspace(user, opts) {
     role: 'owner',
     joinedAt: serverTimestamp(),
   });
+  // Auto-create the workspace group chat (owner is the first member).
+  await ensureWorkspaceConversation(wsRef.id, { uid: user.uid, name: user.displayName || user.email }, o.name);
   return wsRef.id;
 }
 
@@ -66,6 +69,7 @@ export async function getWorkspace(wsId) {
 
 export async function renameWorkspace(wsId, name) {
   await updateDoc(doc(db, 'workspaces', wsId), { name });
+  await renameWorkspaceConversation(wsId, name);
 }
 
 // Update workspace metadata (name/description/icon/color/imageUrl).
@@ -165,6 +169,8 @@ export async function addMemberDirect(wsId, targetUser, role = 'viewer', opts = 
     role,
     joinedAt: serverTimestamp(),
   });
+  // Add them to the workspace group chat too.
+  await addWorkspaceConversationMember(wsId, targetUser.uid, targetUser.displayName || targetUser.email || 'Member');
   if (opts.notify) {
     await notify(targetUser.uid, {
       type: 'memberAdded',
@@ -402,6 +408,7 @@ export async function changeMemberRole(wsId, memberUid, role) {
 
 export async function removeMember(wsId, memberUid) {
   await deleteDoc(doc(db, 'workspaces', wsId, 'members', memberUid));
+  await removeWorkspaceConversationMember(wsId, memberUid);
 }
 
 // --- invites ---

@@ -16,6 +16,7 @@ const NAV_GROUPS = [
     title: 'Work',
     items: [
       { id: 'feed', label: 'Feed', icon: 'home' },
+      { id: 'messages', label: 'Messages', icon: 'message' },
       { id: 'workspace', label: 'Workspace', icon: 'layout-dashboard' },
       { id: 'files', label: 'Files', icon: 'folder' },
     ],

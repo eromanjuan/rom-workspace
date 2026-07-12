@@ -59,6 +59,25 @@ service cloud.firestore {
       allow create: if signedIn();
     }
 
+    // --- chat: conversations (direct + workspace groups) and their messages ---
+    // A conversation is readable/writable only by its members. Any member may
+    // update it (post lastMessage, add members). Messages are member-only and
+    // immutable once sent.
+    match /conversations/{convId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow update: if signedIn() && request.auth.uid in resource.data.members;
+
+      match /messages/{msgId} {
+        allow read: if signedIn()
+                    && request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.members;
+        allow create: if signedIn()
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.members;
+        allow update, delete: if false;
+      }
+    }
+
     // --- unique usernames (handles) ---
     // The doc id IS the lowercased handle, so a create can only succeed once →
     // uniqueness. Public read so availability can be checked before sign-up.
