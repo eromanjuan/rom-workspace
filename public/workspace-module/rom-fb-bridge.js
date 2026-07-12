@@ -18,7 +18,7 @@ const firebaseConfig = {
 
 const PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=11';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=12';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -56,7 +56,11 @@ window.addEventListener('storage', (e) => {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const ref = doc(db, 'workspaceBuilder', 'shared');
+// Per-workspace document (set in boot once we know the workspace). The legacy
+// global doc is used only for a one-time migration so existing data isn't lost.
+let ref = null;
+let syncReady = false; // don't push local state until the initial pull is applied
+const legacyRef = doc(db, 'workspaceBuilder', 'shared');
 
 const origSet = localStorage.setItem.bind(localStorage);
 const origRemove = localStorage.removeItem.bind(localStorage);
@@ -84,6 +88,9 @@ function applyKeys(keys) {
   applyingRemote = false;
 }
 function scheduleSave() {
+  // Anti-clobber: never write until we've pulled + applied the remote state, so
+  // a stale/empty tab can't overwrite what another tab already saved.
+  if (!ref || !syncReady) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try { await setDoc(ref, { keys: collectLocal(), updatedAt: serverTimestamp() }); }
@@ -134,12 +141,13 @@ async function boot() {
       notify();
     }, () => {});
 
+    let wsId = null;
     try {
       const profile = await getDoc(doc(db, 'users', user.uid));
       // Prefer the ROM profile's displayName (auth.displayName is often unset).
       const pdata = profile.exists() ? profile.data() : {};
       if (pdata.displayName) window.__ROM_USER_NAME__ = pdata.displayName;
-      const wsId = profile.exists() ? profile.data().currentWorkspaceId : null;
+      wsId = profile.exists() ? profile.data().currentWorkspaceId : null;
       if (wsId) {
         const ws = await getDoc(doc(db, 'workspaces', wsId));
         if (ws.exists()) {
@@ -167,14 +175,26 @@ async function boot() {
       }
     } catch (e) { /* keep defaults */ }
 
+    // Scope the builder's data to THIS workspace (falls back to a per-user doc
+    // when no workspace is selected). Both local + live tabs converge on it.
+    ref = doc(db, 'workspaceBuilder', wsId || `u-${user.uid}`);
     try {
       const snap = await getDoc(ref);
-      if (snap.exists()) applyKeys(snap.data().keys);
-      else {
-        const local = collectLocal();
-        if (Object.keys(local).length) await setDoc(ref, { keys: local, updatedAt: serverTimestamp() });
+      if (snap.exists()) {
+        applyKeys(snap.data().keys);
+      } else {
+        // First time on this workspace doc. Migrate the legacy global doc once so
+        // existing apps/tiles aren't lost; otherwise start this workspace fresh.
+        const legacy = await getDoc(legacyRef);
+        if (legacy.exists() && Object.keys(legacy.data().keys || {}).length) {
+          applyKeys(legacy.data().keys);
+          await setDoc(ref, { keys: legacy.data().keys, updatedAt: serverTimestamp() });
+        } else {
+          clearLocal(); // don't inherit another workspace's data from this browser
+        }
       }
     } catch (e) { console.warn('[ROM] workspace seed failed', e); }
+    syncReady = true; // safe to persist local edits now
 
     onSnapshot(ref, (snap) => {
       if (!snap.exists() || snap.metadata.hasPendingWrites) return;
