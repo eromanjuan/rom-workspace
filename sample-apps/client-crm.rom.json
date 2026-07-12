@@ -1,41 +1,45 @@
 {
-  "rom_app": true,
+  "format": "quest-hq-app",
   "version": 1,
-  "name": "Client CRM",
-  "description": "Manage clients and leads: pipeline stage, deal value and contact info.",
-  "type": "Contacts",
-  "icon": "address-book",
-  "color": "#0d9488",
-  "fields": [
-    { "key": "name", "label": "Name", "type": "text", "config": { "placeholder": "Contact name" } },
-    { "key": "company", "label": "Company", "type": "text", "config": { "placeholder": "Company" } },
-    { "key": "email", "label": "Email", "type": "email", "config": {} },
-    { "key": "phone", "label": "Phone", "type": "phone", "config": {} },
-    { "key": "type", "label": "Type", "type": "category", "config": { "options": [
-      { "label": "Lead", "color": "#d97706" },
-      { "label": "Client", "color": "#16a34a" },
-      { "label": "Partner", "color": "#2563eb" },
-      { "label": "Vendor", "color": "#6b7280" }
-    ] } },
-    { "key": "stage", "label": "Stage", "type": "status", "config": { "options": [
-      { "label": "Lead", "color": "#6b7280" },
-      { "label": "Contacted", "color": "#2563eb" },
-      { "label": "Proposal", "color": "#d97706" },
-      { "label": "Won", "color": "#16a34a" },
-      { "label": "Lost", "color": "#dc2626" }
-    ] } },
-    { "key": "deal_value", "label": "Deal value", "type": "money", "config": { "currency": "$" } },
-    { "key": "website", "label": "Website", "type": "url", "config": { "placeholder": "https://…" } },
-    { "key": "location", "label": "Location", "type": "location", "config": {} },
-    { "key": "last_contact", "label": "Last contact", "type": "date", "config": {} },
-    { "key": "notes", "label": "Notes", "type": "textarea", "config": { "placeholder": "Context, next steps…" } }
-  ],
-  "reports": [
-    { "id": "r_stage", "title": "Contacts by stage", "groupBy": "stage", "metric": "count", "sumField": "" },
-    { "id": "r_pipeline", "title": "Pipeline value by stage", "groupBy": "stage", "metric": "sum", "sumField": "deal_value" },
-    { "id": "r_type", "title": "Contacts by type", "groupBy": "type", "metric": "count", "sumField": "" }
-  ],
-  "automations": [
-    { "id": "a_won", "trigger": { "fieldKey": "stage", "op": "==", "value": "Won" }, "actions": [ { "type": "notify", "message": "Deal won: {Name} at {Company}" } ] }
-  ]
+  "app": {
+    "name": "Client CRM",
+    "description": "Manage clients and leads: pipeline stage, deal value and contact info.",
+    "type": "Contacts",
+    "icon": "ti-address-book",
+    "color": "#0d9488",
+    "fields": [
+      { "id": "f_name", "label": "Name", "type": "text", "config": { "placeholder": "Contact name" } },
+      { "id": "f_company", "label": "Company", "type": "text", "config": {} },
+      { "id": "f_email", "label": "Email", "type": "email", "config": {} },
+      { "id": "f_phone", "label": "Phone", "type": "phone", "config": {} },
+      { "id": "f_type", "label": "Type", "type": "category", "config": { "options": [
+        { "id": "c_lead", "label": "Lead", "color": "#d97706" },
+        { "id": "c_client", "label": "Client", "color": "#16a34a" },
+        { "id": "c_partner", "label": "Partner", "color": "#2563eb" },
+        { "id": "c_vendor", "label": "Vendor", "color": "#6b7280" }
+      ] } },
+      { "id": "f_stage", "label": "Stage", "type": "status", "config": { "options": [
+        { "id": "g_lead", "label": "Lead", "color": "#6b7280" },
+        { "id": "g_cont", "label": "Contacted", "color": "#2563eb" },
+        { "id": "g_prop", "label": "Proposal", "color": "#d97706" },
+        { "id": "g_won", "label": "Won", "color": "#16a34a" },
+        { "id": "g_lost", "label": "Lost", "color": "#dc2626" }
+      ] } },
+      { "id": "f_interests", "label": "Interests", "type": "multiselect", "config": { "options": [
+        { "id": "i_web", "label": "Website", "color": "#2563eb" },
+        { "id": "i_app", "label": "Mobile app", "color": "#7c3aed" },
+        { "id": "i_seo", "label": "SEO", "color": "#16a34a" },
+        { "id": "i_brand", "label": "Branding", "color": "#db2777" },
+        { "id": "i_maint", "label": "Maintenance", "color": "#6b7280" }
+      ] } },
+      { "id": "f_fit", "label": "Fit", "type": "rating", "config": { "max": 5 } },
+      { "id": "f_value", "label": "Deal value", "type": "money", "config": { "currency": "$" } },
+      { "id": "f_website", "label": "Website", "type": "url", "config": { "placeholder": "https://…" } },
+      { "id": "f_location", "label": "Location", "type": "location", "config": {} },
+      { "id": "f_last", "label": "Last contact", "type": "date", "config": {} },
+      { "id": "f_notes", "label": "Notes", "type": "richtext", "config": {} }
+    ],
+    "items": [],
+    "automations": []
+  }
 }

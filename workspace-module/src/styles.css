@@ -20684,6 +20684,17 @@ button.wb-file:hover { color: var(--orange); text-decoration: underline; }
 .wb-settings-title { font-weight: 800; margin-bottom: 16px; }
 .wb-settings-actions { display: flex; gap: 10px; margin-top: 8px; }
 .wb-field { margin-bottom: 14px; }
+/* new field-type widgets */
+.wb-rating .ti { color: var(--muted, #9aa2b1); font-size: 15px; }
+.wb-rating .ti-star-filled { color: #f5a524; }
+.wb-richtext { border: 1px solid var(--border, #e2d5bf); border-radius: 8px; overflow: hidden; }
+.wb-rt-bar { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--border, #e2d5bf); background: var(--surface-2, #f6efe4); }
+.wb-rt-btn { background: none; border: none; color: var(--text-2, #473f34); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: grid; place-items: center; }
+.wb-rt-btn:hover { background: var(--surface, #fff); }
+.wb-rt-ed { min-height: 70px; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+.wb-rt-ed:focus { outline: none; }
+.wb-computed { color: var(--text-3, #72695d); font-style: italic; display: flex; align-items: center; gap: 6px; }
+.wb-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
 /* Flash on a field that failed validation, after the save is blocked. */
 .wb-field-invalid > label { color: #dc2626; }
 .wb-field-invalid .wb-input,

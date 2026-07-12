@@ -1,43 +1,35 @@
 {
-  "rom_app": true,
+  "format": "quest-hq-app",
   "version": 1,
-  "name": "Sprint Task Board",
-  "description": "Plan and run sprints: tasks, story points, subtasks and progress.",
-  "type": "Tasks",
-  "icon": "checklist",
-  "color": "#7c3aed",
-  "fields": [
-    { "key": "task", "label": "Task", "type": "text", "config": { "placeholder": "What needs doing?" } },
-    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
-      { "label": "To Do", "color": "#6b7280" },
-      { "label": "Doing", "color": "#2563eb" },
-      { "label": "Blocked", "color": "#dc2626" },
-      { "label": "Done", "color": "#16a34a" }
-    ] } },
-    { "key": "sprint", "label": "Sprint", "type": "category", "config": { "options": [
-      { "label": "Backlog", "color": "#6b7280" },
-      { "label": "Sprint 1", "color": "#2563eb" },
-      { "label": "Sprint 2", "color": "#7c3aed" },
-      { "label": "Sprint 3", "color": "#0891b2" }
-    ] } },
-    { "key": "priority", "label": "Priority", "type": "category", "config": { "options": [
-      { "label": "Low", "color": "#6b7280" },
-      { "label": "Medium", "color": "#2563eb" },
-      { "label": "High", "color": "#d97706" },
-      { "label": "Urgent", "color": "#dc2626" }
-    ] } },
-    { "key": "story_points", "label": "Story points", "type": "number", "config": { "unit": "pts" } },
-    { "key": "assignee", "label": "Assignee", "type": "user", "config": {} },
-    { "key": "due_date", "label": "Due date", "type": "date", "config": {} },
-    { "key": "progress", "label": "Progress", "type": "progress", "config": {} },
-    { "key": "subtasks", "label": "Subtasks", "type": "checklist", "config": { "steps": ["Design", "Build", "Write tests", "Code review", "Deploy"] } }
-  ],
-  "reports": [
-    { "id": "r_status", "title": "Tasks by status", "groupBy": "status", "metric": "count", "sumField": "" },
-    { "id": "r_points", "title": "Story points by sprint", "groupBy": "sprint", "metric": "sum", "sumField": "story_points" },
-    { "id": "r_sprint", "title": "Tasks by sprint", "groupBy": "sprint", "metric": "count", "sumField": "" }
-  ],
-  "automations": [
-    { "id": "a_block", "trigger": { "fieldKey": "status", "op": "==", "value": "Blocked" }, "actions": [ { "type": "notify", "message": "Task blocked: {Task}" } ] }
-  ]
+  "app": {
+    "name": "Sprint Task Board",
+    "description": "Plan and run sprints: tasks, story points, subtasks and progress.",
+    "type": "Tasks",
+    "icon": "ti-checklist",
+    "color": "#7c3aed",
+    "fields": [
+      { "id": "f_ref", "label": "Ref", "type": "autonumber", "config": { "prefix": "TASK-", "pad": 3 } },
+      { "id": "f_task", "label": "Task", "type": "text", "config": { "placeholder": "What needs doing?" } },
+      { "id": "f_status", "label": "Status", "type": "status", "config": { "options": [
+        { "id": "s_todo", "label": "To Do", "color": "#6b7280" },
+        { "id": "s_doing", "label": "Doing", "color": "#2563eb" },
+        { "id": "s_block", "label": "Blocked", "color": "#dc2626" },
+        { "id": "s_done", "label": "Done", "color": "#16a34a" }
+      ] } },
+      { "id": "f_sprint", "label": "Sprint", "type": "category", "config": { "options": [
+        { "id": "sp_back", "label": "Backlog", "color": "#6b7280" },
+        { "id": "sp_1", "label": "Sprint 1", "color": "#2563eb" },
+        { "id": "sp_2", "label": "Sprint 2", "color": "#7c3aed" },
+        { "id": "sp_3", "label": "Sprint 3", "color": "#0891b2" }
+      ] } },
+      { "id": "f_priority", "label": "Priority", "type": "rating", "config": { "max": 5 } },
+      { "id": "f_points", "label": "Story points", "type": "number", "config": { "unit": "pts" } },
+      { "id": "f_assignee", "label": "Assignee", "type": "user", "config": {} },
+      { "id": "f_due", "label": "Due date", "type": "date", "config": {} },
+      { "id": "f_progress", "label": "Progress", "type": "progress", "config": {} },
+      { "id": "f_subtasks", "label": "Subtasks", "type": "checklist", "config": { "steps": ["Design", "Build", "Write tests", "Code review", "Deploy"] } }
+    ],
+    "items": [],
+    "automations": []
+  }
 }

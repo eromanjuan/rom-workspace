@@ -10115,8 +10115,13 @@ const WB_FIELD_TYPES = {
   progress: { label: 'Progress', icon: 'ti-progress', color: '#7c3aed', desc: 'Percent complete (0–100%)' },
   checklist: { label: 'Checklist', icon: 'ti-list-check', color: '#16a34a', desc: 'Checkable steps with live progress' },
   image: { label: 'Image', icon: 'ti-photo', color: '#0891b2', desc: 'Circular picture, like an avatar' },
+  multiselect: { label: 'Multi-select / Tags', icon: 'ti-tags', color: '#d97706', desc: 'Pick several labels' },
+  rating: { label: 'Rating', icon: 'ti-star', color: '#d97706', desc: '1–5 star rating' },
+  richtext: { label: 'Rich Text', icon: 'ti-file-text', color: '#2563eb', desc: 'Formatted long text (bold, lists…)' },
+  datediff: { label: 'Days Between', icon: 'ti-calendar-stats', color: '#7c3aed', desc: 'Days between two date fields' },
+  autonumber: { label: 'Auto-number / ID', icon: 'ti-hash', color: '#6b7280', desc: 'Sequential ID like TASK-014' },
 };
-const WB_FIELD_ORDER = ['text', 'textarea', 'number', 'money', 'duration', 'progress', 'checklist', 'date', 'category', 'status', 'user', 'relationship', 'url', 'email', 'phone', 'location', 'file', 'image', 'calculation', 'checkbox'];
+const WB_FIELD_ORDER = ['text', 'textarea', 'richtext', 'number', 'money', 'duration', 'progress', 'rating', 'checklist', 'date', 'datediff', 'category', 'multiselect', 'status', 'user', 'relationship', 'url', 'email', 'phone', 'location', 'file', 'image', 'autonumber', 'calculation', 'checkbox'];
 // Comparison operators for numeric (number/money) automation triggers:
 // [operator, dropdown label, symbol for the human-readable rule summary].
 const WB_TRIG_OPS = [['==', 'equals', '='], ['!=', 'not equal', '≠'], ['>', 'greater than', '>'], ['<', 'less than', '<'], ['>=', 'at least', '≥'], ['<=', 'at most', '≤']];
@@ -11530,6 +11535,8 @@ function wbFmtVal(ctx, field, value) {
   // so they must render before the empty-value guard below (which would else swallow them).
   const meta = WB_FIELD_TYPES[field.type];
   if (field.type === 'calculation') return `<b style="color:${meta.color}">${h(wbComputeCalc(ctx.app, field, ctx.values || {}))}</b>`;
+  if (field.type === 'datediff') { const d = wbComputeDatediff(ctx, field); return d === null ? '<span class="wb-cell-empty">—</span>' : `<b style="color:${meta.color}">${d} days</b>`; }
+  if (field.type === 'autonumber') return `<span class="wb-mono">${h(wbComputeAutonumber(ctx, field))}</span>`;
   // Progress always shows its bar (0% included), so it renders before the empty guard.
   if (field.type === 'progress') {
     const fill = ctx.app ? wbProgressFillPct(ctx.app, field, ctx.values || {}, ctx.workspace) : null;
@@ -11556,8 +11563,29 @@ function wbFmtVal(ctx, field, value) {
     case 'duration': return h(wbFmtDuration(value));
     case 'image': { const fv = wbFileValue(value); return fv && fv.url ? `<img class="wb-img-avatar" src="${h(fv.url)}" alt="${h(fv.name || 'image')}" loading="lazy">` : '<span class="wb-cell-empty">—</span>'; }
     case 'textarea': { const str = String(value); return h(str.length > 60 ? `${str.slice(0, 60)}…` : str); }
+    case 'multiselect': { const arr = Array.isArray(value) ? value : []; return arr.map((id) => { const o = (field.config.options || []).find((x) => x.id === id); return o ? `<span class="wb-tag" style="background:${o.color || '#6b7280'}1f;color:${o.color || '#6b7280'}">${h(o.label)}</span>` : ''; }).join(' '); }
+    case 'rating': { const max = Math.min(10, Math.max(3, parseInt(field.config.max, 10) || 5)); const v = Math.max(0, Math.min(max, Number(value) || 0)); return `<span class="wb-rating">${Array.from({ length: max }, (_, i) => `<i class="ti ${i < v ? 'ti-star-filled' : 'ti-star'}"></i>`).join('')}</span>`; }
+    case 'richtext': { const plain = String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return h(plain.length > 60 ? `${plain.slice(0, 60)}…` : plain); }
     default: return h(value);
   }
+}
+
+// Auto-number: sequential per app in item-creation (array) order.
+function wbComputeAutonumber(ctx, field) {
+  const items = (ctx.app && ctx.app.items) || [];
+  const idx = ctx.item ? items.findIndex((i) => i.id === ctx.item.id) : items.length;
+  const n = (idx >= 0 ? idx : items.length) + 1;
+  const pad = Math.max(0, parseInt(field.config && field.config.pad, 10) || 0);
+  return `${(field.config && field.config.prefix) || ''}${String(n).padStart(pad, '0')}`;
+}
+// Days between two date fields; null when either date is missing.
+function wbComputeDatediff(ctx, field) {
+  const v = ctx.values || {};
+  const a = v[field.config && field.config.startField];
+  const b = v[field.config && field.config.endField];
+  if (!a || !b) return null;
+  const d = Math.round((new Date(b) - new Date(a)) / 86400000);
+  return Number.isNaN(d) ? null : d;
 }
 
 // Per-app, in-memory view state for the Items table (search / sort / filters).
@@ -12062,7 +12090,7 @@ function wbRenderItemsActivity(companyId, workspace, app, rows, cols, ui, select
 }
 
 // Sensible default labels for a field dragged in from the palette.
-const WB_FIELD_DEFAULT_LABEL = { text: 'Text', textarea: 'Notes', number: 'Number', money: 'Amount', date: 'Date', category: 'Category', status: 'Status', relationship: 'Linked record', file: 'File', user: 'Assignee', email: 'Email', phone: 'Phone', calculation: 'Total', checkbox: 'Done', location: 'Location', duration: 'Duration', progress: 'Progress', image: 'Image' };
+const WB_FIELD_DEFAULT_LABEL = { text: 'Text', textarea: 'Notes', number: 'Number', money: 'Amount', date: 'Date', category: 'Category', status: 'Status', relationship: 'Linked record', file: 'File', user: 'Assignee', email: 'Email', phone: 'Phone', calculation: 'Total', checkbox: 'Done', location: 'Location', duration: 'Duration', progress: 'Progress', image: 'Image', multiselect: 'Tags', rating: 'Rating', richtext: 'Details', datediff: 'Days between', autonumber: 'ID' };
 // Add a field of the given type instantly (drag-and-drop from the palette), at an
 // optional index. Sensible defaults are filled so it works immediately; the user
 // can refine it with the configure (sliders) button afterwards.
@@ -13007,8 +13035,22 @@ function wbModalShell(eyebrow, extraClass, head, body, foot) {
 }
 function wbFieldConfigUI(fd, app) {
   const t = fd.type;
-  if (t === 'category' || t === 'status') {
-    return `<div class="wb-field"><label>Options</label><div class="wb-opt-list">${(fd.config.options || []).map((o) => wbOptRow(o)).join('')}</div><button class="btn btn-sm" data-wb-add-option><i class="ti ti-plus"></i>Add option</button></div>`;
+  if (t === 'category' || t === 'status' || t === 'multiselect') {
+    return `<div class="wb-field"><label>Options</label><div class="wb-opt-list">${(fd.config.options || []).map((o) => wbOptRow(o)).join('')}</div><button class="btn btn-sm" data-wb-add-option><i class="ti ti-plus"></i>Add option</button>${t === 'multiselect' ? '<div class="wb-sub">Items can select several of these tags.</div>' : ''}</div>`;
+  }
+  if (t === 'rating') {
+    return `<div class="wb-field"><label>Max stars</label><input class="wb-input" id="wbRateMax" type="number" min="3" max="10" value="${h(fd.config.max || 5)}" style="max-width:120px"></div>`;
+  }
+  if (t === 'autonumber') {
+    return `<div class="wb-field"><label>Prefix <span class="wb-opt">(optional)</span></label><input class="wb-input" id="wbAnPrefix" value="${h(fd.config.prefix || '')}" placeholder="e.g. TASK-" style="max-width:220px"></div>
+      <div class="wb-field"><label>Zero-pad digits</label><input class="wb-input" id="wbAnPad" type="number" min="0" max="8" value="${h(fd.config.pad ?? 3)}" style="max-width:120px"><div class="wb-sub">Sequential per app, in creation order (e.g. TASK-001, TASK-002).</div></div>`;
+  }
+  if (t === 'datediff') {
+    const dates = app.fields.filter((f) => f.type === 'date');
+    if (!dates.length) return '<div class="wb-field"><div class="wb-sub" style="color:var(--warning,#d97706)">Add two Date fields first, then configure this field.</div></div>';
+    const opts = (sel) => dates.map((f) => `<option value="${h(f.id)}" ${sel === f.id ? 'selected' : ''}>${h(f.label)}</option>`).join('');
+    return `<div class="wb-field"><label>From date</label><select class="wb-input" id="wbDdStart">${opts(fd.config.startField)}</select></div>
+      <div class="wb-field"><label>To date</label><select class="wb-input" id="wbDdEnd">${opts(fd.config.endField)}</select><div class="wb-sub">Shows the number of days between these two dates.</div></div>`;
   }
   if (t === 'relationship') {
     const apps = wbFind(state.builderModal.companyId, state.builderModal.workspaceId).workspace.apps;
@@ -13225,6 +13267,20 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
         </div>
         <div class="wb-file-progress" data-wb-file-progress hidden><div class="wb-file-bar" data-wb-file-bar></div></div>
       </div>`; break;
+    case 'multiselect': input = `<select class="wb-input" data-f="${h(f.id)}" multiple style="min-height:96px">${(f.config.options || []).map((o) => `<option value="${h(o.id)}" ${Array.isArray(val) && val.includes(o.id) ? 'selected' : ''}>${h(o.label)}</option>`).join('')}</select><div class="wb-sub">Hold Ctrl / Cmd to pick several.</div>`; break;
+    case 'rating': { const max = Math.min(10, Math.max(3, parseInt(f.config.max, 10) || 5)); input = `<select class="wb-input" data-f="${h(f.id)}" style="max-width:160px"><option value="">—</option>${Array.from({ length: max }, (_, i) => `<option value="${i + 1}" ${Number(val) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>`; break; }
+    case 'richtext': input = `
+      <div class="wb-richtext">
+        <div class="wb-rt-bar">
+          <button type="button" class="wb-rt-btn" title="Bold" onmousedown="event.preventDefault();document.execCommand('bold')"><i class="ti ti-bold"></i></button>
+          <button type="button" class="wb-rt-btn" title="Italic" onmousedown="event.preventDefault();document.execCommand('italic')"><i class="ti ti-italic"></i></button>
+          <button type="button" class="wb-rt-btn" title="Underline" onmousedown="event.preventDefault();document.execCommand('underline')"><i class="ti ti-underline"></i></button>
+          <button type="button" class="wb-rt-btn" title="Bullet list" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')"><i class="ti ti-list"></i></button>
+        </div>
+        <div class="wb-input wb-rt-ed" data-f="${h(f.id)}" contenteditable="true">${val || ''}</div>
+      </div>`; break;
+    case 'datediff': input = `<div class="wb-input wb-computed"><i class="ti ti-calculator"></i> Calculated from the two dates when you save.</div>`; break;
+    case 'autonumber': input = `<div class="wb-input wb-computed"><i class="ti ti-hash"></i> Assigned automatically.</div>`; break;
     default: input = `<input class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}">`;
   }
   return `<div class="wb-field">${lbl}${input}</div>`;
@@ -13574,11 +13630,14 @@ function wbMountChecklistFields(overlay) {
 
 function wbReadFieldInput(f) {
   const el = document.querySelector(`[data-f="${f.id}"]`);
-  if (!el) return f.type === 'calculation' ? undefined : '';
+  // calculation / days-between / auto-number are computed, not stored from an input.
+  if (!el) return (f.type === 'calculation' || f.type === 'datediff' || f.type === 'autonumber') ? undefined : '';
   if (f.type === 'checkbox') return el.checked;
   if (f.type === 'checklist') { try { return JSON.parse(el.value || '[]'); } catch { return []; } }
   if (f.type === 'number' || f.type === 'money' || f.type === 'duration' || f.type === 'progress') return el.value === '' ? '' : Number(el.value);
-  if (f.type === 'relationship' && f.config.multiple) return [...el.selectedOptions].map((o) => o.value);
+  if (f.type === 'rating') return el.value === '' ? '' : Number(el.value);
+  if (f.type === 'richtext') return el.innerHTML;
+  if (f.type === 'multiselect' || (f.type === 'relationship' && f.config.multiple)) return [...el.selectedOptions].map((o) => o.value);
   // Match the contacts form: normalize phone numbers on save.
   if (f.type === 'phone') return formatPhoneNumber(el.value);
   return el.value;
@@ -13596,7 +13655,10 @@ function wbCollectModalDraft() {
     if (val('wbFLabel') !== undefined) m.draft.label = val('wbFLabel');
     m.draft.required = !!checked('wbFReq');
     const t = m.draft.type; m.draft.config = m.draft.config || {};
-    if (t === 'category' || t === 'status') m.draft.config.options = [...document.querySelectorAll('.wb-opt-item')].map((r) => ({ id: r.dataset.oid, label: r.querySelector('.wb-opt-label').value.trim() || 'Untitled', color: r.querySelector('.wb-dot-pick').value })).filter((o) => o.label);
+    if (t === 'category' || t === 'status' || t === 'multiselect') m.draft.config.options = [...document.querySelectorAll('.wb-opt-item')].map((r) => ({ id: r.dataset.oid, label: r.querySelector('.wb-opt-label').value.trim() || 'Untitled', color: r.querySelector('.wb-dot-pick').value })).filter((o) => o.label);
+    if (t === 'rating') m.draft.config.max = Math.min(10, Math.max(3, parseInt(val('wbRateMax'), 10) || 5));
+    if (t === 'autonumber') { m.draft.config.prefix = val('wbAnPrefix') || ''; m.draft.config.pad = Math.max(0, Math.min(8, parseInt(val('wbAnPad'), 10) || 0)); }
+    if (t === 'datediff') { m.draft.config.startField = val('wbDdStart') || ''; m.draft.config.endField = val('wbDdEnd') || ''; }
     if (t === 'relationship') {
       const prevTarget = m.draft.config.targetApp;
       m.draft.config.targetApp = val('wbRelTarget') || '';

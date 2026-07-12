@@ -1,43 +1,38 @@
 {
-  "rom_app": true,
+  "format": "quest-hq-app",
   "version": 1,
-  "name": "Project Tracker",
-  "description": "Track web projects end to end: status, deadlines, budget and progress.",
-  "type": "Projects",
-  "icon": "briefcase",
-  "color": "#2563eb",
-  "fields": [
-    { "key": "project_name", "label": "Project name", "type": "text", "config": { "placeholder": "e.g. Acme website redesign" } },
-    { "key": "client", "label": "Client", "type": "text", "config": { "placeholder": "Company or person" } },
-    { "key": "status", "label": "Status", "type": "status", "config": { "options": [
-      { "label": "Planning", "color": "#6b7280" },
-      { "label": "In Progress", "color": "#2563eb" },
-      { "label": "Review", "color": "#d97706" },
-      { "label": "Blocked", "color": "#dc2626" },
-      { "label": "Done", "color": "#16a34a" }
-    ] } },
-    { "key": "priority", "label": "Priority", "type": "category", "config": { "options": [
-      { "label": "Low", "color": "#6b7280" },
-      { "label": "Medium", "color": "#2563eb" },
-      { "label": "High", "color": "#d97706" },
-      { "label": "Urgent", "color": "#dc2626" }
-    ] } },
-    { "key": "start_date", "label": "Start date", "type": "date", "config": {} },
-    { "key": "deadline", "label": "Deadline", "type": "date", "config": {} },
-    { "key": "progress", "label": "Progress", "type": "progress", "config": {} },
-    { "key": "budget", "label": "Budget", "type": "money", "config": { "currency": "$" } },
-    { "key": "project_lead", "label": "Project lead", "type": "user", "config": {} },
-    { "key": "repository", "label": "Repository", "type": "url", "config": { "placeholder": "https://github.com/org/repo" } },
-    { "key": "staging_url", "label": "Staging URL", "type": "url", "config": { "placeholder": "https://staging.example.com" } },
-    { "key": "notes", "label": "Notes", "type": "textarea", "config": { "placeholder": "Scope, risks, decisions…" } }
-  ],
-  "reports": [
-    { "id": "r_status", "title": "Projects by status", "groupBy": "status", "metric": "count", "sumField": "" },
-    { "id": "r_priority", "title": "Projects by priority", "groupBy": "priority", "metric": "count", "sumField": "" },
-    { "id": "r_budget", "title": "Budget by status", "groupBy": "status", "metric": "sum", "sumField": "budget" }
-  ],
-  "automations": [
-    { "id": "a_done", "trigger": { "fieldKey": "status", "op": "==", "value": "Done" }, "actions": [ { "type": "notify", "message": "Project completed: {Project name}" } ] },
-    { "id": "a_blocked", "trigger": { "fieldKey": "status", "op": "==", "value": "Blocked" }, "actions": [ { "type": "notify", "message": "Project blocked: {Project name} — needs attention" } ] }
-  ]
+  "app": {
+    "name": "Project Tracker",
+    "description": "Track web projects end to end: status, deadlines, budget and progress.",
+    "type": "Projects",
+    "icon": "ti-briefcase",
+    "color": "#2563eb",
+    "fields": [
+      { "id": "f_project", "label": "Project name", "type": "text", "config": { "placeholder": "e.g. Acme website redesign" } },
+      { "id": "f_client", "label": "Client", "type": "text", "config": {} },
+      { "id": "f_status", "label": "Status", "type": "status", "config": { "options": [
+        { "id": "s_plan", "label": "Planning", "color": "#6b7280" },
+        { "id": "s_prog", "label": "In Progress", "color": "#2563eb" },
+        { "id": "s_rev", "label": "Review", "color": "#d97706" },
+        { "id": "s_block", "label": "Blocked", "color": "#dc2626" },
+        { "id": "s_done", "label": "Done", "color": "#16a34a" }
+      ] } },
+      { "id": "f_priority", "label": "Priority", "type": "category", "config": { "options": [
+        { "id": "p_low", "label": "Low", "color": "#6b7280" },
+        { "id": "p_med", "label": "Medium", "color": "#2563eb" },
+        { "id": "p_high", "label": "High", "color": "#d97706" },
+        { "id": "p_urg", "label": "Urgent", "color": "#dc2626" }
+      ] } },
+      { "id": "f_start", "label": "Start date", "type": "date", "config": {} },
+      { "id": "f_deadline", "label": "Deadline", "type": "date", "config": {} },
+      { "id": "f_lead_time", "label": "Lead time", "type": "datediff", "config": { "startField": "f_start", "endField": "f_deadline" } },
+      { "id": "f_progress", "label": "Progress", "type": "progress", "config": {} },
+      { "id": "f_budget", "label": "Budget", "type": "money", "config": { "currency": "$" } },
+      { "id": "f_lead", "label": "Project lead", "type": "user", "config": {} },
+      { "id": "f_repo", "label": "Repository", "type": "url", "config": { "placeholder": "https://github.com/org/repo" } },
+      { "id": "f_notes", "label": "Notes", "type": "richtext", "config": {} }
+    ],
+    "items": [],
+    "automations": []
+  }
 }
