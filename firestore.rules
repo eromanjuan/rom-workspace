@@ -83,6 +83,17 @@ service cloud.firestore {
     match /judges/{id}      { allow read: if true; allow write: if isMaster(); }
     match /scores/{id}      { allow read: if true; allow create, update: if true; allow delete: if isMaster(); }
     match /judge_syncs/{id} { allow read, write: if true; }
+    // Score locks: a judge may LOCK their sheet (locked==true); only the master
+    // can UNLOCK (locked==false) — that's how access requests are granted.
+    match /score_locks/{id} {
+      allow read: if true;
+      allow create, update: if isMaster() || request.resource.data.locked == true;
+      allow delete: if isMaster();
+    }
+    // Access requests + the score-change log: anyone (passkey judges) can create;
+    // only the master can resolve/clear them.
+    match /score_requests/{id} { allow read: if true; allow create: if true; allow update, delete: if isMaster(); }
+    match /score_logs/{id}     { allow read: if true; allow create: if true; allow update, delete: if isMaster(); }
     // Shared theme (and any app settings): everyone reads, only master writes.
     match /settings/{id}    { allow read: if true; allow write: if isMaster(); }
 

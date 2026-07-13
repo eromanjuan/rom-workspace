@@ -225,6 +225,8 @@
             if (await tabConfirm("Return to the login screen? Your saved scores are kept.", "Exit judging", { okText: 'Exit', danger: true })) {
                 window.activeJudge = null;
                 window.activeCategory = null;
+                if (_scLockUnsub) { _scLockUnsub(); _scLockUnsub = null; }
+                if (_scReqUnsub) { _scReqUnsub(); _scReqUnsub = null; }
                 document.getElementById('judge-input').value = "";
                 window.showView('view-login');
             }
@@ -470,7 +472,7 @@
             catch { return false; }
         }
         async function checkAdminSession(user) {
-            if (await isRomioMaster(user)) showView('view-master');
+            if (await isRomioMaster(user)) { showView('view-master'); window.renderRequestsPanel(); }
         }
 
         async function initSystem() {
@@ -901,33 +903,132 @@
             window.loadScoring();
         };
 
+        let _scLockUnsub = null, _scReqUnsub = null;
+        window._scCands = {};
+
         window.loadScoring = async () => {
             const scoringContainer = document.getElementById('scoring-sheets');
             scoringContainer.innerHTML = "<p>Loading...</p>";
+            const jid = window.activeJudge.id, cid = window.activeCategory.id;
             const cSnap = await getDocs(query(collection(db, "candidates"), where("category", "==", window.activeCategory.name)));
-            const crSnap = await getDocs(query(collection(db, "criteria"), where("category_id", "==", window.activeCategory.id)));
-            const sSnap = await getDocs(query(collection(db, "scores"), where("judge_id", "==", window.activeJudge.id), where("category_id", "==", window.activeCategory.id)));
+            const crSnap = await getDocs(query(collection(db, "criteria"), where("category_id", "==", cid)));
+            const sSnap = await getDocs(query(collection(db, "scores"), where("judge_id", "==", jid), where("category_id", "==", cid)));
             const candidates = cSnap.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => Number(a.candidate_no || 0) - Number(b.candidate_no || 0));
             const crits = crSnap.docs.map(d => ({id: d.id, ...d.data()}));
             const scores = {};
             sSnap.docs.forEach(d => scores[`${d.data().candidate_id}_${d.data().criteria_id}`] = d.data().raw_score);
+            window._scCands = {};
+            candidates.forEach(c => { window._scCands[c.id] = { no: c.candidate_no, name: c.name }; });
 
             if (!candidates.length) { scoringContainer.innerHTML = `<div class="card" style="text-align:center;"><p class="muted">No candidates in this segment yet.</p><button class="secondary" onclick="showView('view-select-event')"><span class="ms">arrow_back</span> Back to events</button></div>`; return; }
             if (!crits.length) { scoringContainer.innerHTML = `<div class="card" style="text-align:center;"><p class="muted">No criteria set for this segment yet. Ask the admin to add criteria.</p><button class="secondary" onclick="showView('view-select-event')"><span class="ms">arrow_back</span> Back to events</button></div>`; return; }
+
             let html = `<button class="secondary" onclick="showView('view-select-event')" style="margin-bottom:18px;"><span class="ms">arrow_back</span> Back to events</button>`;
             candidates.forEach(c => {
-                html += `<div class="score-card">
-                    <div class="score-card-head"><span class="cand-badge">#${c.candidate_no}</span><h3 style="font-size:16px;">${c.name}</h3></div>
-                    <div class="crit-grid">
-                    ${crits.map(cr => `<div class="crit-box">
-                        <label>${cr.label} · ${cr.weight}%</label>
-                        <input type="number" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore('${c.id}', '${cr.id}', '${window.activeCategory.id}', this.value, ${cr.min_score}, ${cr.max_score}, this)" placeholder="${cr.min_score}-${cr.max_score}">
-                        <div class="rng">${cr.min_score}–${cr.max_score}</div>
-                    </div>`).join('')}</div>
+                html += `<div class="score-card" data-cand="${c.id}">
+                    <div class="score-card-head">
+                        <span class="cand-badge">#${c.candidate_no}</span>
+                        <h3 style="font-size:16px; flex:1; min-width:120px;">${c.name}</h3>
+                        <div class="sc-actions">
+                            <button class="secondary btn-xs" data-hide="${c.id}"><span class="ms">visibility_off</span> Hide</button>
+                            <button class="btn-xs" data-lock="${c.id}"><span class="ms">lock</span> Save &amp; lock</button>
+                            <button class="secondary btn-xs" data-req="${c.id}" disabled><span class="ms">lock_open</span> Request access</button>
+                        </div>
+                    </div>
+                    <div class="sc-body" data-body="${c.id}">
+                        <div class="crit-grid">
+                        ${crits.map(cr => `<div class="crit-box">
+                            <label>${cr.label} · ${cr.weight}%</label>
+                            <input type="number" data-cand="${c.id}" data-crit="${cr.id}" data-label="${cr.label.replace(/"/g,'&quot;')}" data-orig="${scores[`${c.id}_${cr.id}`] || ''}" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore('${c.id}', '${cr.id}', '${cid}', this.value, ${cr.min_score}, ${cr.max_score}, this)" placeholder="${cr.min_score}-${cr.max_score}">
+                            <div class="rng">${cr.min_score}–${cr.max_score}</div>
+                        </div>`).join('')}</div>
+                    </div>
                 </div>`;
             });
             html += `<div style="text-align:center; padding:8px 0 24px;"><button id="btn-sync" onclick="syncAllScores()" style="padding:12px 28px; font-size:14px;"><span class="ms">check_circle</span> Submit &amp; finalize scores</button></div>`;
             scoringContainer.innerHTML = html;
+
+            scoringContainer.querySelectorAll('[data-hide]').forEach(b => b.onclick = () => window.tabHideCandidate(b.dataset.hide));
+            scoringContainer.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => window.tabSaveLock(b.dataset.lock));
+            scoringContainer.querySelectorAll('[data-req]').forEach(b => b.onclick = () => window.tabRequestAccess(b.dataset.req));
+
+            // Live lock + request state (so an admin's "grant" re-enables editing instantly).
+            if (_scLockUnsub) _scLockUnsub();
+            if (_scReqUnsub) _scReqUnsub();
+            _scLockUnsub = onSnapshot(query(collection(db, "score_locks"), where("judgeId", "==", jid), where("categoryId", "==", cid)), (snap) => {
+                const locked = {}; snap.docs.forEach(d => { locked[d.data().candidateId] = d.data().locked === true; });
+                candidates.forEach(c => window.applyCandLock(c.id, !!locked[c.id]));
+            });
+            _scReqUnsub = onSnapshot(query(collection(db, "score_requests"), where("judgeId", "==", jid), where("categoryId", "==", cid)), (snap) => {
+                const pending = {}; snap.docs.forEach(d => { if (d.data().status === 'pending') pending[d.data().candidateId] = true; });
+                candidates.forEach(c => window.applyCandRequested(c.id, !!pending[c.id]));
+            });
+        };
+
+        window.applyCandLock = (candId, locked) => {
+            const card = document.querySelector(`.score-card[data-cand="${candId}"]`);
+            if (!card) return;
+            card.classList.toggle('locked', locked);
+            card.querySelectorAll(`input[data-cand="${candId}"]`).forEach(i => { i.disabled = locked; });
+            const lockBtn = card.querySelector(`[data-lock="${candId}"]`);
+            if (lockBtn) { lockBtn.disabled = locked; lockBtn.innerHTML = locked ? '<span class="ms">lock</span> Locked' : '<span class="ms">lock</span> Save &amp; lock'; }
+            const reqBtn = card.querySelector(`[data-req="${candId}"]`);
+            if (reqBtn && !reqBtn.dataset.requested) reqBtn.disabled = !locked;
+        };
+        window.applyCandRequested = (candId, requested) => {
+            const reqBtn = document.querySelector(`.score-card[data-cand="${candId}"] [data-req="${candId}"]`);
+            if (!reqBtn) return;
+            reqBtn.dataset.requested = requested ? '1' : '';
+            if (requested) { reqBtn.disabled = true; reqBtn.innerHTML = '<span class="ms">hourglass_top</span> Requested'; }
+            else { reqBtn.innerHTML = '<span class="ms">lock_open</span> Request access'; }
+        };
+
+        window.tabHideCandidate = (candId) => {
+            const body = document.querySelector(`[data-body="${candId}"]`);
+            const btn = document.querySelector(`[data-hide="${candId}"]`);
+            if (!body) return;
+            const hidden = body.style.display === 'none';
+            body.style.display = hidden ? '' : 'none';
+            if (btn) btn.innerHTML = hidden ? '<span class="ms">visibility_off</span> Hide' : '<span class="ms">visibility</span> Show';
+        };
+
+        // Log any changes vs the loaded values, then lock one candidate's sheet.
+        async function _lockCandidate(candId) {
+            const card = document.querySelector(`.score-card[data-cand="${candId}"]`);
+            if (!card) return;
+            const cand = window._scCands[candId] || {};
+            const jid = window.activeJudge.id, cid = window.activeCategory.id;
+            for (const inp of card.querySelectorAll(`input[data-cand="${candId}"]`)) {
+                const cur = inp.value.trim(), orig = inp.dataset.orig || '';
+                if (orig !== '' && cur !== orig) {
+                    try { await addDoc(collection(db, "score_logs"), { judgeId: jid, judgeName: window.activeJudge.name, categoryId: cid, categoryName: window.activeCategory.name, candidateId: candId, candidateName: cand.name || '', criteriaLabel: inp.dataset.label || '', oldScore: orig, newScore: cur, at: new Date() }); } catch (e) {}
+                }
+                inp.dataset.orig = cur;
+            }
+            await setDoc(doc(db, "score_locks", `${jid}_${cid}_${candId}`), { judgeId: jid, judgeName: window.activeJudge.name, categoryId: cid, categoryName: window.activeCategory.name, candidateId: candId, candidateName: cand.name || '', locked: true, lockedAt: new Date() });
+        }
+
+        window.tabSaveLock = async (candId) => {
+            const card = document.querySelector(`.score-card[data-cand="${candId}"]`);
+            if (!card) return;
+            const missing = [...card.querySelectorAll(`input[data-cand="${candId}"]`)].some(i => i.value.trim() === '');
+            const msg = missing
+                ? "Some criteria are still blank. Save and lock anyway? You won't be able to edit until the admin grants access."
+                : "Save and lock this candidate's scores? You won't be able to edit until the admin grants access.";
+            if (!(await tabConfirm(msg, "Save & lock", { okText: 'Save & lock' }))) return;
+            try { await _lockCandidate(candId); } catch (e) { await tabAlert("Could not lock. Please try again.", "Error"); }
+        };
+
+        window.tabRequestAccess = async (candId) => {
+            const cand = window._scCands[candId] || {};
+            const res = await tabForm(`Request to edit #${cand.no} ${cand.name || ''}`.trim(), [
+                { name: 'reason', label: 'Reason for the change', type: 'textarea', required: true, placeholder: 'e.g. I mistyped the Beauty score.' },
+            ], { okText: 'Send request' });
+            if (!res) return;
+            try {
+                await addDoc(collection(db, "score_requests"), { judgeId: window.activeJudge.id, judgeName: window.activeJudge.name, categoryId: window.activeCategory.id, categoryName: window.activeCategory.name, candidateId: candId, candidateName: cand.name || '', reason: res.reason, status: 'pending', createdAt: new Date() });
+                await tabAlert("Your request was sent to the admin. You'll be able to edit once it's granted.", "Request sent");
+            } catch (e) { await tabAlert("Could not send the request. Please try again.", "Error"); }
         };
 
         window.saveScore = async (candId, critId, catId, val, min, max, element) => {
@@ -958,9 +1059,16 @@
         };
 
         window.syncAllScores = async () => {
-            const syncRef = doc(db, "judge_syncs", `${window.activeJudge.id}_${window.activeCategory.id}`);
-            await setDoc(syncRef, { judge_id: window.activeJudge.id, judge_name: window.activeJudge.name, category_id: window.activeCategory.id, syncedAt: new Date(), status: "FINISHED" });
-            await tabAlert("Your scores have been finalized and submitted. Thank you!", "Scores submitted");
+            if (!(await tabConfirm("Submit and finalize? This locks ALL candidates so they can no longer be edited. To change a score afterwards you'll need to request access from the admin.", "Finalize scores", { okText: 'Submit & lock all' }))) return;
+            const jid = window.activeJudge.id, cid = window.activeCategory.id;
+            const btn = document.getElementById('btn-sync'); if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ms">hourglass_top</span> Finalizing…'; }
+            // Log any edits, then lock every candidate on this sheet.
+            for (const card of document.querySelectorAll('.score-card[data-cand]')) {
+                try { await _lockCandidate(card.dataset.cand); } catch (e) {}
+            }
+            await setDoc(doc(db, "judge_syncs", `${jid}_${cid}`), { judge_id: jid, judge_name: window.activeJudge.name, category_id: cid, syncedAt: new Date(), status: "FINISHED" });
+            if (btn) { btn.disabled = false; btn.innerHTML = '<span class="ms">check_circle</span> Submit &amp; finalize scores'; }
+            await tabAlert("Your scores are finalized and all candidates are locked. Thank you!", "Scores submitted");
         };
 
         window.showView = (id) => {
@@ -974,10 +1082,59 @@
             try { const q = window.location.search || ''; history.replaceState(null, '', path + q); } catch (e) {}
         };
 
+        let _reqUnsub = null, _logUnsub = null;
+        window.renderRequestsPanel = () => {
+            if (_reqUnsub) _reqUnsub();
+            if (_logUnsub) _logUnsub();
+            const reqList = document.getElementById('req-list');
+            const logList = document.getElementById('log-list');
+            const badge = document.getElementById('req-badge');
+            _reqUnsub = onSnapshot(collection(db, "score_requests"), (snap) => {
+                const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'pending')
+                    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+                if (badge) { badge.textContent = reqs.length; badge.style.display = reqs.length ? '' : 'none'; }
+                if (!reqList) return;
+                reqList.innerHTML = reqs.length ? reqs.map(r => `
+                    <div class="req-row">
+                        <div style="min-width:0;">
+                            <div><strong>${r.judgeName || 'Judge'}</strong> — ${r.candidateName || ''} <span class="muted">· ${r.categoryName || ''}</span></div>
+                            <div class="muted" style="font-size:12.5px;">Reason: ${(r.reason || '').replace(/</g, '&lt;')}</div>
+                        </div>
+                        <div class="req-actions">
+                            <button class="btn-xs" onclick="window.grantRequest('${r.id}')"><span class="ms">check</span> Grant</button>
+                            <button class="secondary btn-xs btn-danger" onclick="window.denyRequest('${r.id}')"><span class="ms">close</span> Deny</button>
+                        </div>
+                    </div>`).join('') : '<p class="muted">No pending requests.</p>';
+            }, () => { if (reqList) reqList.innerHTML = '<p class="muted">Could not load requests.</p>'; });
+            _logUnsub = onSnapshot(collection(db, "score_logs"), (snap) => {
+                const logs = snap.docs.map(d => d.data()).sort((a, b) => ((b.at?.toMillis?.() || (b.at ? new Date(b.at).getTime() : 0)) - (a.at?.toMillis?.() || (a.at ? new Date(a.at).getTime() : 0)))).slice(0, 200);
+                if (!logList) return;
+                logList.innerHTML = logs.length ? `<table><thead><tr><th>When</th><th>Judge</th><th>Candidate</th><th>Criteria</th><th>Change</th></tr></thead><tbody>${logs.map(l => {
+                    const when = l.at?.toDate ? l.at.toDate().toLocaleString() : (l.at ? new Date(l.at).toLocaleString() : '');
+                    return `<tr><td class="log-time">${when}</td><td>${l.judgeName || ''}</td><td>${l.candidateName || ''} <span class="muted">· ${l.categoryName || ''}</span></td><td>${l.criteriaLabel || ''}</td><td><b>${l.oldScore}</b> → <b style="color:var(--accent)">${l.newScore}</b></td></tr>`;
+                }).join('')}</tbody></table>` : '<p class="muted">No score changes yet.</p>';
+            }, () => { if (logList) logList.innerHTML = '<p class="muted">Could not load log.</p>'; });
+        };
+        window.grantRequest = async (reqId) => {
+            try {
+                const snap = await getDoc(doc(db, "score_requests", reqId));
+                if (!snap.exists()) return;
+                const r = snap.data();
+                await setDoc(doc(db, "score_locks", `${r.judgeId}_${r.categoryId}_${r.candidateId}`), { locked: false }, { merge: true });
+                await updateDoc(doc(db, "score_requests", reqId), { status: 'granted', resolvedAt: new Date() });
+            } catch (e) { await tabAlert("Could not grant the request. Try again.", "Error"); }
+        };
+        window.denyRequest = async (reqId) => {
+            if (!(await tabConfirm("Deny this request? The judge's sheet stays locked.", "Deny request", { okText: 'Deny', danger: true }))) return;
+            try { await updateDoc(doc(db, "score_requests", reqId), { status: 'denied', resolvedAt: new Date() }); }
+            catch (e) { await tabAlert("Could not deny the request. Try again.", "Error"); }
+        };
+
         window.switchMasterTab = (tab) => {
             document.querySelectorAll('#view-master .tab').forEach(b => b.classList.toggle('active', b.dataset.mtab === tab));
-            ['setup', 'results', 'theme'].forEach(k => document.getElementById('mtab-' + k).classList.toggle('active', k === tab));
+            ['setup', 'results', 'requests', 'theme'].forEach(k => document.getElementById('mtab-' + k).classList.toggle('active', k === tab));
             if (tab === 'theme') window.renderThemePanel();
+            if (tab === 'requests') window.renderRequestsPanel();
         };
 
         window.masterAccess = async () => {
@@ -1067,7 +1224,17 @@
         .imp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         /* judge scoring */
         .score-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
-        .score-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .score-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+        .sc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .btn-xs { font-size: 11px; padding: 6px 10px; }
+        .btn-xs .ms { font-size: 15px; vertical-align: -3px; }
+        .score-card.locked { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+        .score-card.locked .crit-box input { background: color-mix(in srgb, var(--text) 7%, transparent); opacity: .85; }
+        .req-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+        .req-row:last-child { border-bottom: 0; }
+        .req-actions { display: flex; gap: 6px; }
+        .log-time { white-space: nowrap; font-size: 12px; color: var(--muted); }
+        .mtab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; }
         .cand-badge { background: var(--accent); color: #fff; font-weight: 800; padding: 6px 12px; border-radius: 10px; font-size: 14px; }
         .crit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
         .crit-box { background: var(--bg); border: 1px solid var(--border); padding: 12px; border-radius: 12px; }
@@ -1167,6 +1334,7 @@
     <div class="tabbar">
         <button class="tab active" data-mtab="setup" onclick="switchMasterTab('setup')">Setup</button>
         <button class="tab" data-mtab="results" onclick="switchMasterTab('results')">Segments &amp; Results</button>
+        <button class="tab" data-mtab="requests" onclick="switchMasterTab('requests')">Requests &amp; Log <span class="mtab-badge" id="req-badge" style="display:none">0</span></button>
         <button class="tab" data-mtab="theme" onclick="switchMasterTab('theme')">Theme</button>
     </div>
 
@@ -1207,6 +1375,19 @@
         <div id="master-results"></div>
         <div id="rank-per-criteria-container"></div>
         <div id="score-audit-container"></div>
+    </div>
+
+    <div id="mtab-requests" class="tabpanel">
+        <div class="card">
+            <h3><span class="ms">lock_open</span> Access requests</h3>
+            <p class="muted" style="font-size:12.5px; margin:2px 0 8px;">Judges request to edit a scoresheet they locked. Grant to unlock it for them.</p>
+            <div id="req-list"><p class="muted">Loading…</p></div>
+        </div>
+        <div class="card">
+            <h3><span class="ms">history</span> Score change log</h3>
+            <p class="muted" style="font-size:12.5px; margin:2px 0 8px;">Every edit to a previously-entered score is recorded here.</p>
+            <div id="log-list" style="overflow-x:auto;"><p class="muted">Loading…</p></div>
+        </div>
     </div>
 
     <div id="mtab-theme" class="tabpanel"></div>
