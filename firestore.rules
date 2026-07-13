@@ -83,6 +83,8 @@ service cloud.firestore {
     match /judges/{id}      { allow read: if true; allow write: if isMaster(); }
     match /scores/{id}      { allow read: if true; allow create, update: if true; allow delete: if isMaster(); }
     match /judge_syncs/{id} { allow read, write: if true; }
+    // Shared theme (and any app settings): everyone reads, only master writes.
+    match /settings/{id}    { allow read: if true; allow write: if isMaster(); }
 
     // --- chat: conversations (direct + workspace groups) and their messages ---
     // A conversation is readable/writable only by its members. Any member may

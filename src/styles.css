@@ -224,7 +224,7 @@ select.input { cursor: pointer; }
 .sb-account-role { font-size: 0.72rem; color: var(--muted); }
 .sb-nav { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; }
 .sb-group { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 0.85rem 0.5rem 0.3rem; }
-.sb-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border: none; background: none; color: var(--text); border-radius: 8px; text-align: left; font-size: 0.9rem; }
+.sb-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border: none; background: none; color: var(--text); border-radius: 8px; text-align: left; font-size: 0.9rem; text-decoration: none; cursor: pointer; }
 .sb-item:hover { background: var(--surface-2); }
 .sb-item .ti { color: var(--muted); font-size: 1.1rem; }
 .sb-item--active { background: var(--surface-2); color: var(--primary); font-weight: 600; box-shadow: inset 2px 0 0 var(--primary); }

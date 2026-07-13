@@ -8,6 +8,9 @@
     <base href="/tabulation/">
     <title>VESSCORE | Tabulation System </title>
     <link rel="icon" type="image/png" href="images/2.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
@@ -30,22 +33,196 @@
         const ROMIO_MASTER_EMAIL = "eugenioiromanjuan@gmail.com";
 
         window.toggleTheme = () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
+            const newMode = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('tab-mode', newMode); // personal preference
+            if (window.applyTheme) window.applyTheme(currentTheme);
+            else document.documentElement.setAttribute('data-theme', newMode);
         };
 
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        const _pm = localStorage.getItem('tab-mode');
+        document.documentElement.setAttribute('data-theme', (_pm === 'light' || _pm === 'dark') ? _pm : 'dark');
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // ---------- Professional modal system (replaces native alert/confirm/prompt) ----------
+        function _tabOverlay(title, bodyHTML) {
+            const ov = document.createElement('div');
+            ov.className = 'tab-modal-overlay';
+            ov.innerHTML = `<div class="tab-modal" role="dialog" aria-modal="true"><div class="tab-modal-head"><h3>${title}</h3></div><div class="tab-modal-body">${bodyHTML}</div><div class="tab-modal-foot"></div></div>`;
+            document.body.appendChild(ov);
+            requestAnimationFrame(() => ov.classList.add('show'));
+            return ov;
+        }
+        function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        window.tabAlert = (message, title = 'Notice') => new Promise((resolve) => {
+            const ov = _tabOverlay(title, `<p class="tab-modal-msg">${_esc(message)}</p>`);
+            const ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = 'OK';
+            const done = () => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(true); };
+            ok.onclick = done; ov.querySelector('.tab-modal-foot').appendChild(ok);
+            function onKey(e){ if (e.key === 'Escape' || e.key === 'Enter') done(); }
+            document.addEventListener('keydown', onKey); ok.focus();
+        });
+        window.tabConfirm = (message, title = 'Please confirm', opts = {}) => new Promise((resolve) => {
+            const ov = _tabOverlay(title, `<p class="tab-modal-msg">${_esc(message)}</p>`);
+            const foot = ov.querySelector('.tab-modal-foot');
+            const cancel = document.createElement('button'); cancel.className = 'secondary'; cancel.textContent = opts.cancelText || 'Cancel';
+            const ok = document.createElement('button'); ok.className = opts.danger ? 'primary btn-solid-danger' : 'primary'; ok.textContent = opts.okText || 'Confirm';
+            const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+            cancel.onclick = () => done(false); ok.onclick = () => done(true);
+            foot.append(cancel, ok);
+            ov.addEventListener('mousedown', (e) => { if (e.target === ov) done(false); });
+            function onKey(e){ if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); }
+            document.addEventListener('keydown', onKey); ok.focus();
+        });
+        // fields: [{ name, label, type, value, placeholder, options:[{value,label}], min, max, step, maxlength, required }]
+        window.tabForm = (title, fields, opts = {}) => new Promise((resolve) => {
+            const rows = fields.map((f, i) => {
+                const id = 'tf_' + i;
+                let input;
+                if (f.type === 'select') {
+                    input = `<select id="${id}" class="tab-input">${(f.options || []).map(o => { const v = o.value != null ? o.value : o; const l = o.label != null ? o.label : o; return `<option value="${_esc(v)}" ${String(v) === String(f.value) ? 'selected' : ''}>${_esc(l)}</option>`; }).join('')}</select>`;
+                } else if (f.type === 'textarea') {
+                    input = `<textarea id="${id}" class="tab-input" placeholder="${_esc(f.placeholder)}">${_esc(f.value)}</textarea>`;
+                } else {
+                    input = `<input id="${id}" class="tab-input" type="${f.type || 'text'}" value="${_esc(f.value)}" placeholder="${_esc(f.placeholder)}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} ${f.step != null ? `step="${f.step}"` : ''} ${f.maxlength ? `maxlength="${f.maxlength}"` : ''}>`;
+                }
+                return `<label class="tab-field"><span>${_esc(f.label)}${f.required ? ' <em>*</em>' : ''}</span>${input}</label>`;
+            }).join('');
+            const ov = _tabOverlay(title, `<div class="tab-form">${rows}<div class="tab-form-err"></div></div>`);
+            const foot = ov.querySelector('.tab-modal-foot');
+            const err = ov.querySelector('.tab-form-err');
+            const cancel = document.createElement('button'); cancel.className = 'secondary'; cancel.textContent = 'Cancel';
+            const ok = document.createElement('button'); ok.className = 'primary'; ok.textContent = opts.okText || 'Save';
+            const done = (v) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+            const submit = () => {
+                const out = {};
+                for (let i = 0; i < fields.length; i++) {
+                    const f = fields[i]; const el = ov.querySelector('#tf_' + i); let val = el.value;
+                    if (f.required && String(val).trim() === '') { err.textContent = `${f.label} is required.`; err.classList.add('show'); el.focus(); return; }
+                    out[f.name] = f.type === 'number' ? (val === '' ? '' : Number(val)) : val;
+                }
+                done(out);
+            };
+            cancel.onclick = () => done(null); ok.onclick = submit;
+            foot.append(cancel, ok);
+            ov.addEventListener('mousedown', (e) => { if (e.target === ov) done(null); });
+            function onKey(e){ if (e.key === 'Escape') done(null); if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); submit(); } }
+            document.addEventListener('keydown', onKey);
+            const first = ov.querySelector('.tab-input'); if (first) first.focus();
+        });
+
+        // ---------- Shared theme (master sets it; applied live to master + judges) ----------
+        const THEME_DOC = doc(db, "settings", "theme");
+        const THEME_DEFAULTS = { mode: 'dark', accent: '', bg: '', surface: '', text: '', danger: '', cardStyle: 'solid', cardBlur: 10, cardOpacity: 65, bgType: 'none', bgPattern: '', bgImage: '' };
+        const BG_PATTERNS = {
+            dots: { image: 'radial-gradient(color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.6px)', size: '16px 16px', repeat: 'repeat' },
+            grid: { image: 'linear-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px)', size: '24px 24px', repeat: 'repeat' },
+            diagonal: { image: 'repeating-linear-gradient(45deg, color-mix(in srgb, var(--text) 7%, transparent) 0 1px, transparent 1px 13px)', size: 'auto', repeat: 'repeat' },
+            glow: { image: 'radial-gradient(at 18% 18%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 42%), radial-gradient(at 82% 62%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 46%)', size: 'cover', repeat: 'no-repeat' },
+            mesh: { image: 'radial-gradient(at 0% 0%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 40%), radial-gradient(at 100% 0%, color-mix(in srgb, var(--danger) 20%, transparent), transparent 42%), radial-gradient(at 60% 100%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 44%)', size: 'cover', repeat: 'no-repeat' },
+        };
+        let currentTheme = { ...THEME_DEFAULTS };
+
+        window.applyTheme = (t) => {
+            t = { ...THEME_DEFAULTS, ...(t || {}) };
+            currentTheme = t;
+            const root = document.documentElement;
+            // Mode is a PERSONAL choice (each judge/master can toggle their own);
+            // it falls back to the master's shared default when not overridden.
+            const personal = localStorage.getItem('tab-mode');
+            const mode = (personal === 'dark' || personal === 'light') ? personal : (t.mode === 'light' ? 'light' : 'dark');
+            root.setAttribute('data-theme', mode);
+            const cb = document.getElementById('checkbox'); if (cb) cb.checked = mode === 'dark';
+            const setVar = (n, v) => v ? root.style.setProperty(n, v) : root.style.removeProperty(n);
+            setVar('--accent', t.accent); setVar('--accent-2', t.accent);
+            setVar('--bg', t.bg); setVar('--surface', t.surface); setVar('--card', t.surface); setVar('--text', t.text); setVar('--danger', t.danger);
+            if (t.cardStyle === 'glass') { root.setAttribute('data-cards', 'glass'); setVar('--card-blur', (t.cardBlur != null ? t.cardBlur : 10) + 'px'); setVar('--card-opacity', (t.cardOpacity != null ? t.cardOpacity : 65) + '%'); }
+            else { root.removeAttribute('data-cards'); root.style.removeProperty('--card-blur'); root.style.removeProperty('--card-opacity'); }
+            const clearBg = () => { root.style.removeProperty('--app-bg-image'); root.style.removeProperty('--app-bg-size'); root.style.removeProperty('--app-bg-repeat'); };
+            if (t.bgType === 'image' && t.bgImage) { setVar('--app-bg-image', `url("${t.bgImage}")`); setVar('--app-bg-size', 'cover'); setVar('--app-bg-repeat', 'no-repeat'); }
+            else if (t.bgType === 'pattern' && BG_PATTERNS[t.bgPattern]) { const p = BG_PATTERNS[t.bgPattern]; setVar('--app-bg-image', p.image); setVar('--app-bg-size', p.size); setVar('--app-bg-repeat', p.repeat); }
+            else clearBg();
+        };
+        // Live-apply the shared theme + propagate the master's changes to judges.
+        onSnapshot(THEME_DOC, (snap) => { window.applyTheme(snap.exists() ? snap.data() : {}); });
+        window.saveTheme = async (patch) => {
+            currentTheme = { ...currentTheme, ...patch };
+            window.applyTheme(currentTheme);
+            try { await setDoc(THEME_DOC, patch, { merge: true }); }
+            catch (e) { await tabAlert("Only the master account can change the theme.", "Not allowed"); }
+        };
+        function _themeCompress(file, maxDim = 1280, quality = 0.68) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => { const img = new Image(); img.onload = () => { const s = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight)); const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s); const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); resolve(c.toDataURL('image/jpeg', quality)); }; img.onerror = reject; img.src = r.result; };
+                r.onerror = reject; r.readAsDataURL(file);
+            });
+        }
+
+        window.renderThemePanel = () => {
+            const host = document.getElementById('mtab-theme');
+            if (!host) return;
+            const t = { ...THEME_DEFAULTS, ...currentTheme };
+            const cssVar = { accent: '--accent', bg: '--bg', surface: '--surface', text: '--text', danger: '--danger' };
+            const toHex = (v) => { v = (v || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(v) ? v : ''; };
+            const colorRow = (label, key, def) => { const cur = t[key] || toHex(getComputedStyle(document.documentElement).getPropertyValue(cssVar[key])) || def; return `<label class="theme-color"><input type="color" data-color="${key}" value="${cur}"><span>${label}</span></label>`; };
+            const bgDetail = () => {
+                if (t.bgType === 'pattern') return `<div class="theme-swatch-row">${Object.keys(BG_PATTERNS).map(k => `<button type="button" class="bg-swatch ${t.bgPattern === k ? 'active' : ''}" data-pattern="${k}" title="${k}" style="background-image:${BG_PATTERNS[k].image}; background-size:${BG_PATTERNS[k].size}; background-repeat:${BG_PATTERNS[k].repeat};"></button>`).join('')}</div>`;
+                if (t.bgType === 'image') return `<label class="button secondary"><span class="ms">upload</span> ${t.bgImage ? 'Replace image' : 'Upload image'}<input type="file" accept="image/*" data-bgimage style="display:none;"></label> ${t.bgImage ? '<span class="muted" style="font-size:12px; margin-left:8px;">Image set</span>' : ''}`;
+                return '';
+            };
+            host.innerHTML = `
+                <div class="card" style="max-width: 720px;">
+                    <h3><span class="ms">palette</span> Theme</h3>
+                    <p class="muted" style="font-size:12.5px; margin:2px 0 8px;">Applies to the master dashboard and every judge — changes save and update everyone live.</p>
+                    <div class="theme-sec">Mode</div>
+                    <div class="tabbar" style="margin:0;">
+                        <button type="button" class="tab ${t.mode !== 'light' ? 'active' : ''}" data-mode="dark">Dark</button>
+                        <button type="button" class="tab ${t.mode === 'light' ? 'active' : ''}" data-mode="light">Light</button>
+                    </div>
+                    <div class="theme-sec">Colors</div>
+                    <div class="theme-colors">
+                        ${colorRow('Accent', 'accent', '#059669')}
+                        ${colorRow('Background', 'bg', '#eef2f7')}
+                        ${colorRow('Surface / cards', 'surface', '#ffffff')}
+                        ${colorRow('Text', 'text', '#0f172a')}
+                        ${colorRow('Danger', 'danger', '#e11d48')}
+                    </div>
+                    <div class="theme-sec">Card style</div>
+                    <div class="tabbar" style="margin:0;">
+                        <button type="button" class="tab ${t.cardStyle !== 'glass' ? 'active' : ''}" data-cs="solid">Solid</button>
+                        <button type="button" class="tab ${t.cardStyle === 'glass' ? 'active' : ''}" data-cs="glass">Glass</button>
+                    </div>
+                    <div data-glassctl style="${t.cardStyle === 'glass' ? '' : 'display:none;'}">
+                        <label class="theme-slider"><span>Blur</span><input type="range" min="0" max="24" value="${t.cardBlur != null ? t.cardBlur : 10}" data-slider="cardBlur"></label>
+                        <label class="theme-slider"><span>Opacity</span><input type="range" min="30" max="95" value="${t.cardOpacity != null ? t.cardOpacity : 65}" data-slider="cardOpacity"></label>
+                    </div>
+                    <div class="theme-sec">Background</div>
+                    <div class="tabbar" style="margin:0;">
+                        <button type="button" class="tab ${(!t.bgType || t.bgType === 'none') ? 'active' : ''}" data-bg="none">None</button>
+                        <button type="button" class="tab ${t.bgType === 'pattern' ? 'active' : ''}" data-bg="pattern">Pattern</button>
+                        <button type="button" class="tab ${t.bgType === 'image' ? 'active' : ''}" data-bg="image">Image</button>
+                    </div>
+                    <div data-bgdetail style="margin-top:10px;">${bgDetail()}</div>
+                    <div style="margin-top:20px;"><button class="secondary" data-reset><span class="ms">restart_alt</span> Reset to default</button></div>
+                </div>`;
+            host.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { localStorage.removeItem('tab-mode'); saveTheme({ mode: b.dataset.mode }); renderThemePanel(); });
+            host.querySelectorAll('[data-color]').forEach(inp => inp.oninput = () => saveTheme({ [inp.dataset.color]: inp.value }));
+            host.querySelectorAll('[data-cs]').forEach(b => b.onclick = () => { saveTheme({ cardStyle: b.dataset.cs }); renderThemePanel(); });
+            host.querySelectorAll('[data-slider]').forEach(inp => inp.oninput = () => saveTheme({ [inp.dataset.slider]: Number(inp.value) }));
+            host.querySelectorAll('[data-bg]').forEach(b => b.onclick = () => { saveTheme({ bgType: b.dataset.bg }); renderThemePanel(); });
+            host.querySelectorAll('[data-pattern]').forEach(b => b.onclick = () => { saveTheme({ bgType: 'pattern', bgPattern: b.dataset.pattern }); renderThemePanel(); });
+            const imgInput = host.querySelector('[data-bgimage]');
+            if (imgInput) imgInput.onchange = async () => { const f = imgInput.files[0]; if (!f) return; try { const url = await _themeCompress(f); saveTheme({ bgType: 'image', bgImage: url }); renderThemePanel(); } catch { await tabAlert('Could not load that image.', 'Error'); } };
+            const resetBtn = host.querySelector('[data-reset]');
+            if (resetBtn) resetBtn.onclick = () => { saveTheme({ ...THEME_DEFAULTS }); renderThemePanel(); };
+        };
+
         // --- EXIT JUDGING FUNCTION ---
         window.exitJudging = async () => {
-            if (confirm("Are you sure you want to exit? This will return you to the login screen.")) {
+            if (await tabConfirm("Return to the login screen? Your saved scores are kept.", "Exit judging", { okText: 'Exit', danger: true })) {
                 window.activeJudge = null;
                 window.activeCategory = null;
                 document.getElementById('judge-input').value = "";
@@ -152,7 +329,7 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                if (!confirm(`Import ${jsonData.length} criteria entries? Required columns: segment, label, min, max, weight`)) return;
+                if (!(await tabConfirm(`Import ${jsonData.length} criteria entries? Required columns: segment, label, min, max, weight.`, "Import criteria", { okText: 'Import' }))) return;
 
                 const categoryMap = {};
                 for (const item of jsonData) {
@@ -176,7 +353,7 @@
                         });
                     }
                 }
-                alert("Criteria imported successfully!");
+                await tabAlert("Criteria imported successfully.", "Done");
                 location.reload();
             };
             reader.readAsArrayBuffer(file);
@@ -202,6 +379,49 @@
             XLSX.writeFile(wb, "Criteria_Template.xlsx");
         };
 
+        window.exportCandidateTemplate = async () => {
+            const ws = XLSX.utils.json_to_sheet([
+                { "name": "Maria Santos", "category": "PRODUCTION NUMBER", "candidate_no": 1 },
+                { "name": "Juan Dela Cruz", "category": "PRODUCTION NUMBER", "candidate_no": 2 },
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Candidates");
+            XLSX.writeFile(wb, "Candidates_Template.xlsx");
+        };
+
+        window.exportSegmentTemplate = async () => {
+            const ws = XLSX.utils.json_to_sheet([
+                { "name": "PRODUCTION NUMBER" },
+                { "name": "PRODUCTION NUMBER 2" },
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Segments");
+            XLSX.writeFile(wb, "Segments_Template.xlsx");
+        };
+
+        window.importSegments = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                if (jsonData.length === 0) { await tabAlert("The file is empty.", "Nothing to import"); return; }
+                if (!(await tabConfirm(`Import ${jsonData.length} segment(s)? The column header must be: name.`, "Import segments", { okText: 'Import' }))) return;
+                let added = 0;
+                for (const item of jsonData) {
+                    const name = (item.name || '').toString().trim();
+                    if (!name) continue;
+                    const snap = await getDocs(query(collection(db, "categories"), where("name", "==", name)));
+                    if (snap.empty) { await addDoc(collection(db, "categories"), { name, createdAt: new Date() }); added++; }
+                }
+                await tabAlert(`Imported ${added} new segment(s).`, "Done");
+                event.target.value = "";
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
         window.importCandidates = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -210,8 +430,8 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                if (jsonData.length === 0) { alert("File is empty!"); return; }
-                const confirmImport = confirm(`Import ${jsonData.length} candidates? Make sure column headers are: name, category, candidate_no`);
+                if (jsonData.length === 0) { await tabAlert("The file is empty.", "Nothing to import"); return; }
+                const confirmImport = await tabConfirm(`Import ${jsonData.length} candidates? Column headers must be: name, category, candidate_no.`, "Import candidates", { okText: 'Import' });
                 if (!confirmImport) return;
                 for (const item of jsonData) {
                     if (item.name && item.category && item.candidate_no) {
@@ -223,7 +443,7 @@
                         });
                     }
                 }
-                alert(`Successfully imported candidates!`);
+                await tabAlert("Candidates imported successfully.", "Done");
                 event.target.value = "";
             };
             reader.readAsArrayBuffer(file);
@@ -262,7 +482,9 @@
                 setTimeout(() => window.loginJudge(), 1000);
             }
             onAuthStateChanged(auth, async (user) => {
-                if (user && await isRomioMaster(user)) {
+                const master = !!(user && await isRomioMaster(user));
+                window.isTabMaster = master;
+                if (master) {
                     log.innerText = `ADMIN CONNECTED: ${user.email}`;
                     log.style.background = "#064e3b";
                     checkAdminSession(user);
@@ -302,61 +524,73 @@
 
         window.addCandidate = async () => {
             const catSnap = await getDocs(collection(db, "categories"));
-            if(catSnap.empty) { alert("Please add a Segment/Event first."); return; }
-            let catOptions = catSnap.docs.map((d, i) => `${i+1}. ${d.data().name}`).join('\n');
-            const catIdx = prompt(`Select Event Number:\n${catOptions}`);
-            if(!catIdx) return;
-            const selectedCat = catSnap.docs[parseInt(catIdx)-1].data().name;
-            const name = prompt(`Candidate Name for ${selectedCat}:`);
-            const num = prompt(`Assign Candidate Number:`);
-            if (name && num) await addDoc(collection(db, "candidates"), { name, category: selectedCat, candidate_no: parseInt(num), createdAt: new Date() });
+            if (catSnap.empty) { await tabAlert("Please add a Segment / Event first.", "No segments yet"); return; }
+            const options = catSnap.docs.map(d => ({ value: d.data().name, label: d.data().name }));
+            const res = await tabForm("Add candidate", [
+                { name: 'category', label: 'Segment / Event', type: 'select', options, value: options[0].value },
+                { name: 'name', label: 'Candidate name', required: true, placeholder: 'e.g. Maria Santos' },
+                { name: 'num', label: 'Candidate number', type: 'number', required: true, min: 1, placeholder: 'e.g. 1' },
+            ], { okText: 'Add candidate' });
+            if (!res) return;
+            await addDoc(collection(db, "candidates"), { name: res.name, category: res.category, candidate_no: parseInt(res.num), createdAt: new Date() });
         };
 
         window.editCandidate = async (id, name, cat, num) => {
-            const newName = prompt("Edit Name:", name);
-            const newCat = prompt("Edit Category:", cat)?.toUpperCase();
-            const newNum = prompt("Edit Number:", num);
-            if (newName && newCat && newNum) await updateDoc(doc(db, "candidates", id), { name: newName, category: newCat, candidate_no: parseInt(newNum) });
+            const catSnap = await getDocs(collection(db, "categories"));
+            const options = catSnap.docs.map(d => ({ value: d.data().name, label: d.data().name }));
+            const res = await tabForm("Edit candidate", [
+                { name: 'name', label: 'Candidate name', value: name, required: true },
+                { name: 'category', label: 'Segment / Event', type: 'select', options, value: cat },
+                { name: 'num', label: 'Candidate number', type: 'number', value: num, required: true, min: 1 },
+            ]);
+            if (!res) return;
+            await updateDoc(doc(db, "candidates", id), { name: res.name, category: res.category, candidate_no: parseInt(res.num) });
         };
 
         window.addCategory = async () => {
-            const name = prompt("Segment/Event Name:");
-            if (name) await addDoc(collection(db, "categories"), { name, createdAt: new Date() });
+            const res = await tabForm("Add segment / event", [{ name: 'name', label: 'Segment / Event name', required: true, placeholder: 'e.g. PRODUCTION NUMBER' }], { okText: 'Add segment' });
+            if (res) await addDoc(collection(db, "categories"), { name: res.name, createdAt: new Date() });
         };
 
         window.editCategory = async (id, oldName) => {
-            const newName = prompt("Edit Segment/Event Name:", oldName);
-            if (newName) await updateDoc(doc(db, "categories", id), { name: newName });
+            const res = await tabForm("Edit segment / event", [{ name: 'name', label: 'Name', value: oldName, required: true }]);
+            if (res) await updateDoc(doc(db, "categories", id), { name: res.name });
         };
 
         window.addCriteria = async (catId) => {
-            const label = prompt("Criteria Name:");
-            const min = parseInt(prompt("Min Score (e.g., 75):") || 0);
-            const max = parseInt(prompt("Max Score (e.g., 100):"));
-            const weight = parseInt(prompt("Percentage Weight (e.g., 30 for 30%):"));
-            if (label && max && weight) await addDoc(collection(db, "criteria"), { category_id: catId, label, min_score: min, max_score: max, weight: weight });
+            const res = await tabForm("Add criteria", [
+                { name: 'label', label: 'Criteria name', required: true, placeholder: 'e.g. Stage Presence' },
+                { name: 'min', label: 'Minimum score', type: 'number', value: 75 },
+                { name: 'max', label: 'Maximum score', type: 'number', required: true, value: 100 },
+                { name: 'weight', label: 'Weight (%)', type: 'number', required: true, placeholder: 'e.g. 30' },
+            ], { okText: 'Add criteria' });
+            if (!res) return;
+            await addDoc(collection(db, "criteria"), { category_id: catId, label: res.label, min_score: parseInt(res.min || 0), max_score: parseInt(res.max), weight: parseInt(res.weight) });
         };
 
         window.editCriteria = async (id, oldLabel, oldMin, oldMax, oldWeight) => {
-            const label = prompt("Edit Criteria Name:", oldLabel);
-            const min = prompt("Edit Min Score:", oldMin);
-            const max = prompt("Edit Max Score:", oldMax);
-            const weight = prompt("Edit Weight %:", oldWeight);
-            if (label && min !== null && max && weight) await updateDoc(doc(db, "criteria", id), { label, min_score: parseInt(min), max_score: parseInt(max), weight: parseInt(weight) });
+            const res = await tabForm("Edit criteria", [
+                { name: 'label', label: 'Criteria name', value: oldLabel, required: true },
+                { name: 'min', label: 'Minimum score', type: 'number', value: oldMin },
+                { name: 'max', label: 'Maximum score', type: 'number', value: oldMax, required: true },
+                { name: 'weight', label: 'Weight (%)', type: 'number', value: oldWeight, required: true },
+            ]);
+            if (!res) return;
+            await updateDoc(doc(db, "criteria", id), { label: res.label, min_score: parseInt(res.min || 0), max_score: parseInt(res.max), weight: parseInt(res.weight) });
         };
 
         window.generateJudgeLink = async () => {
-            const judgeName = prompt("Judge Name:");
-            if (!judgeName) return;
+            const res = await tabForm("Add judge", [{ name: 'name', label: 'Judge name', required: true, placeholder: 'e.g. Hon. Juan Dela Cruz' }], { okText: 'Create judge' });
+            if (!res) return;
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
             let passkey = "";
             for (let i = 0; i < 6; i++) passkey += chars.charAt(Math.floor(Math.random() * chars.length));
-            await addDoc(collection(db, "judges"), { name: judgeName, passkey: passkey, createdAt: new Date() });
+            await addDoc(collection(db, "judges"), { name: res.name, passkey: passkey, createdAt: new Date() });
         };
 
         window.editJudge = async (id, oldName) => {
-            const newName = prompt("Edit Judge Name:", oldName);
-            if (newName) await updateDoc(doc(db, "judges", id), { name: newName });
+            const res = await tabForm("Edit judge", [{ name: 'name', label: 'Judge name', value: oldName, required: true }]);
+            if (res) await updateDoc(doc(db, "judges", id), { name: res.name });
         };
 
         window.copyToClipboard = (text) => {
@@ -402,8 +636,9 @@
                 }).join('');
             });
 
-            onSnapshot(query(collection(db, "candidates"), orderBy("category", "asc"), orderBy("candidate_no", "asc")), (snap) => {
-                const candidates = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            onSnapshot(collection(db, "candidates"), (snap) => {
+                const candidates = snap.docs.map(d => ({id: d.id, ...d.data()}))
+                    .sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || (Number(a.candidate_no || 0) - Number(b.candidate_no || 0)));
                 document.getElementById('candidate-list').innerHTML = candidates.map(c => `
                     <div class="card-item" style="flex-direction:column; align-items:flex-start;">
                         <div style="width:100%; display:flex; justify-content:space-between;">
@@ -644,18 +879,18 @@
                 document.getElementById('current-judge-name').innerText = "Judge: " + window.activeJudge.name;
                 window.showView('view-select-event');
                 window.loadEventsForJudge();
-            } else alert("Invalid Key");
+            } else await tabAlert("That passkey didn't match any judge. Please check it and try again.", "Invalid passkey");
         };
 
         window.loadEventsForJudge = async () => {
             const container = document.getElementById('event-grid');
             onSnapshot(collection(db, "categories"), (snap) => {
                 container.innerHTML = snap.docs.map(doc => `
-                    <div class="card" style="cursor:pointer; text-align:center; border-left: 5px solid var(--accent);" onclick="startScoringEvent('${doc.id}', '${doc.data().name}')">
-                        <h3 style="margin:0;">${doc.data().name}</h3>
-                        <p style="font-size:12px; opacity:0.7; margin-top:10px;">Open scoresheet</p>
+                    <div class="card event-tile" onclick="startScoringEvent('${doc.id}', '${doc.data().name}')">
+                        <h3 style="margin:0; font-size:16px;">${doc.data().name}</h3>
+                        <p class="muted" style="font-size:12px; margin-top:10px;">Open scoresheet <span class="ms">arrow_forward</span></p>
                     </div>
-                `).join('') || "<p>No events available yet.</p>";
+                `).join('') || `<div class="card"><p class="muted" style="text-align:center;">No events available yet.</p></div>`;
             });
         };
 
@@ -669,24 +904,29 @@
         window.loadScoring = async () => {
             const scoringContainer = document.getElementById('scoring-sheets');
             scoringContainer.innerHTML = "<p>Loading...</p>";
-            const cSnap = await getDocs(query(collection(db, "candidates"), where("category", "==", window.activeCategory.name), orderBy("candidate_no", "asc")));
+            const cSnap = await getDocs(query(collection(db, "candidates"), where("category", "==", window.activeCategory.name)));
             const crSnap = await getDocs(query(collection(db, "criteria"), where("category_id", "==", window.activeCategory.id)));
             const sSnap = await getDocs(query(collection(db, "scores"), where("judge_id", "==", window.activeJudge.id), where("category_id", "==", window.activeCategory.id)));
-            const candidates = cSnap.docs.map(d => ({id: d.id, ...d.data()}));
+            const candidates = cSnap.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => Number(a.candidate_no || 0) - Number(b.candidate_no || 0));
             const crits = crSnap.docs.map(d => ({id: d.id, ...d.data()}));
             const scores = {};
             sSnap.docs.forEach(d => scores[`${d.data().candidate_id}_${d.data().criteria_id}`] = d.data().raw_score);
 
-            let html = `<button class="secondary" onclick="showView('view-select-event')" style="margin-bottom:20px;">← Back</button>`;
+            if (!candidates.length) { scoringContainer.innerHTML = `<div class="card" style="text-align:center;"><p class="muted">No candidates in this segment yet.</p><button class="secondary" onclick="showView('view-select-event')"><span class="ms">arrow_back</span> Back to events</button></div>`; return; }
+            if (!crits.length) { scoringContainer.innerHTML = `<div class="card" style="text-align:center;"><p class="muted">No criteria set for this segment yet. Ask the admin to add criteria.</p><button class="secondary" onclick="showView('view-select-event')"><span class="ms">arrow_back</span> Back to events</button></div>`; return; }
+            let html = `<button class="secondary" onclick="showView('view-select-event')" style="margin-bottom:18px;"><span class="ms">arrow_back</span> Back to events</button>`;
             candidates.forEach(c => {
-                html += `<div class="card"><h3 style="color:var(--accent)">#${c.candidate_no} - ${c.name}</h3>
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top:10px;">
-                ${crits.map(cr => `<div style="background:var(--surface); padding:10px; border-radius:8px;">
-                    <label style="font-size:11px; font-weight:bold;">${cr.label} (${cr.weight}%)</label>
-                    <input type="number" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore('${c.id}', '${cr.id}', '${window.activeCategory.id}', this.value, ${cr.min_score}, ${cr.max_score}, this)" placeholder="${cr.min_score}-${cr.max_score}">
-                </div>`).join('')}</div></div>`;
+                html += `<div class="score-card">
+                    <div class="score-card-head"><span class="cand-badge">#${c.candidate_no}</span><h3 style="font-size:16px;">${c.name}</h3></div>
+                    <div class="crit-grid">
+                    ${crits.map(cr => `<div class="crit-box">
+                        <label>${cr.label} · ${cr.weight}%</label>
+                        <input type="number" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore('${c.id}', '${cr.id}', '${window.activeCategory.id}', this.value, ${cr.min_score}, ${cr.max_score}, this)" placeholder="${cr.min_score}-${cr.max_score}">
+                        <div class="rng">${cr.min_score}–${cr.max_score}</div>
+                    </div>`).join('')}</div>
+                </div>`;
             });
-            html += `<div style="text-align:center;"><button id="btn-sync" onclick="syncAllScores()">SYNC ALL SCORES</button></div>`;
+            html += `<div style="text-align:center; padding:8px 0 24px;"><button id="btn-sync" onclick="syncAllScores()" style="padding:12px 28px; font-size:14px;"><span class="ms">check_circle</span> Submit &amp; finalize scores</button></div>`;
             scoringContainer.innerHTML = html;
         };
 
@@ -696,12 +936,15 @@
             if (score < min || score > max) { element.style.borderColor = "red"; return; }
             element.style.borderColor = "var(--accent)";
             await setDoc(doc(db, "scores", `${window.activeJudge.id}_${candId}_${critId}`), { judge_id: window.activeJudge.id, candidate_id: candId, criteria_id: critId, category_id: catId, raw_score: score, timestamp: new Date() });
-            document.getElementById('sync-status').innerText = "● Auto-Saving...";
-            setTimeout(() => document.getElementById('sync-status').innerText = "● Draft Saved", 1000);
+            document.getElementById('sync-status').innerHTML = '<span class="ms">sync</span> Saving…';
+            setTimeout(() => document.getElementById('sync-status').innerHTML = '<span class="ms">cloud_done</span> Draft saved', 1000);
         };
 
         window.deleteAllRecords = async (collectionName) => {
-            if (prompt(`Type "DELETE ALL" to wipe all ${collectionName}:`) !== "DELETE ALL") return;
+            const res = await tabForm(`Wipe all ${collectionName}`, [
+                { name: 'confirm', label: `This permanently deletes ALL ${collectionName}. Type DELETE ALL to confirm`, placeholder: 'DELETE ALL', required: true },
+            ], { okText: 'Wipe everything' });
+            if (!res || res.confirm.trim() !== "DELETE ALL") return;
             const batch = writeBatch(db);
             const snap = await getDocs(collection(db, collectionName));
             snap.forEach(d => batch.delete(d.ref));
@@ -710,14 +953,14 @@
                 s.forEach(d => batch.delete(d.ref));
             }
             await batch.commit();
-            alert("Deleted all records.");
+            await tabAlert(`All ${collectionName} were deleted.`, "Done");
             location.reload();
         };
 
         window.syncAllScores = async () => {
             const syncRef = doc(db, "judge_syncs", `${window.activeJudge.id}_${window.activeCategory.id}`);
             await setDoc(syncRef, { judge_id: window.activeJudge.id, judge_name: window.activeJudge.name, category_id: window.activeCategory.id, syncedAt: new Date(), status: "FINISHED" });
-            alert("Scores Finalized!");
+            await tabAlert("Your scores have been finalized and submitted. Thank you!", "Scores submitted");
         };
 
         window.showView = (id) => {
@@ -731,44 +974,143 @@
             try { const q = window.location.search || ''; history.replaceState(null, '', path + q); } catch (e) {}
         };
 
-        window.masterAccess = () => auth.currentUser ? window.showView('view-master') : alert("Admin required");
+        window.switchMasterTab = (tab) => {
+            document.querySelectorAll('#view-master .tab').forEach(b => b.classList.toggle('active', b.dataset.mtab === tab));
+            ['setup', 'results', 'theme'].forEach(k => document.getElementById('mtab-' + k).classList.toggle('active', k === tab));
+            if (tab === 'theme') window.renderThemePanel();
+        };
+
+        window.masterAccess = async () => {
+            if (await isRomioMaster(auth.currentUser)) window.showView('view-master');
+            else await tabAlert("Admin access is for the master account only. Open this from ROMIO while signed in as master.", "Admin required");
+        };
     </script>
 
     <style>
-        :root { --bg: #ffffff; --surface: #f8fafc; --text: #064e3b; --accent: #10b981; --border: #e2e8f0; --card: #ffffff; --shadow: rgba(0,0,0,0.05); }
-        [data-theme="dark"] { --bg: #000000; --surface: #0a0a0a; --text: #ffffff; --accent: #ffffff; --border: #333333; --card: #111111; }
-        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg); color: var(--text); margin: 0; }
-        #conn-log { background: #333; color: white; padding: 5px; text-align: center; font-size: 10px; position: sticky; top: 0; z-index: 9999; }
-        nav { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
-        .view { display: none; padding: 20px; max-width: 1200px; margin: auto; }
-        .view.active { display: block; }
-        .card { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 10px var(--shadow); }
-        .card-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--border); align-items: center; }
-        input { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-        button { padding: 8px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; background: var(--accent); color: #000; font-size: 12px; }
-        button.secondary { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
-        button.btn-danger { color: #ff4444 !important; border-color: #ff4444 !important; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid var(--border); padding: 8px; text-align: center; }
-        .logo-img { height: 35px; }
-        @media (max-width: 600px) {
-            nav { padding: 10px; }
-            .view { padding: 10px; }
-            h2 { font-size: 1.2rem; }
-            button { padding: 6px 10px; font-size: 11px; }
+        :root {
+            --bg: #eef2f7; --surface: #ffffff; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+            --accent: #059669; --accent-2: #10b981; --border: #e2e8f0; --danger: #e11d48;
+            --shadow: 0 6px 22px rgba(15,23,42,.07); --radius: 14px; --ring: rgba(5,150,105,.18);
+        }
+        /* Dark mode matched to ROMIO (bg #0f1115, surface #1a1d24, blue accent). */
+        [data-theme="dark"] {
+            --bg: #0f1115; --surface: #1a1d24; --card: #1a1d24; --text: #e6e9ee; --muted: #8a8f98;
+            --accent: #5b8cff; --accent-2: #5b8cff; --border: #232a34; --danger: #ff6b6b;
+            --shadow: 0 8px 26px rgba(0,0,0,.45); --ring: rgba(91,140,255,.25);
+        }
+        * { box-sizing: border-box; }
+        body { background: var(--bg); color: var(--text); margin: 0; font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+        .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 18px; line-height: 1; vertical-align: -4px; letter-spacing: normal; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; }
+        button .ms, .button .ms, .tab .ms { font-size: 17px; vertical-align: -3px; }
+        h1,h2,h3,h4 { margin: 0; }
+        #conn-log { background: #0f172a; color: #cbd5e1; padding: 4px; text-align: center; font-size: 10px; letter-spacing: .04em; position: sticky; top: 0; z-index: 9999; }
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 18px; z-index: 500; }
+        .view { display: none; padding: 24px; max-width: 1240px; margin: auto; }
+        .view.active { display: block; animation: viewin .25s ease; }
+        @keyframes viewin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 18px; border-radius: var(--radius); margin-bottom: 16px; box-shadow: var(--shadow); }
+        .card > h3 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .card-item { display: flex; justify-content: space-between; padding: 10px 4px; border-bottom: 1px solid var(--border); align-items: center; gap: 10px; }
+        .card-item:last-child { border-bottom: 0; }
+        input, select, textarea { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; outline: none; transition: border-color .15s, box-shadow .15s; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+        button, .button { padding: 9px 15px; border-radius: 10px; border: 1px solid transparent; font-weight: 600; cursor: pointer; background: var(--accent); color: #fff; font-size: 12.5px; transition: filter .15s, background .15s, transform .05s; display: inline-flex; align-items: center; gap: 6px; }
+        button:hover, .button:hover { filter: brightness(1.06); }
+        button:active { transform: translateY(1px); }
+        button.secondary { background: transparent; border-color: var(--border); color: var(--text); }
+        button.secondary:hover { border-color: var(--accent); color: var(--accent); filter: none; }
+        button.btn-danger { color: var(--danger) !important; border-color: transparent; background: transparent; }
+        button.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); filter: none; }
+        button.btn-solid-danger { background: var(--danger); color: #fff; border-color: transparent; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid var(--border); padding: 9px; text-align: center; }
+        th { background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+        .logo-img { height: 34px; }
+        .muted { color: var(--muted); }
+        /* toolbar */
+        .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        /* tabs */
+        .tabbar { display: inline-flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); padding: 4px; border-radius: 12px; margin-bottom: 18px; }
+        .tab { background: transparent; color: var(--muted); border: 0; padding: 8px 16px; border-radius: 9px; font-weight: 600; }
+        .tab.active { background: var(--accent); color: #fff; }
+        .tabpanel { display: none; }
+        .tabpanel.active { display: block; }
+        /* Shared theme: frosted-glass cards + custom background (set by master) */
+        :root[data-cards="glass"] .card,
+        :root[data-cards="glass"] .score-card,
+        :root[data-cards="glass"] .scoring-topbar,
+        :root[data-cards="glass"] nav {
+            background-color: color-mix(in srgb, var(--card) var(--card-opacity, 65%), transparent) !important;
+            backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.15);
+            -webkit-backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.15);
+        }
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background-image: var(--app-bg-image, none);
+            background-size: var(--app-bg-size, auto);
+            background-repeat: var(--app-bg-repeat, repeat);
+            background-position: center;
+        }
+        .theme-swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .bg-swatch { width: 66px; height: 46px; border-radius: 10px; cursor: pointer; border: 2px solid var(--border); background-color: var(--surface); overflow: hidden; }
+        .bg-swatch.active { border-color: var(--accent); }
+        .theme-sec { font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
+        .theme-colors { display: flex; flex-wrap: wrap; gap: 14px; }
+        .theme-color { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .theme-color input[type="color"] { width: 42px; height: 34px; padding: 2px; border-radius: 8px; cursor: pointer; }
+        .theme-slider { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+        .theme-slider > span { min-width: 64px; font-size: 12.5px; color: var(--muted); }
+        .theme-slider input[type="range"] { flex: 1; accent-color: var(--accent); }
+        .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+        .imp-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--border); flex-wrap: wrap; font-size: 13px; }
+        .imp-row:last-child { border-bottom: 0; }
+        .imp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        /* judge scoring */
+        .score-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+        .score-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .cand-badge { background: var(--accent); color: #fff; font-weight: 800; padding: 6px 12px; border-radius: 10px; font-size: 14px; }
+        .crit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .crit-box { background: var(--bg); border: 1px solid var(--border); padding: 12px; border-radius: 12px; }
+        .crit-box label { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+        .crit-box input { text-align: center; font-size: 18px; font-weight: 700; }
+        .crit-box .rng { font-size: 10px; color: var(--muted); text-align: center; margin-top: 6px; }
+        .scoring-topbar { position: sticky; top: 60px; z-index: 100; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 18px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .sync-pill { font-size: 12px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+        .event-tile { cursor: pointer; text-align: center; border: 1px solid var(--border); transition: transform .12s, border-color .12s, box-shadow .12s; }
+        .event-tile:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
+        /* modal */
+        .tab-modal-overlay { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; padding: 18px; background: rgba(2,6,23,.55); backdrop-filter: blur(3px); opacity: 0; transition: opacity .18s; }
+        .tab-modal-overlay.show { opacity: 1; }
+        .tab-modal { width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 30px 70px rgba(0,0,0,.4); transform: translateY(8px) scale(.98); transition: transform .18s; overflow: hidden; }
+        .tab-modal-overlay.show .tab-modal { transform: none; }
+        .tab-modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .tab-modal-head h3 { font-size: 16px; }
+        .tab-modal-body { padding: 20px; }
+        .tab-modal-msg { margin: 0; color: var(--text); line-height: 1.55; font-size: 14px; }
+        .tab-modal-foot { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+        .tab-form { display: flex; flex-direction: column; gap: 14px; }
+        .tab-field { display: flex; flex-direction: column; gap: 6px; }
+        .tab-field > span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+        .tab-field em { color: var(--danger); font-style: normal; }
+        .tab-form-err { display: none; color: var(--danger); font-size: 12.5px; }
+        .tab-form-err.show { display: block; }
+        @media (max-width: 640px) {
+            nav { padding: 10px 14px; top: 16px; }
+            .view { padding: 14px; }
+            h2 { font-size: 1.15rem; }
+            .toolbar button, .toolbar .button { font-size: 11.5px; padding: 8px 11px; }
         }
         .theme-switch-wrapper { display: flex; align-items: center; }
         .theme-switch { display: inline-block; height: 30px; position: relative; width: 60px; }
         .theme-switch input { display: none; }
-        .slider { background-color: #ccc; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; transition: .4s; display: flex; align-items: center; justify-content: space-between; padding: 0 5px; }
+        .slider { background-color: #cbd5e1; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; transition: .4s; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
         .slider:before { background-color: #fff; bottom: 4px; content: ""; height: 22px; left: 4px; position: absolute; transition: .4s; width: 22px; z-index: 2; }
-        input:checked + .slider { background-color: #10b981; }
+        input:checked + .slider { background-color: var(--accent); }
         input:checked + .slider:before { transform: translateX(30px); }
         .slider.round { border-radius: 34px; }
         .slider.round:before { border-radius: 50%; }
         .icon { font-size: 14px; user-select: none; }
-        [data-theme="dark"] .slider { background-color: #333; }
+        [data-theme="dark"] .slider { background-color: #334155; }
     </style>
 </head>
 <body>
@@ -776,12 +1118,12 @@
 <div id="conn-log">System Initializing...</div>
 <nav>
     <img src="images/1.png" alt="ESSCORE" class="logo-img">
-    <div class="theme-switch-wrapper">
+    <div class="theme-switch-wrapper" id="theme-switch-wrapper" title="Light / dark — your personal preference">
         <label class="theme-switch" for="checkbox">
             <input type="checkbox" id="checkbox" onclick="toggleTheme()" />
             <div class="slider round">
-                <span class="icon moon">🌙</span>
-                <span class="icon sun">☀️</span>
+                <span class="icon moon ms">dark_mode</span>
+                <span class="icon sun ms">light_mode</span>
             </div>
         </label>
     </div>
@@ -808,40 +1150,75 @@
 </section>
 
 <section id="view-master" class="view">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
-        <h2>Master Control</h2>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="secondary btn-danger" onclick="deleteAllRecords('judges')">Wipe Judges</button>
-            <button class="secondary btn-danger" onclick="deleteAllRecords('candidates')">Wipe Candidates</button>
-            <button class="secondary" onclick="exportCriteriaTemplate()">↓ Template Export</button>
-            <label class="button" style="background:var(--accent);color:black; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:12px; font-weight:bold;">
-                ↑ Import Criteria <input type="file" accept=".xlsx" onchange="importCriteria(event)" style="display:none;">
-            </label>
-            <label class="button" style="background:var(--accent); color:black; padding:8px 15px; border-radius:5px; cursor:pointer; font-size:12px; font-weight:bold;">
-                ↑ Import Candidates <input type="file" accept=".xlsx" onchange="importCandidates(event)" style="display:none;">
-            </label>
-            <button onclick="addCandidate()">+ Candidate</button>
-            <button onclick="generateJudgeLink()">+ Judge</button>
-            <button onclick="addCategory()">+ Segment</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+        <div>
+            <h2>Master Control</h2>
+            <div class="muted" style="font-size:12.5px; margin-top:2px;">Manage segments, criteria, candidates and judges — results update live.</div>
+        </div>
+        <div class="toolbar">
+            <button onclick="addCategory()"><span class="ms">add</span> Segment</button>
+            <button onclick="addCandidate()"><span class="ms">add</span> Candidate</button>
+            <button onclick="generateJudgeLink()"><span class="ms">add</span> Judge</button>
+            <button class="btn-danger" onclick="deleteAllRecords('judges')"><span class="ms">delete_sweep</span> Wipe judges</button>
+            <button class="btn-danger" onclick="deleteAllRecords('candidates')"><span class="ms">delete_sweep</span> Wipe candidates</button>
         </div>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-        <div class="card"><h3>Judges</h3><div id="judge-list"></div></div>
-        <div class="card"><h3>Candidates</h3><div id="candidate-list"></div></div>
-        <div id="overall-summary-container" style="display: contents;"></div> 
-        <div id="master-results" style="display: contents;"></div>
-        <div id="rank-per-criteria-container" style="display: contents;"></div>
-        <div id="score-audit-container" style="display: contents;"></div>
+
+    <div class="tabbar">
+        <button class="tab active" data-mtab="setup" onclick="switchMasterTab('setup')">Setup</button>
+        <button class="tab" data-mtab="results" onclick="switchMasterTab('results')">Segments &amp; Results</button>
+        <button class="tab" data-mtab="theme" onclick="switchMasterTab('theme')">Theme</button>
     </div>
+
+    <div id="mtab-setup" class="tabpanel active">
+        <div class="card">
+            <h3><span class="ms">table_view</span> Import &amp; templates</h3>
+            <p class="muted" style="font-size:12.5px; margin:2px 0 8px;">Download a spreadsheet template, fill it in Excel, then import.</p>
+            <div class="imp-row">
+                <div><strong>Segments</strong> <span class="muted">— column: name</span></div>
+                <div class="imp-actions">
+                    <button class="secondary" onclick="exportSegmentTemplate()"><span class="ms">download</span> Template</button>
+                    <label class="button secondary"><span class="ms">upload</span> Import<input type="file" accept=".xlsx" onchange="importSegments(event)" style="display:none;"></label>
+                </div>
+            </div>
+            <div class="imp-row">
+                <div><strong>Candidates</strong> <span class="muted">— name, category, candidate_no</span></div>
+                <div class="imp-actions">
+                    <button class="secondary" onclick="exportCandidateTemplate()"><span class="ms">download</span> Template</button>
+                    <label class="button secondary"><span class="ms">upload</span> Import<input type="file" accept=".xlsx" onchange="importCandidates(event)" style="display:none;"></label>
+                </div>
+            </div>
+            <div class="imp-row">
+                <div><strong>Criteria</strong> <span class="muted">— segment, label, min, max, weight</span></div>
+                <div class="imp-actions">
+                    <button class="secondary" onclick="exportCriteriaTemplate()"><span class="ms">download</span> Template</button>
+                    <label class="button secondary"><span class="ms">upload</span> Import<input type="file" accept=".xlsx" onchange="importCriteria(event)" style="display:none;"></label>
+                </div>
+            </div>
+        </div>
+        <div class="setup-grid">
+            <div class="card"><h3><span class="ms">gavel</span> Judges</h3><div id="judge-list"></div></div>
+            <div class="card"><h3><span class="ms">groups</span> Candidates</h3><div id="candidate-list"></div></div>
+        </div>
+    </div>
+
+    <div id="mtab-results" class="tabpanel">
+        <div id="overall-summary-container"></div>
+        <div id="master-results"></div>
+        <div id="rank-per-criteria-container"></div>
+        <div id="score-audit-container"></div>
+    </div>
+
+    <div id="mtab-theme" class="tabpanel"></div>
 </section>
 
 <section id="view-scoring" class="view">
-    <div class="card" style="position: sticky; top: 40px; z-index: 100;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 id="current-judge-ui" style="margin:0;">Scoring</h2>
-            <button class="secondary btn-danger" onclick="exitJudging()" style="font-size: 10px;">Exit Judging</button>
+    <div class="scoring-topbar">
+        <h2 id="current-judge-ui" style="margin:0; font-size:16px;">Scoring</h2>
+        <div style="display:flex; align-items:center; gap:14px;">
+            <span class="sync-pill" id="sync-status"><span class="ms">bolt</span> Ready</span>
+            <button class="secondary btn-danger" onclick="exitJudging()">Exit</button>
         </div>
-        <small id="sync-status">Ready</small>
     </div>
     <div id="scoring-sheets"></div>
 </section>
