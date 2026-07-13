@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase.js';
 import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
+import { isMaster } from '../workspaces/roles.js';
 import { notify } from '../workspaces/data.js';
 import { renderWidgetsPanel } from './widgets.js';
 import { loadMentionUsers, renderBodyWithMentions, attachMentionAutocomplete, extractMentions } from './feedMentions.js';
@@ -114,6 +115,7 @@ export function postCard(d, user, ui) {
   const ref = doc(db, 'posts', d.id);
   const when = p.createdAt?.toDate ? timeAgo(p.createdAt.toDate()) : '';
   const mine = p.authorId === user.uid;
+  const canModerate = isMaster(user); // master can moderate any post/comment
   const isHidden = p.hidden === true;
   const likes = Array.isArray(p.likes) ? p.likes : [];
   const comments = Array.isArray(p.comments) ? p.comments : [];
@@ -162,7 +164,8 @@ export function postCard(d, user, ui) {
     });
   };
 
-  // --- 3-dot options menu (owner-only): Edit / Delete / Hide-Unhide ---
+  // --- 3-dot options menu: Edit / Hide (author) + Delete. The master can
+  // moderate ANY post (the Firestore rules already permit master deletes). ---
   const menu = el('div', { class: 'post__menu' });
   const menuItem = (iconName, label, danger, onClick) => {
     const b = el('button', { class: `post__menu-item ${danger ? 'is-danger' : ''}` }, [icon(iconName), label]);
@@ -170,19 +173,25 @@ export function postCard(d, user, ui) {
     return b;
   };
   let menuWrap = null;
-  if (mine) {
-    menu.append(menuItem('pencil', 'Edit', false, startEdit));
-    menu.append(menuItem(isHidden ? 'eye' : 'eye-off', isHidden ? 'Unhide' : 'Hide', false, async () => {
-      try {
-        await updateDoc(ref, { hidden: !isHidden });
-        toast(isHidden ? 'Post is visible to everyone again.' : 'Post hidden — only you can see it now.', 'info');
-      } catch (err) { toast(err.message, 'error'); }
+  if (mine || canModerate) {
+    if (mine) {
+      menu.append(menuItem('pencil', 'Edit', false, startEdit));
+      menu.append(menuItem(isHidden ? 'eye' : 'eye-off', isHidden ? 'Unhide' : 'Hide', false, async () => {
+        try {
+          await updateDoc(ref, { hidden: !isHidden });
+          toast(isHidden ? 'Post is visible to everyone again.' : 'Post hidden — only you can see it now.', 'info');
+        } catch (err) { toast(err.message, 'error'); }
+      }));
+    }
+    menu.append(menuItem('trash', mine ? 'Delete' : 'Delete post', true, async () => {
+      const message = mine
+        ? 'This permanently removes your post for everyone.'
+        : `This permanently removes ${p.authorName || 'this user'}'s post for everyone.`;
+      if (!(await confirmModal({ title: mine ? 'Delete post?' : 'Delete this post?', message, confirmLabel: 'Delete', danger: true }))) return;
+      try { await deleteDoc(ref); if (!mine) toast('Post removed.', 'info'); }
+      catch (err) { toast(err.message, 'error'); }
     }));
-    menu.append(menuItem('trash', 'Delete', true, async () => {
-      if (!(await confirmModal({ title: 'Delete post?', message: 'This permanently removes your post for everyone.', confirmLabel: 'Delete', danger: true }))) return;
-      try { await deleteDoc(ref); } catch (err) { toast(err.message, 'error'); }
-    }));
-    const kebab = el('button', { class: 'post__kebab', title: 'Options', 'aria-label': 'Post options' }, icon('dots'));
+    const kebab = el('button', { class: 'post__kebab', title: canModerate && !mine ? 'Moderate' : 'Options', 'aria-label': 'Post options' }, icon('dots'));
     kebab.addEventListener('click', (e) => {
       e.stopPropagation();
       const wasOpen = menu.classList.contains('open');
@@ -234,10 +243,11 @@ export function postCard(d, user, ui) {
             : el('span', { class: 'comment__author' }, c.authorName || 'Someone'),
           el('span', { class: 'comment__text', html: renderBodyWithMentions(c.text || '', c.mentions) }),
         ]),
-        cMine
+        (cMine || canModerate)
           ? el('button', {
-              class: 'comment__del', title: 'Delete comment',
+              class: 'comment__del', title: cMine ? 'Delete comment' : 'Remove comment (moderate)',
               onclick: async () => {
+                if (!cMine && !(await confirmModal({ title: 'Remove this comment?', message: `This permanently removes ${c.authorName || 'this user'}'s comment.`, confirmLabel: 'Remove', danger: true }))) return;
                 try { await updateDoc(ref, { comments: arrayRemove(c) }); }
                 catch (err) { toast(err.message, 'error'); }
               },
