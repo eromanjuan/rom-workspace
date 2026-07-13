@@ -33,24 +33,27 @@ export function roleLabel(role) {
 }
 
 // --- fine-grained workspace permissions ---
-// The capabilities an owner can grant. Grouped so the UI reads as read / interact / write.
+// The capabilities an owner can grant, grouped as View / Create / Manage.
+// Enforcement is coarse in the embedded dashboard: `viewWorkspace` gates every
+// "view" action, and any create/edit/interact action needs `post` or `editTiles`.
+// `manage` (settings, members, invites, roles) is owner-only.
 export const WS_PERMISSIONS = [
-  { key: 'viewWorkspace', label: 'View workspace', group: 'read' },
-  { key: 'viewPosts', label: 'View posts', group: 'read' },
-  { key: 'viewTiles', label: 'View tiles', group: 'read' },
-  { key: 'interactTiles', label: 'Interact with tiles', group: 'interact' },
-  { key: 'post', label: 'Post to workspace', group: 'write' },
-  { key: 'deleteOwnPost', label: 'Delete own posts', group: 'write' },
-  { key: 'editTiles', label: 'Edit tiles', group: 'write' },
+  { key: 'viewWorkspace', label: 'View feed, posts, apps, tiles & activity', group: 'view' },
+  { key: 'post', label: 'Create posts, comments, apps & app items', group: 'create' },
+  { key: 'editTiles', label: 'Create & edit dashboard tiles', group: 'create' },
+  { key: 'interactTiles', label: 'Interact with tiles, calendar & checklists', group: 'create' },
 ];
 
 const ALL_ON = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true };
+const VIEW_ONLY = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: false, post: false, deleteOwnPost: false, editTiles: false, manage: false };
 
 // Preset roles → resolved permission sets. `manage` (settings/members) is owner-only.
+// Owner = everything. Editor = view + create/edit/interact, no management.
+// Viewer = view only.
 export const ROLE_PRESETS = {
   owner: { ...ALL_ON, manage: true },
   editor: { ...ALL_ON, manage: false },
-  viewer: { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: false, deleteOwnPost: false, editTiles: false, manage: false },
+  viewer: { ...VIEW_ONLY },
 };
 
 // Resolve a member's effective permissions. Custom members carry their own `perms`

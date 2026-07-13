@@ -30103,9 +30103,19 @@ function allowedCompanies() {
 
 function can(permission, companyId = activeCompanyId()) {
   if (!permission) return true;
-  // ROM embed: honor the permissions injected by the host for workspace actions.
+  // ROM embed: the workspace ROLE decides everything, not the module's internal
+  // role model. viewWorkspace gates every "view" action; any create/edit/interact
+  // action needs write access (post/editTiles/manage). This makes Viewer truly
+  // view-only and Editor/Owner able to create — matching the ROM role matrix.
   const romP = window.__ROM_WS_PERMS__;
-  if (romP && permission === 'workspaces.manage') return !!(romP.editTiles || romP.post || romP.manage);
+  if (romP) {
+    const p = String(permission);
+    if (p.endsWith('.view')) return !!romP.viewWorkspace;
+    // Interacting with tiles (calendar/checklist/polls) is its own capability.
+    if (p === 'tiles.interact') return !!(romP.interactTiles || romP.editTiles || romP.post || romP.manage);
+    // Every other action (posts, apps, tiles, items, calendar, checklist, …) is a write.
+    return !!(romP.post || romP.editTiles || romP.manage);
+  }
   if (!permissionAvailableForCompany(permission, companyId)) return false;
   const previewRole = rolePreviewForCompany(companyId);
   if (previewRole) return roleAllowsPermission(previewRole, permission);

@@ -18,11 +18,11 @@ const firebaseConfig = {
 
 const PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=21';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=22';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
-const VIEWER_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: false, deleteOwnPost: false, editTiles: false, manage: false };
+const VIEWER_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: false, post: false, deleteOwnPost: false, editTiles: false, manage: false };
 const NO_PERMS = { viewWorkspace: false, viewPosts: false, viewTiles: false, interactTiles: false, post: false, deleteOwnPost: false, editTiles: false, manage: false };
 function permsForMember(role, perms, isMaster) {
   if (isMaster) return ALL_PERMS;
@@ -33,7 +33,14 @@ function permsForMember(role, perms, isMaster) {
   return NO_PERMS;
 }
 
-function romTheme() { return localStorage.getItem('rom-theme') === 'light' ? 'light' : 'dark'; }
+// A per-workspace theme (workspaces/{wsId}.theme), set by the owner in Workspace
+// Settings. When present it FULLY overrides the viewer's personal theme for the
+// dashboard; otherwise the dashboard inherits the viewer's global ROM theme.
+let wsTheme = null;
+function romTheme() {
+  if (wsTheme && (wsTheme.mode === 'light' || wsTheme.mode === 'dark')) return wsTheme.mode;
+  return localStorage.getItem('rom-theme') === 'light' ? 'light' : 'dark';
+}
 // ROMIO palette defaults (mirror of src/ui/theme.js PALETTE_VARS) so the module
 // adopts ROMIO's colours even when the user hasn't customised them.
 const ROM_PALETTE_DEFAULTS = {
@@ -52,11 +59,13 @@ const ROM_BG_PATTERNS = {
   mesh:     { image: 'radial-gradient(at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 40%), radial-gradient(at 100% 0%, color-mix(in srgb, var(--danger) 20%, transparent), transparent 42%), radial-gradient(at 60% 100%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 44%)', size: 'cover', repeat: 'no-repeat' },
 };
 function romVar(name) {
+  if (wsTheme && wsTheme.palette && wsTheme.palette[name]) return wsTheme.palette[name];
   try { const p = JSON.parse(localStorage.getItem('rom-palette') || '{}'); if (p[name]) return p[name]; } catch { /* ignore */ }
   const d = ROM_PALETTE_DEFAULTS[name];
   return d ? d[romTheme()] : '';
 }
 function romAppearance() {
+  if (wsTheme && wsTheme.appearance) return wsTheme.appearance;
   try { return JSON.parse(localStorage.getItem('rom-appearance') || '{}') || {}; } catch { return {}; }
 }
 function applyThemeToModule() {
@@ -235,6 +244,8 @@ async function boot() {
           if (d.icon) window.__ROM_WS_ICON__ = d.icon;
           if (d.color) window.__ROM_WS_COLOR__ = d.color;
           if (d.imageUrl) window.__ROM_WS_IMAGE__ = d.imageUrl;
+          // Per-workspace theme overrides the viewer's personal theme (dashboard).
+          if (d.theme && typeof d.theme === 'object') { wsTheme = d.theme; applyThemeToModule(); }
         }
         const mem = await getDoc(doc(db, 'workspaces', wsId, 'members', user.uid));
         const memRole = mem.exists() ? mem.data().role : null;
