@@ -65,37 +65,45 @@ service cloud.firestore {
     }
 
     // --- notifications (per-user inbox) ---
-    // Any signed-in user may create a notification addressed to another user (e.g.
-    // a like/comment/join event). Only the recipient (or master) can read, mark
-    // read, or delete their own notifications.
+    // A signed-in user may create a notification addressed to another user (e.g.
+    // a like/comment/join event) but must stamp themselves as the actor, so a
+    // notification can't be forged to look like it came from someone else. Only
+    // the recipient (or master) can read, mark read, or delete their own.
     match /notifications/{uid}/items/{nid} {
       allow read, update, delete: if signedIn() && (request.auth.uid == uid || isMaster());
-      allow create: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.actorId == request.auth.uid
+                    && (!('title' in request.resource.data) || request.resource.data.title.size() <= 300)
+                    && (!('body' in request.resource.data)  || request.resource.data.body.size()  <= 500);
     }
 
     // --- VESSCORE tabulation (embedded standalone app at /tabulation) ---
-    // The master (admin) is a signed-in ROMIO master. Judges authenticate with a
-    // passkey inside the app (NOT Firebase Auth), so they read the setup and write
-    // scores unauthenticated. Setup management is master-only.
-    match /categories/{id}  { allow read: if true; allow write: if isMaster(); }
-    match /candidates/{id}  { allow read: if true; allow write: if isMaster(); }
-    match /criteria/{id}    { allow read: if true; allow write: if isMaster(); }
-    match /judges/{id}      { allow read: if true; allow write: if isMaster(); }
-    match /scores/{id}      { allow read: if true; allow create, update: if true; allow delete: if isMaster(); }
-    match /judge_syncs/{id} { allow read, write: if true; }
+    // The master (admin) is a signed-in ROMIO master. Judges sign in via Firebase
+    // ANONYMOUS auth on load, then enter a passkey inside the app. Requiring
+    // signedIn() (which anonymous auth satisfies) closes the previous hole where
+    // these collections were writable by any unauthenticated internet client.
+    // NOTE: this stops drive-by/REST tampering but a determined actor can still
+    // script an anonymous session; the full fix is server-side passkey validation
+    // (Vercel function writing with the Admin SDK) — planned as a follow-up.
+    match /categories/{id}  { allow read: if signedIn(); allow write: if isMaster(); }
+    match /candidates/{id}  { allow read: if signedIn(); allow write: if isMaster(); }
+    match /criteria/{id}    { allow read: if signedIn(); allow write: if isMaster(); }
+    match /judges/{id}      { allow read: if signedIn(); allow write: if isMaster(); }
+    match /scores/{id}      { allow read: if signedIn(); allow create, update: if signedIn(); allow delete: if isMaster(); }
+    match /judge_syncs/{id} { allow read, write: if signedIn(); }
     // Score locks: a judge may LOCK their sheet (locked==true); only the master
     // can UNLOCK (locked==false) — that's how access requests are granted.
     match /score_locks/{id} {
-      allow read: if true;
-      allow create, update: if isMaster() || request.resource.data.locked == true;
+      allow read: if signedIn();
+      allow create, update: if isMaster() || (signedIn() && request.resource.data.locked == true);
       allow delete: if isMaster();
     }
-    // Access requests + the score-change log: anyone (passkey judges) can create;
-    // only the master can resolve/clear them.
-    match /score_requests/{id} { allow read: if true; allow create: if true; allow update, delete: if isMaster(); }
-    match /score_logs/{id}     { allow read: if true; allow create: if true; allow update, delete: if isMaster(); }
-    // Shared theme (and any app settings): everyone reads, only master writes.
-    match /settings/{id}    { allow read: if true; allow write: if isMaster(); }
+    // Access requests + the score-change log: signed-in judges create; only the
+    // master can resolve/clear them.
+    match /score_requests/{id} { allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isMaster(); }
+    match /score_logs/{id}     { allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if isMaster(); }
+    // Shared theme (and any app settings): signed-in reads, only master writes.
+    match /settings/{id}    { allow read: if signedIn(); allow write: if isMaster(); }
 
     // --- chat: conversations (direct + workspace groups) and their messages ---
     // A conversation is readable/writable only by its members. Any member may
@@ -131,10 +139,20 @@ service cloud.firestore {
       allow update: if false; // handles are immutable; a change = delete + create
     }
 
-    // --- embedded Workspace Builder module state (shared, collaborative) ---
-    // One doc holds the module's localStorage blob; any signed-in user reads/writes it.
+    // --- embedded Workspace Builder module state ---
+    // One doc per workspace (docId == wsId) holds that workspace's builder blob,
+    // plus a personal fallback doc `u-{uid}` and a legacy `shared` migration doc.
+    // Access follows workspace membership so a non-member can't read or clobber
+    // another workspace's builder state (docId is the wsId).
     match /workspaceBuilder/{docId} {
-      allow read, write: if signedIn();
+      allow read: if signedIn() && (
+        docId == 'shared' || docId == ('u-' + request.auth.uid)
+        || isMember(docId) || isMaster()
+      );
+      allow write: if signedIn() && (
+        docId == 'shared' || docId == ('u-' + request.auth.uid)
+        || canWrite(docId) || isMaster()
+      );
     }
 
     // --- ROM App Market (shared app definitions, browsable by anyone) ---
@@ -274,8 +292,15 @@ service cloud.firestore {
 
     // --- invites ---
     match /invites/{inviteId} {
-      // an invitee reads the invite to accept it; members can list a workspace's invites
-      allow read: if signedIn();
+      // Read is scoped so invite emails (PII) aren't exposed to everyone: the
+      // invitee reads their own invite (email match, lowercased at write time),
+      // and a workspace's owner/editor can list its invites. Works for both the
+      // get-by-id accept flow and the where('workspaceId','==',ws) list query.
+      allow read: if signedIn() && (
+        resource.data.email == request.auth.token.email.lower()
+        || canWrite(resource.data.workspaceId)
+        || isMaster()
+      );
       // only owner/editor of the target workspace may invite people
       allow create: if signedIn()
                     && canWrite(request.resource.data.workspaceId)

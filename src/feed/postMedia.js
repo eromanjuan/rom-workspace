@@ -12,6 +12,14 @@ function videoEmbed(url) {
   return { type: 'link', src: url };
 }
 const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
+// Only allow web/mail schemes as clickable hrefs — blocks javascript:/data: URLs
+// (a crafted post link is otherwise a click-to-XSS vector).
+function safeUrl(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    return ['http:', 'https:', 'mailto:'].includes(u.protocol) ? url : '#';
+  } catch { return '#'; }
+}
 
 // Returns an element with the post's media/link/poll/file, or null for plain text.
 export function renderPostExtras(p, ref, user) {
@@ -54,7 +62,7 @@ export function renderPostExtras(p, ref, user) {
 }
 
 function linkCard(url, title) {
-  const card = el('a', { class: 'post-linkcard', href: url, target: '_blank', rel: 'noopener noreferrer' }, [
+  const card = el('a', { class: 'post-linkcard', href: safeUrl(url), target: '_blank', rel: 'noopener noreferrer' }, [
     el('span', { class: 'post-linkcard-ic' }, icon('link')),
     el('span', { class: 'post-linkcard-meta' }, [
       el('span', { class: 'post-linkcard-title' }, title || url),

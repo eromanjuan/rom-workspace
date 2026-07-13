@@ -201,6 +201,7 @@ export async function addMemberDirect(wsId, targetUser, role = 'viewer', opts = 
     await notify(targetUser.uid, {
       type: 'memberAdded',
       title: `You were added to ${await workspaceName(wsId)}`,
+      actorId: auth.currentUser?.uid,
       link: { view: 'workspace' },
     });
   }
@@ -298,6 +299,7 @@ export async function approveJoinRequest(wsId, req, role = 'viewer') {
   await notify(req.uid, {
     type: 'joinApproved',
     title: `You were approved to join ${await workspaceName(wsId)}`,
+    actorId: auth.currentUser?.uid,
     link: { view: 'workspace' },
   });
 }
@@ -306,6 +308,7 @@ export async function declineJoinRequest(wsId, reqUid) {
   await notify(reqUid, {
     type: 'joinDeclined',
     title: `Your request to join ${await workspaceName(wsId)} was declined`,
+    actorId: auth.currentUser?.uid,
     link: { view: 'feed' },
   });
 }

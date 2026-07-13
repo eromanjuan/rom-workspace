@@ -16,7 +16,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, getDocs, collection, query, where, setDoc, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // Connected to ROMIO's Firebase project (same DB + auth). When the master
@@ -46,11 +46,24 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // ---------- Output escaping (all Firestore data is untrusted) ----------
+        // esc(): safe HTML text/attribute content. jattr(): safe argument for an
+        // inline on* handler — JSON-encodes (handles JS-string quoting) then
+        // HTML-escapes (handles the attribute), so a value like  ');alert(1)//
+        // can't break out of either context. Used everywhere a candidate/judge/
+        // category/criteria name (all user-supplied) is interpolated into markup.
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+            ));
+        }
+        function jattr(v) { return esc(JSON.stringify(v == null ? '' : v)); }
+
         // ---------- Professional modal system (replaces native alert/confirm/prompt) ----------
         function _tabOverlay(title, bodyHTML) {
             const ov = document.createElement('div');
             ov.className = 'tab-modal-overlay';
-            ov.innerHTML = `<div class="tab-modal" role="dialog" aria-modal="true"><div class="tab-modal-head"><h3>${title}</h3></div><div class="tab-modal-body">${bodyHTML}</div><div class="tab-modal-foot"></div></div>`;
+            ov.innerHTML = `<div class="tab-modal" role="dialog" aria-modal="true"><div class="tab-modal-head"><h3>${_esc(title)}</h3></div><div class="tab-modal-body">${bodyHTML}</div><div class="tab-modal-foot"></div></div>`;
             document.body.appendChild(ov);
             requestAnimationFrame(() => ov.classList.add('show'));
             return ov;
@@ -484,7 +497,22 @@
                 setTimeout(() => window.loginJudge(), 1000);
             }
             onAuthStateChanged(auth, async (user) => {
-                const master = !!(user && await isRomioMaster(user));
+                if (!user) {
+                    // Judges have no ROMIO account. Sign them in anonymously so the
+                    // Firestore rules (which now require an authenticated session,
+                    // instead of the old world-writable `if true`) permit reads +
+                    // score writes. This handler re-fires with the anonymous user.
+                    // REQUIRES "Anonymous" to be enabled in Firebase console →
+                    // Authentication → Sign-in method, or judge access fails closed.
+                    try { await signInAnonymously(auth); }
+                    catch (e) {
+                        console.warn('[VESSCORE] anonymous sign-in failed — enable Anonymous auth in Firebase console', e);
+                        log.innerText = "SIGN-IN UNAVAILABLE — contact admin";
+                        log.style.background = "#7f1d1d";
+                    }
+                    return;
+                }
+                const master = !!(await isRomioMaster(user));
                 window.isTabMaster = master;
                 if (master) {
                     log.innerText = `ADMIN CONNECTED: ${user.email}`;
@@ -625,14 +653,14 @@
                     return `
                     <div class="card-item" style="flex-direction: column; align-items: flex-start; gap: 10px;">
                         <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                            <span style="font-weight:bold;">${data.name}</span>
-                            <code>${data.passkey}</code>
+                            <span style="font-weight:bold;">${esc(data.name)}</span>
+                            <code>${esc(data.passkey)}</code>
                         </div>
                         <div style="display: flex; gap: 5px; width: 100%;">
-                            <button class="secondary" onclick="editJudge('${doc.id}', '${data.name}')" style="font-size: 10px; padding: 5px 10px;">Edit</button>
-                            <button class="secondary" onclick="copyToClipboard('${data.passkey}')" style="font-size: 10px; padding: 5px 10px;">Copy Passkey</button>
-                            <button class="secondary" onclick="showQR('${judgeLink}', '${data.name}')" style="font-size: 10px; padding: 5px 10px;">QR</button>
-                            <button class="secondary btn-danger" onclick="deleteEntry('judges', '${doc.id}')" style="color:red; border-color:red; padding:5px 10px; margin-left: auto;">Delete</button>
+                            <button class="secondary" onclick="editJudge(${jattr(doc.id)}, ${jattr(data.name)})" style="font-size: 10px; padding: 5px 10px;">Edit</button>
+                            <button class="secondary" onclick="copyToClipboard(${jattr(data.passkey)})" style="font-size: 10px; padding: 5px 10px;">Copy Passkey</button>
+                            <button class="secondary" onclick="showQR(${jattr(judgeLink)}, ${jattr(data.name)})" style="font-size: 10px; padding: 5px 10px;">QR</button>
+                            <button class="secondary btn-danger" onclick="deleteEntry('judges', ${jattr(doc.id)})" style="color:red; border-color:red; padding:5px 10px; margin-left: auto;">Delete</button>
                         </div>
                     </div>`;
                 }).join('');
@@ -644,12 +672,12 @@
                 document.getElementById('candidate-list').innerHTML = candidates.map(c => `
                     <div class="card-item" style="flex-direction:column; align-items:flex-start;">
                         <div style="width:100%; display:flex; justify-content:space-between;">
-                            <strong>#${c.candidate_no} - ${c.name}</strong>
-                            <small>${c.category}</small>
+                            <strong>#${esc(c.candidate_no)} - ${esc(c.name)}</strong>
+                            <small>${esc(c.category)}</small>
                         </div>
                         <div style="margin-top:5px; display:flex; gap:5px;">
-                            <button class="secondary" onclick="editCandidate('${c.id}', '${c.name}', '${c.category}', ${c.candidate_no})" style="font-size:10px; padding:2px 8px;">Edit</button>
-                            <button class="secondary btn-danger" onclick="deleteEntry('candidates', '${c.id}')" style="font-size:10px; padding:2px 8px; color:red; border-color:red;">Delete</button>
+                            <button class="secondary" onclick="editCandidate(${jattr(c.id)}, ${jattr(c.name)}, ${jattr(c.category)}, ${jattr(c.candidate_no)})" style="font-size:10px; padding:2px 8px;">Edit</button>
+                            <button class="secondary btn-danger" onclick="deleteEntry('candidates', ${jattr(c.id)})" style="font-size:10px; padding:2px 8px; color:red; border-color:red;">Delete</button>
                         </div>
                     </div>`).join('');
 
@@ -675,19 +703,19 @@
                         catDiv.className = "card";
                         catDiv.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-                                <h3 style="margin:0;">${catName}</h3>
+                                <h3 style="margin:0;">${esc(catName)}</h3>
                                 <div style="display:flex; gap:5px;">
-                                    <button class="secondary" onclick="editCategory('${catId}', '${catName}')" style="font-size:10px;">Edit</button>
-                                    <button class="secondary" onclick="window.printRanking('${catId}', '${catName}')" style="font-size:10px;">Print Ranking</button>
-                                    <button class="secondary" onclick="window.printBreakdown('${catId}', '${catName}')" style="font-size:10px;">Print Breakdown</button>
+                                    <button class="secondary" onclick="editCategory(${jattr(catId)}, ${jattr(catName)})" style="font-size:10px;">Edit</button>
+                                    <button class="secondary" onclick="window.printRanking(${jattr(catId)}, ${jattr(catName)})" style="font-size:10px;">Print Ranking</button>
+                                    <button class="secondary" onclick="window.printBreakdown(${jattr(catId)}, ${jattr(catName)})" style="font-size:10px;">Print Breakdown</button>
                                     <button id="export-btn-${catId}" class="secondary" style="font-size:10px;">Export Excel</button>
-                                    <button class="secondary btn-danger" onclick="deleteEntry('categories', '${catId}')" style="color:red; border-color:red; font-size:10px;">Delete</button>
+                                    <button class="secondary btn-danger" onclick="deleteEntry('categories', ${jattr(catId)})" style="color:red; border-color:red; font-size:10px;">Delete</button>
                                 </div>
                             </div>
                             <div style="border: 1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:15px; background:var(--surface);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <h4 style="margin:0; font-size:11px;">CRITERIA & WEIGHTS</h4>
-                                    <button onclick="addCriteria('${catId}')" style="font-size:10px; padding:2px 10px;">+ Add</button>
+                                    <button onclick="addCriteria(${jattr(catId)})" style="font-size:10px; padding:2px 10px;">+ Add</button>
                                 </div>
                                 <div id="crit-list-${catId}" style="margin-top:10px;"></div>
                             </div>
@@ -699,8 +727,8 @@
                         auditDiv.style = "grid-column: 1 / -1; overflow-x: auto;";
                         auditDiv.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                                <h3 style="margin:0;">Score Breakdown: ${catName}</h3>
-                                <button class="secondary" onclick="window.printBreakdown('${catId}', '${catName}')" style="font-size:10px;">Print Breakdown Table</button>
+                                <h3 style="margin:0;">Score Breakdown: ${esc(catName)}</h3>
+                                <button class="secondary" onclick="window.printBreakdown(${jattr(catId)}, ${jattr(catName)})" style="font-size:10px;">Print Breakdown Table</button>
                             </div>
                             <div id="audit-table-${catId}">Loading Table...</div>`;
                         auditContainer.appendChild(auditDiv);
@@ -710,8 +738,8 @@
                         rankDiv.style = "grid-column: 1 / -1; overflow-x: auto;";
                         rankDiv.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                                <h3 style="margin:0;">Rankings Per Criteria: ${catName}</h3>
-                                <button class="secondary" onclick="window.printCriteriaRanking('${catId}', '${catName}')" style="font-size:10px;">Print Criteria Rankings</button>
+                                <h3 style="margin:0;">Rankings Per Criteria: ${esc(catName)}</h3>
+                                <button class="secondary" onclick="window.printCriteriaRanking(${jattr(catId)}, ${jattr(catName)})" style="font-size:10px;">Print Criteria Rankings</button>
                             </div>
                             <div id="rank-table-${catId}">Loading Ranks...</div>`;
                         criteriaRankContainer.appendChild(rankDiv);
@@ -720,10 +748,10 @@
                             const crits = critSnap.docs.map(d => ({id: d.id, ...d.data()}));
                             document.getElementById(`crit-list-${catId}`).innerHTML = crits.map(cr => `
                                 <div class="card-item" style="padding:5px; font-size:11px; border-bottom: 1px dashed var(--border);">
-                                    <span>${cr.label} (${cr.weight}%)</span>
+                                    <span>${esc(cr.label)} (${Number(cr.weight)}%)</span>
                                     <div>
-                                        <button class="secondary" onclick="editCriteria('${cr.id}', '${cr.label}', ${cr.min_score || 0}, ${cr.max_score}, ${cr.weight})" style="font-size:9px; padding:1px 4px;">Edit</button>
-                                        <button class="secondary btn-danger" onclick="deleteEntry('criteria', '${cr.id}')" style="font-size:9px; padding:1px 4px; color:red; border-color:red;">X</button>
+                                        <button class="secondary" onclick="editCriteria(${jattr(cr.id)}, ${jattr(cr.label)}, ${Number(cr.min_score) || 0}, ${Number(cr.max_score)}, ${Number(cr.weight)})" style="font-size:9px; padding:1px 4px;">Edit</button>
+                                        <button class="secondary btn-danger" onclick="deleteEntry('criteria', ${jattr(cr.id)})" style="font-size:9px; padding:1px 4px; color:red; border-color:red;">X</button>
                                     </div>
                                 </div>`).join('') || "No criteria.";
 
@@ -749,7 +777,10 @@
                                         grandRanking[can.name] = { total: 0, events: {}, candidate_no: can.candidate_no };
                                     }
                                     grandRanking[can.name].events[catId] = finalWeightedScore;
-                                    grandRanking[can.name].total += finalWeightedScore;
+                                    // Recompute total from the per-segment map (NOT +=): this listener
+                                    // re-fires on every score edit, so accumulating would inflate totals.
+                                    grandRanking[can.name].total = Object.values(grandRanking[can.name].events)
+                                        .reduce((s, v) => s + v, 0);
 
                                     return { id: can.id, name: can.name, num: can.candidate_no, critAverages, total: finalWeightedScore };
                                 });
@@ -758,11 +789,11 @@
 
                                 let rankTableHtml = `<table style="width:100%; border-collapse: collapse; font-size:12px; min-width:600px;">
                                     <thead><tr style="background:var(--surface);">
-                                        <th>Candidate</th>${crits.map(cr => `<th>${cr.label}</th>`).join('')}
+                                        <th>Candidate</th>${crits.map(cr => `<th>${esc(cr.label)}</th>`).join('')}
                                     </tr></thead><tbody>`;
 
                                 candidateCritData.forEach(canData => {
-                                    rankTableHtml += `<tr><td style="text-align:left; font-weight:bold;">#${canData.num} ${canData.name}</td>`;
+                                    rankTableHtml += `<tr><td style="text-align:left; font-weight:bold;">#${esc(canData.num)} ${esc(canData.name)}</td>`;
                                     crits.forEach(cr => {
                                         const sortedForThisCrit = [...candidateCritData].sort((a, b) => b.critAverages[cr.id] - a.critAverages[cr.id]);
                                         const rank = sortedForThisCrit.findIndex(x => x.id === canData.id) + 1;
@@ -778,7 +809,7 @@
                                 }
 
                                 document.getElementById(`results-${catId}`).innerHTML = [...candidateCritData].sort((a,b) => b.total - a.total).map(r => `
-                                    <div class="card-item"><span>#${r.num} ${r.name}</span><strong style="color:var(--accent)">${r.total.toFixed(2)}</strong></div>`).join('') || "Waiting...";
+                                    <div class="card-item"><span>#${esc(r.num)} ${esc(r.name)}</span><strong style="color:var(--accent)">${r.total.toFixed(2)}</strong></div>`).join('') || "Waiting...";
 
                                 let tableHtml = `<div style="overflow-x:auto;">
                                     <table style="width:100%; border-collapse: collapse; font-size:11px; min-width:1000px;">
@@ -787,14 +818,14 @@
                                             <th rowspan="2">CS</th>
                                             <th rowspan="2" style="text-align: left;">NAME</th>
                                             ${crits.map(c => `
-                                                <th colspan="${judges.length}" style="border-bottom: 1px solid var(--border);">${c.label.toUpperCase()}</th>
-                                                <th rowspan="2" style="background: rgba(16,185,129,0.1); color: var(--accent);">${c.weight}%</th>
+                                                <th colspan="${judges.length}" style="border-bottom: 1px solid var(--border);">${esc(String(c.label).toUpperCase())}</th>
+                                                <th rowspan="2" style="background: rgba(16,185,129,0.1); color: var(--accent);">${Number(c.weight)}%</th>
                                             `).join('')}
                                             <th rowspan="2" style="background: var(--accent); color: #000;">TOTAL SCORE 100%</th>
                                         </tr>
                                         <tr style="background:var(--surface);">
-                                            ${crits.map(() => 
-                                                judges.map((j, idx) => `<th title="${j.name}">J${idx + 1}</th>`).join('')
+                                            ${crits.map(() =>
+                                                judges.map((j, idx) => `<th title="${esc(j.name)}">J${idx + 1}</th>`).join('')
                                             ).join('')}
                                         </tr>
                                     </thead>
@@ -803,8 +834,8 @@
                                 eventCandidates.forEach(can => {
                                     let finalWeightedScore = 0;
                                     tableHtml += `<tr>
-                                        <td style="font-weight: bold; background: var(--surface);">${can.candidate_no}</td>
-                                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">${can.name.toUpperCase()}</td>`;
+                                        <td style="font-weight: bold; background: var(--surface);">${esc(can.candidate_no)}</td>
+                                        <td style="text-align: left; font-weight: bold; padding-left: 10px;">${esc(String(can.name).toUpperCase())}</td>`;
                                     crits.forEach(cr => {
                                         let criteriaRawSum = 0;
                                         judges.forEach(j => {
@@ -853,7 +884,7 @@
                 <div id="overall-summary-table">
                 <table><thead><tr style="background:var(--surface);">
                     <th style="width:80px;">Rank</th><th style="text-align:left; padding-left:15px;">Candidate Info</th>
-                    ${categories.map(c => `<th>${c.name}</th>`).join('')}
+                    ${categories.map(c => `<th>${esc(c.name)}</th>`).join('')}
                     <th style="background:var(--accent); color:#000; width:140px;">Grand Average</th></tr></thead><tbody>`;
 
             candidateList.forEach((can, index) => {
@@ -861,8 +892,8 @@
                 html += `<tr>
                     <td style="${rank <= 3 ? 'color:var(--accent); font-weight:bold;' : ''}">RANK ${rank}</td>
                     <td style="text-align:left; font-weight:bold; padding-left:15px;">
-                        <span style="background:var(--accent); color:#000; padding:2px 6px; border-radius:4px; margin-right:10px;">#${can.candidate_no}</span>
-                        ${can.name.toUpperCase()}
+                        <span style="background:var(--accent); color:#000; padding:2px 6px; border-radius:4px; margin-right:10px;">#${esc(can.candidate_no)}</span>
+                        ${esc(String(can.name).toUpperCase())}
                     </td>
                     ${categories.map(c => `<td>${(can.events[c.id] || 0).toFixed(2)}</td>`).join('')}
                     <td style="color:var(--accent); font-weight:bold; font-size:1.2em;">${can.grandAverage.toFixed(2)}</td>
@@ -888,8 +919,8 @@
             const container = document.getElementById('event-grid');
             onSnapshot(collection(db, "categories"), (snap) => {
                 container.innerHTML = snap.docs.map(doc => `
-                    <div class="card event-tile" onclick="startScoringEvent('${doc.id}', '${doc.data().name}')">
-                        <h3 style="margin:0; font-size:16px;">${doc.data().name}</h3>
+                    <div class="card event-tile" onclick="startScoringEvent(${jattr(doc.id)}, ${jattr(doc.data().name)})">
+                        <h3 style="margin:0; font-size:16px;">${esc(doc.data().name)}</h3>
                         <p class="muted" style="font-size:12px; margin-top:10px;">Open scoresheet <span class="ms">arrow_forward</span></p>
                     </div>
                 `).join('') || `<div class="card"><p class="muted" style="text-align:center;">No events available yet.</p></div>`;
@@ -925,10 +956,10 @@
 
             let html = `<button class="secondary" onclick="showView('view-select-event')" style="margin-bottom:18px;"><span class="ms">arrow_back</span> Back to events</button>`;
             candidates.forEach(c => {
-                html += `<div class="score-card" data-cand="${c.id}">
+                html += `<div class="score-card" data-cand="${esc(c.id)}">
                     <div class="score-card-head">
-                        <span class="cand-badge">#${c.candidate_no}</span>
-                        <h3 style="font-size:16px; flex:1; min-width:120px;">${c.name}</h3>
+                        <span class="cand-badge">#${esc(c.candidate_no)}</span>
+                        <h3 style="font-size:16px; flex:1; min-width:120px;">${esc(c.name)}</h3>
                         <div class="sc-actions">
                             <button class="secondary btn-xs" data-hide="${c.id}"><span class="ms">visibility_off</span> Hide</button>
                             <button class="btn-xs" data-lock="${c.id}"><span class="ms">lock</span> Save &amp; lock</button>
@@ -938,9 +969,9 @@
                     <div class="sc-body" data-body="${c.id}">
                         <div class="crit-grid">
                         ${crits.map(cr => `<div class="crit-box">
-                            <label>${cr.label} · ${cr.weight}%</label>
-                            <input type="number" data-cand="${c.id}" data-crit="${cr.id}" data-label="${cr.label.replace(/"/g,'&quot;')}" data-orig="${scores[`${c.id}_${cr.id}`] || ''}" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore('${c.id}', '${cr.id}', '${cid}', this.value, ${cr.min_score}, ${cr.max_score}, this)" placeholder="${cr.min_score}-${cr.max_score}">
-                            <div class="rng">${cr.min_score}–${cr.max_score}</div>
+                            <label>${esc(cr.label)} · ${Number(cr.weight)}%</label>
+                            <input type="number" data-cand="${esc(c.id)}" data-crit="${esc(cr.id)}" data-label="${esc(cr.label)}" data-orig="${scores[`${c.id}_${cr.id}`] || ''}" value="${scores[`${c.id}_${cr.id}`] || ''}" oninput="window.saveScore(${jattr(c.id)}, ${jattr(cr.id)}, ${jattr(cid)}, this.value, ${Number(cr.min_score)}, ${Number(cr.max_score)}, this)" placeholder="${Number(cr.min_score)}-${Number(cr.max_score)}">
+                            <div class="rng">${Number(cr.min_score)}–${Number(cr.max_score)}</div>
                         </div>`).join('')}</div>
                     </div>
                 </div>`;
@@ -1097,12 +1128,12 @@
                 reqList.innerHTML = reqs.length ? reqs.map(r => `
                     <div class="req-row">
                         <div style="min-width:0;">
-                            <div><strong>${r.judgeName || 'Judge'}</strong> — ${r.candidateName || ''} <span class="muted">· ${r.categoryName || ''}</span></div>
-                            <div class="muted" style="font-size:12.5px;">Reason: ${(r.reason || '').replace(/</g, '&lt;')}</div>
+                            <div><strong>${esc(r.judgeName || 'Judge')}</strong> — ${esc(r.candidateName || '')} <span class="muted">· ${esc(r.categoryName || '')}</span></div>
+                            <div class="muted" style="font-size:12.5px;">Reason: ${esc(r.reason || '')}</div>
                         </div>
                         <div class="req-actions">
-                            <button class="btn-xs" onclick="window.grantRequest('${r.id}')"><span class="ms">check</span> Grant</button>
-                            <button class="secondary btn-xs btn-danger" onclick="window.denyRequest('${r.id}')"><span class="ms">close</span> Deny</button>
+                            <button class="btn-xs" onclick="window.grantRequest(${jattr(r.id)})"><span class="ms">check</span> Grant</button>
+                            <button class="secondary btn-xs btn-danger" onclick="window.denyRequest(${jattr(r.id)})"><span class="ms">close</span> Deny</button>
                         </div>
                     </div>`).join('') : '<p class="muted">No pending requests.</p>';
             }, () => { if (reqList) reqList.innerHTML = '<p class="muted">Could not load requests.</p>'; });
@@ -1111,7 +1142,7 @@
                 if (!logList) return;
                 logList.innerHTML = logs.length ? `<table><thead><tr><th>When</th><th>Judge</th><th>Candidate</th><th>Criteria</th><th>Change</th></tr></thead><tbody>${logs.map(l => {
                     const when = l.at?.toDate ? l.at.toDate().toLocaleString() : (l.at ? new Date(l.at).toLocaleString() : '');
-                    return `<tr><td class="log-time">${when}</td><td>${l.judgeName || ''}</td><td>${l.candidateName || ''} <span class="muted">· ${l.categoryName || ''}</span></td><td>${l.criteriaLabel || ''}</td><td><b>${l.oldScore}</b> → <b style="color:var(--accent)">${l.newScore}</b></td></tr>`;
+                    return `<tr><td class="log-time">${esc(when)}</td><td>${esc(l.judgeName || '')}</td><td>${esc(l.candidateName || '')} <span class="muted">· ${esc(l.categoryName || '')}</span></td><td>${esc(l.criteriaLabel || '')}</td><td><b>${esc(l.oldScore)}</b> → <b style="color:var(--accent)">${esc(l.newScore)}</b></td></tr>`;
                 }).join('')}</tbody></table>` : '<p class="muted">No score changes yet.</p>';
             }, () => { if (logList) logList.innerHTML = '<p class="muted">Could not load log.</p>'; });
         };
