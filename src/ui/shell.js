@@ -27,6 +27,7 @@ const NAV_GROUPS = [
       { id: 'calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'checklist', label: 'Checklist', icon: 'checklist' },
       { id: 'notes', label: 'Notes', icon: 'notes' },
+      { id: 'tabulation', label: 'Tabulation', icon: 'table' },
     ],
   },
   {
