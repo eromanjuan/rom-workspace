@@ -20145,7 +20145,7 @@ button {
 
 /* ── Workspace dashboard (Podio-style): persistent app-switcher header,
    activity feed (main column), and widget tiles (side column). ── */
-.wb-topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border, #e2d5bf); overflow: hidden; }
+.wb-topbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding: 12px; border: 1px solid var(--border, #e2d5bf); border-radius: 14px; background: var(--surface, #fffaf0); overflow: hidden; }
 .wb-topbar-apps { display: flex; align-items: center; gap: 6px; overflow: hidden; min-width: 0; }
 .wb-topbar-spacer { flex: 1 1 auto; }
 .wb-topbar-nav { display: flex; align-items: center; gap: 4px; flex: none; }
