@@ -15,9 +15,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // The master / super-admin account — full access everywhere.
+    // The master / super-admin account — full access everywhere. Either the
+    // original hardcoded account OR anyone a master has promoted (isMaster flag
+    // on their user doc; users can't set that field on themselves, see below).
     function isMaster() {
-      return signedIn() && request.auth.token.email == 'eugenioiromanjuan@gmail.com';
+      return signedIn() && (
+        request.auth.token.email == 'eugenioiromanjuan@gmail.com'
+        || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMaster == true)
+      );
     }
 
     // --- workspace membership helpers ---
@@ -41,7 +47,15 @@ service cloud.firestore {
     // --- user profiles ---
     match /users/{uid} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && (request.auth.uid == uid || isMaster());
+      allow create: if signedIn() && request.auth.uid == uid;
+      // A user may edit their own profile but NOT the privileged admin fields
+      // (isMaster/suspended/deleted) — only a master can set those on anyone.
+      // Self-branch is checked first so ordinary edits don't pay for a get().
+      allow update: if signedIn() && (
+        (request.auth.uid == uid
+         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isMaster', 'suspended', 'deleted']))
+        || isMaster()
+      );
       allow delete: if isMaster();
 
       // per-user subcollections (widgets, events, checklists, notes, …) — owner (or master) only
@@ -89,7 +103,7 @@ service cloud.firestore {
     match /usernames/{handle} {
       allow read: if true;
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isMaster());
       allow update: if false; // handles are immutable; a change = delete + create
     }
 

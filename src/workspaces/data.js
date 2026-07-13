@@ -162,6 +162,23 @@ export async function changeUsername(uid, oldUsername, newUsername) {
   }
 }
 
+// --- master control panel (admin) ---
+// Set an admin flag on any user (master-only, enforced by rules). Used for
+// suspend/unsuspend and promote/demote master.
+export async function adminSetUser(uid, patch) {
+  await setDoc(doc(db, 'users', uid), patch, { merge: true });
+}
+// "Delete" a user: a client can't remove their Auth credential, so we ban them
+// (blocked on login), strip their posts, and free their username.
+export async function adminDeleteUser(u) {
+  await setDoc(doc(db, 'users', u.uid), { deleted: true, suspended: true }, { merge: true });
+  try {
+    const snap = await getDocs(query(collection(db, 'posts'), where('authorId', '==', u.uid)));
+    for (const d of snap.docs) { try { await deleteDoc(d.ref); } catch { /* ignore */ } }
+  } catch { /* ignore */ }
+  if (u.username) { try { await deleteDoc(doc(db, 'usernames', String(u.username).toLowerCase())); } catch { /* ignore */ } }
+}
+
 // All registered users (for searching people to add to a workspace).
 export async function listAllUsers() {
   const snap = await getDocs(collection(db, 'users'));

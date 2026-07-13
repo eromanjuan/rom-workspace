@@ -17,6 +17,7 @@ import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
 import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, updateUserProfile } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
+import { logOut } from './auth/auth.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
 import { mountNotifications } from './notifications/notificationsPanel.js';
@@ -125,7 +126,23 @@ if (window.top !== window.self) {
         themeUser = user;
         let prof = null;
         try { prof = await getUserProfile(user.uid); if (prof?.theme) applyThemeBundle(prof.theme); } catch { /* ignore */ }
+        // Dynamic master flag (promoted users) + suspend/ban enforcement.
+        user.isMasterFlag = prof?.isMaster === true;
+        if (!isMaster(user) && (prof?.deleted || prof?.suspended)) { renderBlocked(prof?.deleted ? 'deleted' : 'suspended'); return; }
         renderShell(user, prof);
+    }
+
+    // Shown to a suspended/removed account (a master can restore them).
+    function renderBlocked(kind) {
+        clear(app);
+        const msg = kind === 'deleted'
+            ? 'This account has been removed by an administrator.'
+            : 'This account is suspended. Please contact an administrator.';
+        app.append(el('div', { class: 'setup' }, [
+            el('h1', {}, 'ROMIO'),
+            el('p', {}, msg),
+            el('button', { class: 'btn btn--primary', onclick: () => logOut() }, 'Log out'),
+        ]));
     }
 
     function renderShell(user, profile) {

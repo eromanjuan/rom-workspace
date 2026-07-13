@@ -2,8 +2,12 @@
 // regardless of membership. Enforced in the client AND in firestore.rules.
 export const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
+// Master = the original hardcoded account OR anyone promoted (isMasterFlag is set
+// on the auth-user object from their profile's isMaster field after login).
 export function isMaster(user) {
-  return !!user && (user.email || '').toLowerCase() === MASTER_EMAIL;
+  if (!user) return false;
+  if ((user.email || '').toLowerCase() === MASTER_EMAIL) return true;
+  return user.isMasterFlag === true;
 }
 
 // Role model shared across the app. Mirrors quest-hq: owner has full access,

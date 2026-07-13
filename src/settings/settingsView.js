@@ -1,15 +1,16 @@
 // The Settings page: change password, switch theme, and manage workspaces
 // (add / open / set-as-current / delete).
-import { el, clear, icon, toast, openModal } from '../ui/dom.js';
+import { el, clear, icon, toast, openModal, confirmModal } from '../ui/dom.js';
 import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf, verifyPassword } from '../auth/auth.js';
 import { checkPassword } from '../auth/passwordPolicy.js';
 import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue, getAppearance, setAppearance, resetAppearance, BG_PATTERNS } from '../ui/theme.js';
-import { isMaster, roleLabel } from '../workspaces/roles.js';
+import { isMaster, roleLabel, MASTER_EMAIL } from '../workspaces/roles.js';
 import { APP_ICONS, APP_COLORS } from '../workspaces/appBuilder.js';
 import {
   listMyWorkspaces, createWorkspace, deleteWorkspace,
   setCurrentWorkspace, getUserProfile, updateUserProfile, uploadWorkspaceImage,
   isUsernameAvailable, usernameFormatError, changeUsername, normalizeUsername,
+  listAllUsers, adminSetUser, adminDeleteUser,
 } from '../workspaces/data.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
@@ -26,6 +27,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
       collapsible(buildPasswordSection(user), openIf('password')),
       collapsible(buildThemeSection(), openIf('theme')),
       wsSection,
+      isMaster(user) ? collapsible(buildControlPanelSection(user), openIf('control')) : null,
     ]),
   );
   // Bring a deep-linked section into view.
@@ -61,6 +63,98 @@ function collapsible(section, { open = false } = {}) {
   setOpen(open);
   header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
   return section;
+}
+
+/* ---------- master control panel: manage all users ---------- */
+
+function buildControlPanelSection(user) {
+  // Invite via email — no email backend, so this opens the user's mail client
+  // with a prefilled signup invite.
+  const inviteInput = el('input', { class: 'input', type: 'email', placeholder: 'name@example.com', autocomplete: 'off' });
+  const inviteBtn = el('button', { class: 'btn btn--primary btn--sm' }, [icon('mail'), ' Invite']);
+  inviteBtn.addEventListener('click', () => {
+    const email = inviteInput.value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Enter a valid email address.', 'error'); return; }
+    const subject = encodeURIComponent('You are invited to ROMIO');
+    const body = encodeURIComponent(`Hi,\n\nYou're invited to join ROMIO. Create your account here:\n${location.origin}\n\nSee you inside!`);
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  });
+
+  const search = el('input', { class: 'input', type: 'search', placeholder: 'Search users by name, email or @username…' });
+  const countEl = el('span', { class: 'muted admin-count' });
+  const tbody = el('tbody');
+  const table = el('table', { class: 'admin-table' }, [
+    el('thead', {}, el('tr', {}, [el('th', {}, 'User'), el('th', {}, 'Status'), el('th', {}, 'Actions')])),
+    tbody,
+  ]);
+  const wrap = el('div', { class: 'admin-table-wrap' }, table);
+  let allUsers = [];
+
+  function rowFor(u) {
+    const isSelf = u.uid === user.uid;
+    const isOriginal = (u.email || '').toLowerCase() === MASTER_EMAIL;
+    const uMaster = isOriginal || u.isMaster === true;
+    const status = el('div', { class: 'admin-badges' }, [
+      uMaster ? el('span', { class: 'pill pill--owner' }, 'Master') : null,
+      u.suspended && !u.deleted ? el('span', { class: 'pill pill--danger' }, 'Suspended') : null,
+      u.deleted ? el('span', { class: 'pill pill--danger' }, 'Removed') : null,
+      (!uMaster && !u.suspended && !u.deleted) ? el('span', { class: 'muted' }, 'Active') : null,
+    ]);
+    const acts = el('div', { class: 'admin-acts' });
+    if (isSelf || isOriginal) {
+      acts.append(el('span', { class: 'muted admin-note' }, isSelf ? 'You' : 'Primary master'));
+    } else {
+      const susBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.suspended ? 'Unsuspend' : 'Suspend');
+      susBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { suspended: !u.suspended }); toast(u.suspended ? 'Unsuspended' : 'Suspended', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+      const masBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.isMaster ? 'Revoke master' : 'Make master');
+      masBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { isMaster: !u.isMaster }); toast('Updated', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+      const delBtn = el('button', { class: 'btn btn--danger btn--sm' }, 'Delete');
+      delBtn.addEventListener('click', async () => {
+        if (!(await confirmModal({ title: 'Delete this account?', message: `${u.displayName || u.email} will be banned and their posts removed. Their sign-in credential can only be fully deleted from the Firebase console.`, confirmLabel: 'Delete', danger: true }))) return;
+        try { await adminDeleteUser(u); toast('Account removed', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      acts.append(susBtn, masBtn, delBtn);
+    }
+    return el('tr', {}, [
+      el('td', {}, el('div', { class: 'admin-user' }, [
+        el('div', { class: 'admin-name' }, u.displayName || u.email || 'User'),
+        el('div', { class: 'muted admin-sub' }, `${u.email || ''}${u.username ? ` · @${u.username}` : ''}`),
+      ])),
+      el('td', {}, status),
+      el('td', {}, acts),
+    ]);
+  }
+
+  function draw() {
+    const q = search.value.trim().toLowerCase();
+    const rows = allUsers.filter((u) => !q
+      || (u.displayName || '').toLowerCase().includes(q)
+      || (u.email || '').toLowerCase().includes(q)
+      || (u.username || '').toLowerCase().includes(q));
+    clear(tbody);
+    if (!rows.length) { tbody.append(el('tr', {}, el('td', { colspan: '3', class: 'muted admin-empty' }, 'No users match.'))); }
+    else for (const u of rows) tbody.append(rowFor(u));
+    countEl.textContent = `${rows.length} of ${allUsers.length} user${allUsers.length === 1 ? '' : 's'}`;
+  }
+  search.addEventListener('input', draw);
+
+  async function load() {
+    try {
+      allUsers = (await listAllUsers()).sort((a, b) => (a.displayName || a.email || '').localeCompare(b.displayName || b.email || ''));
+      draw();
+    } catch (e) { clear(tbody); tbody.append(el('tr', {}, el('td', { colspan: '3', class: 'error-text' }, e.message))); }
+  }
+  load();
+
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('shield-lock'), ' Control panel']),
+    el('p', { class: 'muted' }, 'Master admin — manage every user and invite new people.'),
+    el('label', { class: 'settings-label' }, 'Invite by email'),
+    el('div', { class: 'admin-invite' }, [inviteInput, inviteBtn]),
+    el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
+    search,
+    wrap,
+  ]);
 }
 
 /* ---------- profile visibility: what visitors can see ---------- */
