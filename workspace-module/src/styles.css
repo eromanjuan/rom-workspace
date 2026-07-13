@@ -20153,14 +20153,14 @@ button {
 .wb-topbar-arrow:hover:not(:disabled) { border-color: var(--orange, #e0552d); color: var(--orange, #e0552d); }
 .wb-topbar-arrow:disabled { opacity: .35; cursor: default; }
 .wb-topbar-apps .wb-topbar-tab { width: 84px; }
-.wb-topbar-tab { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border-radius: 10px; border: 1px solid transparent; color: var(--text-muted, #72695d); font-weight: 700; font-size: .78rem; text-align: center; transition: background .12s ease, border-color .12s ease, color .12s ease; }
+.wb-topbar-tab { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border-radius: 14px; border: 1px solid transparent; color: var(--text-muted, #72695d); font-weight: 700; font-size: .78rem; text-align: center; transition: background .12s ease, border-color .12s ease, color .12s ease; }
 .wb-topbar-tab:hover { background: var(--surface-2, #f6efe4); color: var(--text, #17130f); }
 .wb-topbar-tab.active { background: var(--surface, #fffaf0); border-color: var(--orange, #e0552d); color: var(--text, #17130f); }
 .wb-topbar-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: #fff; font-size: 19px; flex: none; }
 .wb-topbar-ic-home { background: linear-gradient(135deg, var(--orange, #e0552d), #f0883e); }
 .wb-topbar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wb-topbar-home { flex: none; width: 84px; }
-.wb-topbar-add { flex: none; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; padding: 8px 6px; border-radius: 11px; border: 1.5px dashed var(--border-strong, #cdb595); background: transparent; color: var(--text-muted, #72695d); cursor: pointer; font-weight: 700; font-size: .74rem; white-space: nowrap; }
+.wb-topbar-add { flex: none; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; padding: 8px 6px; border-radius: 14px; border: 1.5px dashed var(--border-strong, #cdb595); background: transparent; color: var(--text-muted, #72695d); cursor: pointer; font-weight: 700; font-size: .74rem; white-space: nowrap; }
 .wb-topbar-add i { font-size: 19px; }
 .wb-topbar-add:hover { border-color: var(--orange, #e0552d); color: var(--orange, #e0552d); }
 
