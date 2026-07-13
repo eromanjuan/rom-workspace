@@ -114,13 +114,6 @@
       <a href="#tools">Tools &amp; widgets</a>
       <div class="grp">Personalize</div>
       <a href="#settings">Settings &amp; theme</a>
-      <div class="grp">Admin</div>
-      <a href="#master">Master control panel</a>
-      <div class="grp">Tabulation</div>
-      <a href="#tab-overview">VESSCORE overview</a>
-      <a href="#tab-master">Admin (master)</a>
-      <a href="#tab-judge">Judges &amp; scoring</a>
-      <a href="#tab-theme">Tabulation theme</a>
       <div class="grp">More</div>
       <a href="#mobile">Mobile &amp; app</a>
       <a href="#roles">Roles &amp; permissions</a>
@@ -132,12 +125,12 @@
   <main class="content">
     <div class="hero">
       <h1>ROMIO User Manual</h1>
-      <p>ROMIO is an all-in-one workspace: a social feed, direct &amp; group chat, collaborative workspaces with a no-code app builder, personal tools, and an embedded event-tabulation system (VESSCORE). This guide walks through every feature.</p>
+      <p>ROMIO is an all-in-one workspace: a social feed, direct &amp; group chat, collaborative workspaces with a no-code app builder, and personal tools. This guide walks through every feature.</p>
       <div>
         <span class="pill"><span class="ms">groups</span> Social feed</span>
         <span class="pill"><span class="ms">chat</span> Chat</span>
         <span class="pill"><span class="ms">dashboard</span> Workspaces</span>
-        <span class="pill"><span class="ms">emoji_events</span> Tabulation</span>
+        <span class="pill"><span class="ms">build</span> App builder</span>
       </div>
     </div>
 
@@ -150,7 +143,7 @@
         <div class="feat"><h4><span class="ms">dashboard</span> Workspaces</h4><p>Role-based team spaces with a no-code app builder, dashboard tiles and an activity feed.</p></div>
         <div class="feat"><h4><span class="ms">calendar_month</span> Tools</h4><p>Personal Calendar, Checklist and Notes, plus a customizable widgets panel.</p></div>
         <div class="feat"><h4><span class="ms">palette</span> Themes</h4><p>Light/dark, custom colors, frosted-glass cards and backgrounds — saved to your account.</p></div>
-        <div class="feat"><h4><span class="ms">emoji_events</span> Tabulation</h4><p>Run scored events with judges, segments, criteria and live rankings.</p></div>
+        <div class="feat"><h4><span class="ms">build</span> App builder</h4><p>Build custom data apps (trackers, CRMs, logs) in a workspace — no code required.</p></div>
       </div>
     </section>
 
@@ -183,7 +176,6 @@
         <tr><td>Files / Calendar / Checklist / Notes</td><td><code>/files</code>, <code>/calendar</code>, …</td></tr>
         <tr><td>Profile / a user</td><td><code>/profile</code> · <code>/user/&lt;id&gt;</code></td></tr>
         <tr><td>Settings (section)</td><td><code>/settings</code> · <code>/settings/workspace</code></td></tr>
-        <tr><td>Tabulation</td><td><code>/tabulation</code> (opens in a new tab)</td></tr>
       </table>
       <div class="callout tip"><span class="ms">bookmark</span> You can bookmark or share any of these links.</div>
     </section>
@@ -452,68 +444,6 @@
       <div class="callout tip"><span class="ms">cloud_sync</span> Your theme is <b>saved to your account</b> — log in on any device and it follows you.</div>
     </section>
 
-    <section id="master">
-      <h2><span class="ms">shield_person</span> Master control panel (admin)</h2>
-      <p>Master accounts get a <b>Control panel</b> section in Settings to administer everyone.</p>
-      <ul>
-        <li><b>Search</b> the user table (name / email / username).</li>
-        <li><b>Suspend / Unsuspend</b> — suspended users are blocked at login.</li>
-        <li><b>Make / Revoke master</b> — grant another user full master access.</li>
-        <li><b>Delete</b> — bans the account and removes its posts (see note).</li>
-        <li><b>Invite by email</b> — opens a pre-filled invitation email.</li>
-      </ul>
-      <div class="callout note"><span class="ms">gpp_maybe</span> Users cannot promote or un-suspend themselves — only a master can set those. "Delete" removes app data and blocks the account; the underlying sign-in credential can only be fully removed from the Firebase console.</div>
-    </section>
-
-    <section id="tab-overview">
-      <h2><span class="ms">emoji_events</span> Tabulation (VESSCORE) — overview</h2>
-      <p>VESSCORE is a scoring/tabulation system for pageants and competitions, opened from <b>Tools → Tabulation</b> (master only) as a standalone, full-window app in a new tab. Share it with judges via a link — they don't need a ROMIO account.</p>
-      <table>
-        <tr><th>Role</th><th>Address</th><th>Access</th></tr>
-        <tr><td>Landing / login</td><td><code>/tabulation</code></td><td>Anyone with the link</td></tr>
-        <tr><td>Admin dashboard</td><td><code>/tabulation/master</code></td><td>Master (signed into ROMIO)</td></tr>
-        <tr><td>Judge scoring</td><td><code>/tabulation/judge</code></td><td>Judge with a valid passkey</td></tr>
-      </table>
-      <p>Core concepts: <b>Segments</b> (events) contain <b>Criteria</b> (each with min/max score and a weight %). <b>Candidates</b> belong to a segment. <b>Judges</b> score candidates per criterion; results and rankings compute live.</p>
-    </section>
-
-    <section id="tab-master">
-      <h2><span class="ms">admin_panel_settings</span> Tabulation — admin (master)</h2>
-      <p>You become admin automatically when you open the tabulation while signed into ROMIO as master. The dashboard has three tabs:</p>
-      <h3>Setup</h3>
-      <ul>
-        <li><b>Import &amp; templates</b> — for Segments, Candidates and Criteria, download a spreadsheet <b>template</b>, fill it in Excel, then <b>Import</b>.</li>
-        <li><b>Judges</b> — add a judge; each gets a 6-character <b>passkey</b>, a shareable link, and a <b>QR code</b>.</li>
-        <li><b>Candidates</b> — add/edit candidates (name, segment, number).</li>
-        <li>Add items directly with <b>+ Segment</b>, <b>+ Candidate</b>, <b>+ Judge</b> — all via clean form dialogs.</li>
-      </ul>
-      <h3>Segments &amp; Results</h3>
-      <p>Each segment shows its <b>criteria</b> (add/edit weights), a live <b>ranking</b>, a per-criteria breakdown, a score-audit table, and <b>Print</b> / <b>Export Excel</b> options.</p>
-      <h3>Theme</h3>
-      <p>Set the shared look (see the Tabulation theme section).</p>
-      <div class="callout tip"><span class="ms">table_view</span> Template columns — Segments: <code>name</code> · Candidates: <code>name, category, candidate_no</code> · Criteria: <code>segment, label, min, max, weight</code>.</div>
-    </section>
-
-    <section id="tab-judge">
-      <h2><span class="ms">gavel</span> Tabulation — judges &amp; scoring</h2>
-      <ol class="steps">
-        <li>The admin sends each judge a link (with their passkey) or the judge enters the <b>passkey</b> on the login screen.</li>
-        <li>The judge picks an <b>event (segment)</b> to open its scoresheet.</li>
-        <li>For each candidate, enter a score per criterion (must be within the min–max range). Scores <b>auto-save</b> as drafts.</li>
-        <li>When finished, click <b>Submit &amp; finalize scores</b>.</li>
-      </ol>
-      <div class="callout note"><span class="ms">key</span> Judges use only a passkey — no ROMIO account needed. Keep passkeys private; anyone with a judge's passkey can score as that judge.</div>
-    </section>
-
-    <section id="tab-theme">
-      <h2><span class="ms">palette</span> Tabulation — theme</h2>
-      <p>In the admin <b>Theme</b> tab you set a <b>shared theme</b> that applies to the admin dashboard and every judge, updating <b>live</b>:</p>
-      <ul>
-        <li><b>Mode</b> (default light/dark), <b>Colors</b> (accent, background, surface, text, danger), <b>Card style</b> (solid/glass + blur/opacity), and <b>Background</b> (pattern or image).</li>
-      </ul>
-      <div class="callout tip"><span class="ms">dark_mode</span> Each person (admin or judge) can also flip their <b>own</b> light/dark with the top-right toggle — a personal preference that overrides the shared default just for them.</div>
-    </section>
-
     <section id="mobile">
       <h2><span class="ms">smartphone</span> Mobile &amp; app</h2>
       <ul>
@@ -527,7 +457,6 @@
       <h2><span class="ms">badge</span> Roles &amp; permissions</h2>
       <table>
         <tr><th>Role</th><th>Can do</th></tr>
-        <tr><td><b>Master</b></td><td>Everything, everywhere: moderate any post, manage all users, admin the tabulation, access every workspace.</td></tr>
         <tr><td><b>Workspace Owner</b></td><td>Full control of that workspace: rename/delete, manage members &amp; roles, edit apps/tiles.</td></tr>
         <tr><td><b>Editor</b></td><td>Read + write in the workspace (post, edit tiles) — cannot manage members/settings.</td></tr>
         <tr><td><b>Viewer</b></td><td>Read-only in the workspace.</td></tr>
@@ -539,11 +468,9 @@
     <section id="faq">
       <h2><span class="ms">quiz</span> FAQ &amp; troubleshooting</h2>
       <h3>"Missing or insufficient permissions"</h3>
-      <p>Usually means you're not signed in with the right account, or you're acting on something you don't own. For admin/master actions, be signed in as the master.</p>
+      <p>Usually means you're not signed in with the right account, or you're acting on something you don't own (for example, editing someone else's post, or a workspace you're only a viewer in).</p>
       <h3>My theme/photo isn't showing on another device</h3>
       <p>Hard-refresh after signing in. Themes are saved to your account; profile photos and backgrounds are stored inline and load with your profile.</p>
-      <h3>The Tabulation admin shows "Judge mode"</h3>
-      <p>Open it while signed into ROMIO as the <b>master</b> account (same browser) — the admin dashboard requires master.</p>
       <h3>A workspace shows apps I didn't add</h3>
       <p>Older workspaces may have inherited data before per-workspace isolation. Remove unwanted apps/tiles per workspace, or ask to reset that workspace.</p>
     </section>
@@ -553,10 +480,9 @@
       <ul>
         <li>Built on <b>Firebase</b> (Authentication + Cloud Firestore). Data updates in real time.</li>
         <li><b>Firebase Storage is not enabled</b>, so photos, small files and backgrounds are stored <b>inline</b> (compressed) with a size cap; large videos/files are shared by <b>URL/embed</b> instead of upload.</li>
-        <li>Weather uses <b>Open-Meteo</b>; icons use <b>Google Material Symbols</b> / Tabler; spreadsheets use <b>SheetJS</b>; QR codes use <b>QRCode.js</b>.</li>
+        <li>Weather uses <b>Open-Meteo</b>; icons use <b>Tabler</b> / Google Material Symbols.</li>
         <li>Two tabs editing the <b>same</b> workspace builder at once is last-write-wins — edit in one place at a time.</li>
       </ul>
-      <div class="callout note"><span class="ms">shield</span> Tabulation judge access is passkey-based (no login), so its data (segments, candidates, criteria, scores, theme) is readable/writable by anyone with the link — scoped only to those collections. Your ROMIO posts, chats and profiles remain protected.</div>
     </section>
 
     <footer>
