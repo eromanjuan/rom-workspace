@@ -317,7 +317,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=22', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=23', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 

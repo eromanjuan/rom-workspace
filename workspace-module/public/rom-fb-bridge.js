@@ -18,7 +18,10 @@ const firebaseConfig = {
 
 const PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=22';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=23';
+// The iframe's real page. Used to reload the module without picking up whatever
+// path the module's router pushed into this iframe's URL.
+const MODULE_PAGE = '/workspace-module/index.html?v=23';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -194,13 +197,60 @@ function applyKeys(keys) {
   for (const [k, v] of Object.entries(keys || {})) origSet(k, v);
   applyingRemote = false;
 }
+// The module stores its data under `${PREFIX}:${companyId}` but keeps the ACTIVE
+// company in a separate localStorage key that was never synced. On a fresh
+// browser (or if that key changed) the module would open a DIFFERENT, empty
+// company — so a workspace's apps looked like they had vanished even though the
+// data was safe in Firestore. Point the module at the company we actually seeded.
+const COMPANY_KEY = 'quest-hq-active-company';
+function syncActiveCompanyFromKeys() {
+  try {
+    const p = `${PREFIX}:`;
+    let best = null; let bestScore = -1;
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(p)) continue;
+      let score = 0;
+      try {
+        const d = JSON.parse(localStorage.getItem(k) || '{}');
+        for (const ws of (Array.isArray(d?.workspaces) ? d.workspaces : [])) {
+          score += 1 + (Array.isArray(ws?.apps) ? ws.apps.length * 10 : 0);
+        }
+      } catch { /* unparseable — score 0 */ }
+      if (score > bestScore) { bestScore = score; best = k.slice(p.length); }
+    }
+    if (best) origSet(COMPANY_KEY, best);
+  } catch { /* ignore */ }
+}
+
+// ROMIO owns authentication. Hide the embedded module's own "Sign out" — it calls
+// navigate('/login'), which pushes /login into this iframe's URL; that path resolves
+// to the ROMIO SPA, so a later reload would load ROMIO inside its own iframe.
+function hideModuleAuthUI() {
+  try {
+    if (!document.head || document.getElementById('rom-hide-module-auth')) return;
+    const st = document.createElement('style');
+    st.id = 'rom-hide-module-auth';
+    st.textContent = '[data-action="sign-out"]{display:none !important}';
+    document.head.appendChild(st);
+  } catch { /* ignore */ }
+}
+
+let seededKeyCount = 0; // how many builder keys the remote blob had when we seeded
 function scheduleSave() {
   // Anti-clobber: never write until we've pulled + applied the remote state, so
   // a stale/empty tab can't overwrite what another tab already saved.
   if (!ref || !syncReady) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    try { await setDoc(ref, { keys: collectLocal(), updatedAt: serverTimestamp() }); }
+    const keys = collectLocal();
+    // Anti-wipe: never replace a populated remote blob with an empty local one
+    // (a failed seed must not destroy the workspace's apps).
+    if (!Object.keys(keys).length && seededKeyCount > 0) {
+      console.warn('[ROM] skipped an empty workspace save (would have wiped remote data)');
+      return;
+    }
+    try { await setDoc(ref, { keys, updatedAt: serverTimestamp() }); }
     catch (e) { console.warn('[ROM] workspace sync save failed', e); }
   }, 700);
 }
@@ -290,6 +340,7 @@ async function boot() {
     try {
       const snap = await getDoc(ref);
       if (snap.exists()) {
+        seededKeyCount = Object.keys(snap.data().keys || {}).length;
         applyKeys(snap.data().keys);
       } else {
         // First time on this workspace doc. Migrate the legacy global doc ONCE
@@ -306,19 +357,28 @@ async function boot() {
         }
       }
     } catch (e) { console.warn('[ROM] workspace seed failed', e); }
+    // Open the company whose data we just seeded (see syncActiveCompanyFromKeys).
+    syncActiveCompanyFromKeys();
     syncReady = true; // safe to persist local edits now
 
     onSnapshot(ref, (snap) => {
       if (!snap.exists() || snap.metadata.hasPendingWrites) return;
       const remote = JSON.stringify(snap.data().keys || {});
       if (remote === JSON.stringify(collectLocal())) return;
+      seededKeyCount = Object.keys(snap.data().keys || {}).length;
       applyKeys(snap.data().keys);
-      location.reload();
+      syncActiveCompanyFromKeys();
+      // Reload the MODULE page. NOT location.reload(): the module's router
+      // pushState's app paths (/workspaces/…, /login) into this iframe's URL, and
+      // those resolve to the ROMIO SPA — reloading them loads ROMIO inside its own
+      // iframe (the "Open ROMIO in its own tab" guard / apparent logout).
+      window.location.replace(MODULE_PAGE);
     });
   }
 
   await import(MODULE_ENTRY);
   applyThemeToModule();
+  hideModuleAuthUI();
   try { window.parent.postMessage({ type: 'rom-ws-ready' }, window.location.origin); } catch { /* ignore */ }
 }
 
