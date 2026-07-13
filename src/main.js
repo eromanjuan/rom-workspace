@@ -244,7 +244,7 @@ if (window.top !== window.self) {
             go(view);
         }
 
-        // The embedded (quest-hq) Workspace module in a persistent iframe — gated on
+        // The embedded Workspace module in a persistent iframe — gated on
         // membership of the user's default workspace. Removed members are blocked.
         async function mountWorkspace(slug) {
             const master = isMaster(user);

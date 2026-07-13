@@ -1,5 +1,5 @@
 /* ROM embed overrides — loaded AFTER the module's own CSS.
-   Hides the Quest HQ header + sidebar so only the workspace dashboard shows,
+   Hides the module header + sidebar so only the workspace dashboard shows,
    and points the module's accent at ROM's live theme accent (set by the bridge). */
 
 /* 1) Hide the top header, left sidebar, and mobile chrome. */
@@ -14,7 +14,7 @@
 }
 
 /* 2) Collapse the app grid to a single full-bleed cell = the workspace surface. */
-.quest-app {
+.romio-app {
   grid-template-columns: minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
   padding: 0 !important;

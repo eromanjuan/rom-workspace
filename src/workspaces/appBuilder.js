@@ -1,4 +1,4 @@
-// The "Create your own app" builder — modelled on quest-hq:
+// The "Create your own app" builder — modelled on the workspace module:
 //   Add-app modal -> create form (name, description, type, icon, color)
 //   -> app view (colored header + Items / Fields / Reports / Automations / Settings)
 //   -> Fields palette to design what data the app stores.
@@ -45,7 +45,7 @@ export const APP_ICONS = [
   'palette', 'pencil', 'scissors', 'calculator', 'coffee', 'cup', 'ticket', 'basket', 'apps',
 ];
 
-// Field-type registry — mirrors quest-hq's WB_FIELD_TYPES (label, icon, color, desc).
+// Field-type registry — mirrors the workspace module's WB_FIELD_TYPES (label, icon, color, desc).
 // `soon` types are shown in the palette but depend on infrastructure not built yet.
 export const FIELD_TYPES = {
   text: { label: 'Text', icon: 'letter-case', color: '#2563eb', desc: 'Single line of text' },
@@ -195,7 +195,7 @@ async function renderAppMarket(body, wsId, user, onCreated, close) {
 function renderCreateForm(body, wsId, user, onCreated, close, iconEl) {
   clear(body);
   const state = { icon: APP_ICONS[0], color: APP_COLORS[0] };
-  // The modal's header icon is the live preview (recolors as you pick), like quest-hq.
+  // The modal's header icon is the live preview (recolors as you pick), for a live preview.
   function refreshPreview() { if (iconEl) { iconEl.style.background = state.color; clear(iconEl).append(icon(state.icon)); } }
   refreshPreview();
 
@@ -625,7 +625,7 @@ function openReportModal({ app, onSave }) {
 
 /* ============================ Automations ============================ */
 
-// Numeric comparison operators (mirrors quest-hq WB_TRIG_OPS).
+// Numeric comparison operators (mirrors the workspace module's WB_TRIG_OPS).
 const TRIG_OPS = [['==', 'equals'], ['!=', 'not equal'], ['>', 'greater than'], ['<', 'less than'], ['>=', 'at least'], ['<=', 'at most']];
 
 function automationSummary(a, app) {

@@ -10,7 +10,7 @@ export function isMaster(user) {
   return user.isMasterFlag === true;
 }
 
-// Role model shared across the app. Mirrors quest-hq: owner has full access,
+// Role model shared across the app. Mirrors the workspace module: owner has full access,
 // editor can read + write, viewer is read-only.
 export const ROLES = {
   owner: { label: 'Owner', canWrite: true, canManage: true, rank: 3 },

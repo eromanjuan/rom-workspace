@@ -1,4 +1,4 @@
-// The workspace "builder home" — a faithful reimplementation of the quest-hq
+// The workspace "builder home" — a faithful reimplementation of the workspace module's
 // Workspace Builder core: an Activity feed (Post/File/Link/Question + Create task),
 // a Customize + Apps sidebar, and the app builder. Everything respects the
 // viewer's role (owner / editor / viewer); the master account is treated as owner.

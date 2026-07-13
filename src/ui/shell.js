@@ -1,5 +1,5 @@
 // The application shell: a persistent left sidebar + top bar, modelled on the
-// quest-hq command center. Views render into the returned `content` element.
+// ROMIO command center. Views render into the returned `content` element.
 import { el, clear, icon } from './dom.js';
 import { displayNameOf, logOut } from '../auth/auth.js';
 import { applyAvatar } from '../profile/avatar.js';
