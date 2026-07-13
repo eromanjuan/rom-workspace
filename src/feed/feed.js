@@ -14,7 +14,7 @@ import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui
 import { displayNameOf } from '../auth/auth.js';
 import { notify } from '../workspaces/data.js';
 import { renderWidgetsPanel } from './widgets.js';
-import { loadMentionUsers, renderBodyWithMentions } from './feedMentions.js';
+import { loadMentionUsers, renderBodyWithMentions, attachMentionAutocomplete, extractMentions } from './feedMentions.js';
 import { renderComposer } from './composer.js';
 import { renderPostExtras } from './postMedia.js';
 
@@ -46,22 +46,59 @@ export function renderFeed(root, user, opts = {}) {
   // UI state kept across the live re-renders so typing/expanding survives updates.
   const expanded = new Set();       // post ids with the comment thread open
   const drafts = new Map();         // post id -> in-progress comment text
+  const cards = new Map();          // post id -> { el, sig } for in-place reconciliation
+
+  // A signature of the fields that affect a card's rendering. If it's unchanged
+  // between snapshots we keep the exact same DOM node — so opening a comment
+  // thread, typing, and scroll position are NOT reset when other posts update.
+  const postSig = (d) => {
+    const p = d.data();
+    return JSON.stringify([
+      p.text || '', p.editedAt || 0, p.hidden === true, p.type || '',
+      (p.likes || []).length, (p.likes || []).includes(user.uid),
+      (p.comments || []).map((c) => `${c.id || ''}:${c.text || ''}`),
+      (p.images || []).length, p.media?.url || '', p.link?.url || '',
+      p.poll ? (p.pollVotes || []).length : 0,
+    ]);
+  };
 
   const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(50));
   const unsub = onSnapshot(q, (snap) => {
-    clear(list);
     // A hidden post is visible only to its author. Everyone else filters it out.
     const visible = snap.docs.filter((d) => {
       const p = d.data();
       return p.hidden !== true || p.authorId === user.uid;
     });
     if (!visible.length) {
+      clear(list); cards.clear();
       list.append(el('p', { class: 'muted' }, 'No posts yet. Be the first!'));
       return;
     }
-    for (const d of visible) list.append(postCard(d, user, { expanded, drafts, onOpenUser }));
+    // Clear an empty-state / error placeholder the first time posts appear.
+    if (!cards.size && list.firstChild) clear(list);
+    const seen = new Set();
+    let prev = null; // previous card element, used to keep newest-first order
+    for (const d of visible) {
+      seen.add(d.id);
+      const sig = postSig(d);
+      let entry = cards.get(d.id);
+      if (!entry) {
+        const elCard = postCard(d, user, { expanded, drafts, onOpenUser });
+        entry = { el: elCard, sig }; cards.set(d.id, entry);
+        if (prev) prev.after(elCard); else list.prepend(elCard);
+      } else if (entry.sig !== sig) {
+        // Only the changed post's card is rebuilt — the rest stay put.
+        const elCard = postCard(d, user, { expanded, drafts, onOpenUser });
+        entry.el.replaceWith(elCard); entry.el = elCard; entry.sig = sig;
+      } else if (prev ? prev.nextSibling !== entry.el : list.firstChild !== entry.el) {
+        // Unchanged content — just fix ordering if a newer post moved above it.
+        if (prev) prev.after(entry.el); else list.prepend(entry.el);
+      }
+      prev = entry.el;
+    }
+    for (const [id, entry] of cards) { if (!seen.has(id)) { entry.el.remove(); cards.delete(id); } }
   }, (err) => {
-    clear(list);
+    clear(list); cards.clear();
     list.append(el('p', { class: 'error-text' }, `Feed error: ${err.message}`));
   });
 
@@ -81,6 +118,10 @@ export function postCard(d, user, ui) {
   const likes = Array.isArray(p.likes) ? p.likes : [];
   const comments = Array.isArray(p.comments) ? p.comments : [];
   const liked = likes.includes(user.uid);
+
+  // Candidate users for @mentions in comments (cached list; empty until loaded).
+  let cmtUsers = (ui.getMentionUsers && ui.getMentionUsers()) || [];
+  if (!cmtUsers.length) loadMentionUsers().then((u) => { cmtUsers = u; });
 
   const openUser = ui.onOpenUser || null;
   const authorEl = (openUser && p.authorId)
@@ -174,6 +215,12 @@ export function postCard(d, user, ui) {
   ]);
 
   const thread = el('div', { class: 'post__comments' });
+  // Clicking an @mention inside a comment opens that user's profile (delegated
+  // once on the thread, which survives the per-render clear of its children).
+  if (openUser) thread.addEventListener('click', (e) => {
+    const a = e.target.closest('.mention-link[data-uid]');
+    if (a) { e.preventDefault(); openUser(a.dataset.uid); }
+  });
   const renderThread = () => {
     clear(thread);
     if (!ui.expanded.has(d.id)) { thread.style.display = 'none'; return; }
@@ -185,7 +232,7 @@ export function postCard(d, user, ui) {
           (openUser && c.authorId)
             ? el('button', { class: 'comment__author comment__author--link', onclick: () => openUser(c.authorId) }, c.authorName || 'Someone')
             : el('span', { class: 'comment__author' }, c.authorName || 'Someone'),
-          el('span', { class: 'comment__text' }, c.text || ''),
+          el('span', { class: 'comment__text', html: renderBodyWithMentions(c.text || '', c.mentions) }),
         ]),
         cMine
           ? el('button', {
@@ -198,29 +245,42 @@ export function postCard(d, user, ui) {
           : null,
       ]));
     }
-    const input = el('input', { class: 'input input--sm', placeholder: 'Write a comment…' });
+    const input = el('input', { class: 'input input--sm', placeholder: 'Write a comment… (@ to mention)' });
     input.value = ui.drafts.get(d.id) || '';
     input.addEventListener('input', () => ui.drafts.set(d.id, input.value));
+    attachMentionAutocomplete(input, () => cmtUsers);
     const send = el('button', { class: 'btn btn--primary btn--sm' }, icon('send'));
     const submit = async () => {
       const text = input.value.trim();
       if (!text) return;
       send.disabled = true;
       try {
+        const users = cmtUsers.length ? cmtUsers : await loadMentionUsers();
+        const mentions = extractMentions(text, users);
         await updateDoc(ref, {
           comments: arrayUnion({
             id: (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now())),
             authorId: user.uid,
             authorName: displayNameOf(user),
             text,
+            mentions,
             ts: new Date().toISOString(),
           }),
         });
         ui.drafts.delete(d.id);
-        // Notify the post author + everyone already in the thread (except me).
+        // Notify @mentioned users first, then the post author + thread (minus
+        // anyone already notified via a mention, so nobody gets two pings).
+        const mentioned = new Set(mentions.map((m) => m.uid).filter((uid) => uid && uid !== user.uid));
+        mentioned.forEach((uid) => notify(uid, {
+          type: 'mention',
+          title: `${displayNameOf(user)} mentioned you in a comment`,
+          body: text.slice(0, 80), actorId: user.uid, actorName: displayNameOf(user),
+          link: { view: 'feed' },
+        }));
         const recipients = new Set();
         if (p.authorId && p.authorId !== user.uid) recipients.add(p.authorId);
         for (const c of comments) { if (c.authorId && c.authorId !== user.uid) recipients.add(c.authorId); }
+        mentioned.forEach((uid) => recipients.delete(uid));
         recipients.forEach((uid) => notify(uid, {
           type: 'comment',
           title: `${displayNameOf(user)} commented on ${uid === p.authorId ? 'your' : 'a'} post`,

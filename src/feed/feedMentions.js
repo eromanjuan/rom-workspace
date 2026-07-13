@@ -89,30 +89,50 @@ export function attachMentionAutocomplete(textarea, getUsers) {
   return close;
 }
 
-// Resolve @usernames in text against the user list → [{uid, username, name}].
+// Resolve @mentions in text against the user list → [{uid, username, name}].
+// Matches both @handle tokens AND @Display Name (so users without a handle, or
+// names with spaces, still resolve — otherwise their mention silently drops and
+// they never get notified).
 export function extractMentions(text, users) {
+  const out = []; const seen = new Set();
+  const add = (u, name) => {
+    if (u && u.uid && !seen.has(u.uid)) {
+      seen.add(u.uid);
+      out.push({ uid: u.uid, username: u.username || '', name: u.displayName || u.username || name || '' });
+    }
+  };
   const byHandle = new Map();
   (users || []).forEach((u) => { if (u.username) byHandle.set(u.username.toLowerCase(), u); });
-  const out = []; const seen = new Set();
+  // 1) @handle tokens
   const re = /(?:^|[^\w@])@([a-zA-Z0-9_.]+)/g;
   let m;
-  while ((m = re.exec(text))) {
-    const u = byHandle.get(m[1].toLowerCase());
-    if (u && !seen.has(u.uid)) { seen.add(u.uid); out.push({ uid: u.uid, username: u.username, name: u.displayName || u.username }); }
-  }
+  while ((m = re.exec(text))) add(byHandle.get(m[1].toLowerCase()));
+  // 2) @Display Name — check longest names first so "@Ann Lee" wins over "@Ann"
+  const lower = (text || '').toLowerCase();
+  (users || []).filter((u) => u.displayName).sort((a, b) => b.displayName.length - a.displayName.length)
+    .forEach((u) => { if (!seen.has(u.uid) && lower.includes('@' + u.displayName.toLowerCase())) add(u, u.displayName); });
   return out;
 }
 
-// Render post text with @mentions highlighted + clickable (data-uid).
+// Render text with @mentions highlighted + clickable (data-uid). Highlights by
+// handle when present, else by the mentioned user's display name.
 export function renderBodyWithMentions(text, mentions) {
   let html = escapeHtml(text || '');
-  const byHandle = new Map((mentions || []).filter((x) => x && x.username).map((x) => [x.username.toLowerCase(), x]));
-  if (byHandle.size) {
-    const handles = [...byHandle.keys()].sort((a, b) => b.length - a.length).map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const re = new RegExp(`@(${handles.join('|')})\\b`, 'gi');
-    html = html.replace(re, (full, hnd) => {
-      const x = byHandle.get(hnd.toLowerCase());
-      return x ? `<a class="mention-link" data-uid="${x.uid}">@${escapeHtml(x.username)}</a>` : full;
+  // token (username or display name, escaped+lowercased) -> mention
+  const byToken = new Map();
+  (mentions || []).forEach((x) => {
+    if (!x || !x.uid) return;
+    const tok = x.username || x.name;
+    if (tok) byToken.set(escapeHtml(tok).toLowerCase(), x);
+  });
+  if (byToken.size) {
+    const tokens = [...byToken.keys()].sort((a, b) => b.length - a.length).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const re = new RegExp(`@(${tokens.join('|')})`, 'gi');
+    html = html.replace(re, (full, tok) => {
+      const x = byToken.get(tok.toLowerCase());
+      if (!x) return full;
+      const label = x.username ? `@${escapeHtml(x.username)}` : `@${escapeHtml(x.name)}`;
+      return `<a class="mention-link" data-uid="${x.uid}">${label}</a>`;
     });
   }
   return html.replace(/\n/g, '<br>');
