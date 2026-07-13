@@ -97,6 +97,7 @@ function renderTheme(panel, wsId, ws, onChanged) {
   clear(panel);
   const existing = ws.theme && typeof ws.theme === 'object' ? ws.theme : null;
   const t = {
+    on: !!existing,
     mode: existing?.mode === 'light' ? 'light' : 'dark',
     palette: { ...(existing?.palette || {}) },
     appearance: { cardStyle: 'solid', cardBlur: 10, cardOpacity: 65, bgType: 'none', bgPattern: '', bgImage: '', ...(existing?.appearance || {}) },
@@ -177,35 +178,42 @@ function renderTheme(panel, wsId, ws, onChanged) {
   }
   drawBg();
 
-  const save = el('button', { class: 'btn btn--primary' }, 'Save theme');
-  save.addEventListener('click', async () => {
-    save.disabled = true;
-    try {
-      const palette = {};
-      for (const v of PALETTE_VARS) palette[v.var] = t.palette[v.var] || v.def[t.mode];
-      const theme = { mode: t.mode, palette, appearance: t.appearance };
-      await updateWorkspace(wsId, { theme });
-      ws.theme = theme;
-      toast('Workspace theme saved.', 'success');
-      onChanged();
-    } catch (err) { toast(err.message, 'error'); }
-    finally { save.disabled = false; }
-  });
-  const resetBtn = el('button', { class: 'btn btn--ghost btn--sm' }, [icon('refresh'), ' Reset to default']);
-  resetBtn.addEventListener('click', async () => {
-    if (!(await confirmModal({ title: 'Reset workspace theme?', message: 'The dashboard will use each viewer\'s ROMIO theme instead of a custom workspace theme.', confirmLabel: 'Reset' }))) return;
-    resetBtn.disabled = true;
-    try { await updateWorkspace(wsId, { theme: null }); ws.theme = null; toast('Reset — inheriting the ROMIO theme.', 'success'); onChanged(); }
-    catch (err) { toast(err.message, 'error'); resetBtn.disabled = false; }
-  });
-
-  panel.append(el('div', { class: 'field-modal' }, [
-    el('p', { class: 'muted' }, 'Choose light or dark, customize colors, card style and the background. This applies to the workspace dashboard for everyone. Reset to default lets each viewer\'s own ROMIO theme apply instead.'),
+  // All theme controls live inside `controls`, shown only when the custom-theme
+  // toggle is on. Off = the workspace inherits each viewer's ROMIO theme.
+  const controls = el('div', { class: 'ws-theme-controls' }, [
     el('label', { class: 'settings-label' }, 'Mode'), segWrap,
     el('label', { class: 'settings-label' }, 'Custom palette'), swatchWrap,
     el('label', { class: 'settings-label' }, 'Card style'), cardWrap, glassCtl,
     el('label', { class: 'settings-label' }, 'Background'), bgWrap, bgDetail,
-    el('div', { class: 'app-create-foot', style: 'justify-content:space-between' }, [resetBtn, save]),
+  ]);
+  const enable = el('input', { type: 'checkbox', ...(t.on ? { checked: 'checked' } : {}) });
+  const syncToggle = () => { controls.style.display = t.on ? '' : 'none'; };
+  enable.addEventListener('change', () => { t.on = enable.checked; syncToggle(); });
+  syncToggle();
+
+  const save = el('button', { class: 'btn btn--primary' }, 'Save theme');
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    try {
+      let theme = null;
+      if (t.on) {
+        const palette = {};
+        for (const v of PALETTE_VARS) palette[v.var] = t.palette[v.var] || v.def[t.mode];
+        theme = { mode: t.mode, palette, appearance: t.appearance };
+      }
+      await updateWorkspace(wsId, { theme });
+      ws.theme = theme;
+      toast(theme ? 'Workspace theme saved.' : 'This workspace now uses the ROMIO theme.', 'success');
+      onChanged();
+    } catch (err) { toast(err.message, 'error'); }
+    finally { save.disabled = false; }
+  });
+
+  panel.append(el('div', { class: 'field-modal' }, [
+    el('p', { class: 'muted' }, 'By default the workspace uses each viewer\'s own ROMIO theme. Turn on a custom theme to give this workspace its own look — applied to the dashboard for everyone.'),
+    el('label', { class: 'ws-perm ws-theme-enable' }, [enable, ' Use a custom theme for this workspace']),
+    controls,
+    el('div', { class: 'app-create-foot' }, [save]),
   ]));
 }
 
