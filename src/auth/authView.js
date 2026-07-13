@@ -2,7 +2,7 @@
 // Split layout: a brand panel + a form card. Sign-up collects Firstname,
 // Surname, email, a unique username (live availability check), and a password
 // with a strength meter + confirm field. Inline validation throughout.
-import { el, clear, icon, toast } from '../ui/dom.js';
+import { el, clear, icon, toast, openModal } from '../ui/dom.js';
 import { signUp, logIn, sendPasswordReset, setAuthPersistence, signInWithGoogle, signInWithFacebook } from './auth.js';
 import { checkPassword, passwordStrength } from './passwordPolicy.js';
 import { isUsernameAvailable, usernameFormatError } from '../workspaces/data.js';
@@ -134,6 +134,21 @@ export function renderAuth(root) {
     // ---------- submit ----------
     const submit = el('button', { class: 'btn btn--primary auth__submit', type: 'submit' }, isSignup ? 'Create account' : 'Log in');
 
+    // ---------- terms agreement (sign-up only): gates the Create button ----------
+    const terms = el('input', { type: 'checkbox', class: 'auth__terms-cb' });
+    const termsRow = el('label', { class: 'auth__terms' }, [
+      terms,
+      el('span', {}, [
+        'I have read and agree to the ',
+        el('button', { type: 'button', class: 'auth__terms-link', onclick: showTermsModal }, 'Terms of Service & Privacy Policy'),
+        '.',
+      ]),
+    ]);
+    if (isSignup) {
+      submit.disabled = true;
+      terms.addEventListener('change', () => { submit.disabled = !terms.checked; });
+    }
+
     const form = el('form', {
       class: 'auth__form', novalidate: 'novalidate',
       onsubmit: async (e) => {
@@ -148,6 +163,7 @@ export function renderAuth(root) {
           const { valid, firstError } = checkPassword(pass.value);
           if (!valid) return failFocus(pass, `Password needs: ${firstError}.`);
           if (confirm.value !== pass.value) return failFocus(confirm, 'Passwords do not match.');
+          if (!terms.checked) return toast('Please agree to the Terms of Service to create an account.', 'error');
         } else if (!email.value.trim() || !pass.value) {
           return toast('Enter your email and password.', 'error');
         }
@@ -189,6 +205,7 @@ export function renderAuth(root) {
       isSignup ? field('Confirm password', 'su-confirm', passwordControl(confirm), confirmHint) : null,
 
       isSignup ? null : rememberRow,
+      isSignup ? termsRow : null,
       submit,
       social,
     ]);
@@ -286,4 +303,37 @@ function failFocus(inputEl, message) {
   toast(message, 'error');
   (inputEl.querySelector?.('input') || inputEl).focus?.();
   inputEl.focus?.();
+}
+
+// The ROMIO User Agreement + Privacy summary shown from the sign-up terms link.
+function showTermsModal() {
+  const { body } = openModal({ title: 'Terms of Service & Privacy', iconName: 'file-text', wide: true });
+  const h = (t) => el('h4', { class: 'terms-h' }, t);
+  const p = (t) => el('p', { class: 'terms-p' }, t);
+  body.append(el('div', { class: 'terms-doc' }, [
+    p('Welcome to ROMIO. By creating an account you agree to the terms below. Please read them.'),
+
+    h('1. Your account'),
+    p('You must provide accurate information and are responsible for keeping your password secure and for all activity under your account. You must be old enough to form a binding agreement in your country. Do not share your login or impersonate others.'),
+
+    h('2. Acceptable use'),
+    p('You agree not to post or share content that is illegal, hateful, harassing, deceptive, infringing, or that contains malware, and not to spam, scrape, or disrupt the service or other users. Workspaces, messages and posts must respect the rights and privacy of others.'),
+
+    h('3. Your content'),
+    p('You keep ownership of the content you create (posts, messages, files, workspaces and apps). By posting it, you grant ROMIO the permission needed to store, display and share it with the people and workspaces you choose, solely to operate the service. You are responsible for the content you share and must have the right to share it.'),
+
+    h('4. Privacy'),
+    p('ROMIO stores your data (such as your name, email, profile, posts, messages, workspace content and theme preferences) using Google Firebase / Cloud to run the service. We use it to operate and improve ROMIO and to show your content to the people you share it with. We do not sell your personal data. Administrators (master accounts) can moderate content and may access data to keep the service safe and running.'),
+
+    h('5. Moderation & termination'),
+    p('We may remove content or suspend or delete accounts that violate these terms or harm the service or other users. You may stop using ROMIO and request removal of your account at any time.'),
+
+    h('6. Service "as is"'),
+    p('ROMIO is provided "as is" without warranties of any kind. We are not liable for lost data, downtime, or damages arising from your use of the service to the extent permitted by law.'),
+
+    h('7. Changes'),
+    p('We may update these terms as ROMIO evolves. Continued use after an update means you accept the revised terms.'),
+
+    p('If you do not agree with these terms, please do not create an account or use ROMIO.'),
+  ]));
 }

@@ -111,6 +111,13 @@ select.input { cursor: pointer; }
 .auth__row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: -0.1rem; }
 .auth__remember { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--text); cursor: pointer; user-select: none; }
 .auth__remember input { width: 1rem; height: 1rem; accent-color: var(--primary); cursor: pointer; }
+/* Terms agreement (sign-up) */
+.auth__terms { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); cursor: pointer; user-select: none; margin-top: 0.2rem; line-height: 1.45; }
+.auth__terms-cb { width: 1rem; height: 1rem; margin-top: 2px; flex: 0 0 auto; accent-color: var(--primary); cursor: pointer; }
+.auth__terms-link { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.terms-doc { max-height: 60vh; overflow: auto; padding-right: 4px; }
+.terms-h { margin: 14px 0 4px; font-size: 0.95rem; }
+.terms-p { margin: 0 0 8px; font-size: 0.9rem; line-height: 1.55; color: var(--text); }
 .auth__divider { display: flex; align-items: center; text-align: center; color: var(--muted); font-size: 0.78rem; margin: 0.9rem 0 0.1rem; }
 .auth__divider::before, .auth__divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .auth__divider span { padding: 0 0.7rem; }
