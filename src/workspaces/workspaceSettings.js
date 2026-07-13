@@ -9,6 +9,7 @@ import {
 import { APP_ICONS, APP_COLORS } from './appBuilder.js';
 import { WS_PERMISSIONS, ROLE_PRESETS, ASSIGNABLE_ROLES, resolvePerms, roleLabel, isMaster } from './roles.js';
 import { PALETTE_VARS, BG_PATTERNS } from '../ui/theme.js';
+import { compressBg, toHex } from '../settings/settingsView.js';
 
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
 
@@ -96,85 +97,115 @@ function renderTheme(panel, wsId, ws, onChanged) {
   clear(panel);
   const existing = ws.theme && typeof ws.theme === 'object' ? ws.theme : null;
   const t = {
-    on: !!existing,
     mode: existing?.mode === 'light' ? 'light' : 'dark',
     palette: { ...(existing?.palette || {}) },
-    appearance: { cardStyle: 'solid', cardBlur: 10, cardOpacity: 65, bgType: 'none', bgPattern: '', ...(existing?.appearance || {}) },
+    appearance: { cardStyle: 'solid', cardBlur: 10, cardOpacity: 65, bgType: 'none', bgPattern: '', bgImage: '', ...(existing?.appearance || {}) },
   };
-  const colorFor = (v) => t.palette[v.var] || v.def[t.mode];
 
-  const enable = el('input', { type: 'checkbox', ...(t.on ? { checked: 'checked' } : {}) });
-  const controls = el('div', { class: 'ws-theme-controls' });
-
-  function drawControls() {
-    controls.style.display = t.on ? '' : 'none';
-    clear(controls);
-    if (!t.on) return;
-    // Mode
-    const modeRow = el('div', { class: 'row' }, ['light', 'dark'].map((m) => {
-      const b = el('button', { type: 'button', class: `btn btn--sm ${t.mode === m ? 'btn--primary' : 'btn--ghost'}` }, m === 'light' ? 'Light' : 'Dark');
-      b.addEventListener('click', () => { t.mode = m; drawControls(); });
-      return b;
-    }));
-    // Colors
-    const colorWrap = el('div', { class: 'ws-theme-colors' });
-    for (const v of PALETTE_VARS) {
-      const inp = el('input', { type: 'color', value: colorFor(v) });
-      inp.addEventListener('input', () => { t.palette[v.var] = inp.value; });
-      colorWrap.append(el('label', { class: 'ws-theme-color' }, [inp, el('span', {}, v.label)]));
-    }
-    // Card style
-    const glass = t.appearance.cardStyle === 'glass';
-    const cardRow = el('div', { class: 'row' }, ['solid', 'glass'].map((s) => {
-      const b = el('button', { type: 'button', class: `btn btn--sm ${((s === 'glass') === glass) ? 'btn--primary' : 'btn--ghost'}` }, s === 'glass' ? 'Glass' : 'Solid');
-      b.addEventListener('click', () => { t.appearance.cardStyle = s; drawControls(); });
-      return b;
-    }));
-    // Background
-    const bgWrap = el('div', { class: 'ws-theme-bg' });
-    const noneBtn = el('button', { type: 'button', class: `swatch ${t.appearance.bgType !== 'pattern' ? 'swatch--active' : ''}` }, 'None');
-    noneBtn.addEventListener('click', () => { t.appearance.bgType = 'none'; t.appearance.bgPattern = ''; drawControls(); });
-    bgWrap.append(noneBtn);
-    for (const p of BG_PATTERNS) {
-      const active = t.appearance.bgType === 'pattern' && t.appearance.bgPattern === p.id;
-      const b = el('button', { type: 'button', class: `swatch ${active ? 'swatch--active' : ''}` }, p.label);
-      b.addEventListener('click', () => { t.appearance.bgType = 'pattern'; t.appearance.bgPattern = p.id; drawControls(); });
-      bgWrap.append(b);
-    }
-    controls.append(
-      el('label', { class: 'form-label' }, 'Mode'), modeRow,
-      el('label', { class: 'form-label' }, 'Colors'), colorWrap,
-      el('label', { class: 'form-label' }, 'Cards'), cardRow,
-      el('label', { class: 'form-label' }, 'Background'), bgWrap,
-    );
+  // Dark / light
+  const segWrap = el('div', {});
+  function seg() {
+    const mk = (val, label, ic) => el('button', { class: `seg ${t.mode === val ? 'seg--active' : ''}`, type: 'button', onclick: () => { t.mode = val; clear(segWrap).append(seg()); drawSwatches(); } }, [icon(ic), ' ' + label]);
+    return el('div', { class: 'seg-group' }, [mk('dark', 'Dark', 'moon'), mk('light', 'Light', 'sun')]);
   }
-  enable.addEventListener('change', () => { t.on = enable.checked; drawControls(); });
-  drawControls();
+  segWrap.append(seg());
+
+  // Custom palette
+  const swatchWrap = el('div', { class: 'palette-grid' });
+  function drawSwatches() {
+    clear(swatchWrap);
+    for (const entry of PALETTE_VARS) {
+      const input = el('input', { type: 'color', class: 'palette-color', value: toHex(t.palette[entry.var] || entry.def[t.mode]) });
+      input.addEventListener('input', () => { t.palette[entry.var] = input.value; });
+      swatchWrap.append(el('label', { class: 'palette-row' }, [input, el('span', {}, entry.label)]));
+    }
+  }
+  drawSwatches();
+
+  // Card style + glass blur/opacity
+  const cardWrap = el('div', {});
+  const glassCtl = el('div', {});
+  function drawCardStyle() {
+    const glass = t.appearance.cardStyle === 'glass';
+    const mk = (val, label, ic) => el('button', { class: `seg ${((val === 'glass') === glass) ? 'seg--active' : ''}`, type: 'button', onclick: () => { t.appearance.cardStyle = val; drawCardStyle(); } }, [icon(ic), ' ' + label]);
+    clear(cardWrap).append(el('div', { class: 'seg-group' }, [mk('solid', 'Solid', 'square'), mk('glass', 'Glass', 'sparkles')]));
+    clear(glassCtl);
+    if (glass) {
+      const blur = el('input', { type: 'range', min: '0', max: '24', step: '1', value: String(t.appearance.cardBlur != null ? t.appearance.cardBlur : 10) });
+      blur.addEventListener('input', () => { t.appearance.cardBlur = Number(blur.value); });
+      const op = el('input', { type: 'range', min: '30', max: '95', step: '1', value: String(t.appearance.cardOpacity != null ? t.appearance.cardOpacity : 65) });
+      op.addEventListener('input', () => { t.appearance.cardOpacity = Number(op.value); });
+      glassCtl.append(
+        el('div', { class: 'theme-slider-row' }, [el('label', {}, 'Blur'), blur]),
+        el('div', { class: 'theme-slider-row' }, [el('label', {}, 'Opacity'), op]),
+      );
+    }
+  }
+  drawCardStyle();
+
+  // Background: none / pattern / uploaded image
+  const bgWrap = el('div', {});
+  const bgDetail = el('div', {});
+  const bgFile = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
+  bgFile.addEventListener('change', async () => {
+    const f = bgFile.files && bgFile.files[0]; bgFile.value = '';
+    if (!f) return;
+    try { const url = await compressBg(f); t.appearance.bgType = 'image'; t.appearance.bgImage = url; drawBg(); toast('Background set', 'success'); }
+    catch { toast('Could not load that image.', 'error'); }
+  });
+  function drawBg() {
+    const type = t.appearance.bgType || 'none';
+    const mk = (val, label, ic) => el('button', { class: `seg ${type === val ? 'seg--active' : ''}`, type: 'button', onclick: () => { t.appearance.bgType = val; drawBg(); } }, [icon(ic), ' ' + label]);
+    clear(bgWrap).append(el('div', { class: 'seg-group' }, [mk('none', 'None', 'ban'), mk('pattern', 'Pattern', 'grid-dots'), mk('image', 'Image', 'photo')]));
+    clear(bgDetail);
+    if (type === 'pattern') {
+      const row = el('div', { class: 'bg-pattern-row' });
+      for (const pat of BG_PATTERNS) {
+        const sw = el('button', { class: `bg-pattern ${t.appearance.bgPattern === pat.id ? 'is-active' : ''}`, title: pat.label, type: 'button' });
+        sw.style.setProperty('--bgp-size', pat.size || 'auto');
+        sw.style.setProperty('--bgp-repeat', pat.repeat || 'repeat');
+        sw.style.backgroundImage = pat.image;
+        sw.addEventListener('click', () => { t.appearance.bgPattern = pat.id; drawBg(); });
+        row.append(sw);
+      }
+      bgDetail.append(row);
+    } else if (type === 'image') {
+      const pick = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' }, [icon('upload'), t.appearance.bgImage ? ' Replace image' : ' Upload image']);
+      pick.addEventListener('click', () => bgFile.click());
+      bgDetail.append(el('div', { class: 'theme-slider-row', style: 'margin-top:10px' }, [pick, t.appearance.bgImage ? el('span', { class: 'muted', style: 'font-size:12px' }, 'Image set') : null]));
+    }
+  }
+  drawBg();
 
   const save = el('button', { class: 'btn btn--primary' }, 'Save theme');
   save.addEventListener('click', async () => {
     save.disabled = true;
     try {
-      let theme = null;
-      if (t.on) {
-        // Store a complete palette so the workspace theme fully defines the look.
-        const palette = {};
-        for (const v of PALETTE_VARS) palette[v.var] = t.palette[v.var] || v.def[t.mode];
-        theme = { mode: t.mode, palette, appearance: t.appearance };
-      }
+      const palette = {};
+      for (const v of PALETTE_VARS) palette[v.var] = t.palette[v.var] || v.def[t.mode];
+      const theme = { mode: t.mode, palette, appearance: t.appearance };
       await updateWorkspace(wsId, { theme });
       ws.theme = theme;
-      toast('Workspace theme saved. Reopen the workspace to see it.', 'success');
+      toast('Workspace theme saved.', 'success');
       onChanged();
     } catch (err) { toast(err.message, 'error'); }
     finally { save.disabled = false; }
   });
+  const resetBtn = el('button', { class: 'btn btn--ghost btn--sm' }, [icon('refresh'), ' Reset to default']);
+  resetBtn.addEventListener('click', async () => {
+    if (!(await confirmModal({ title: 'Reset workspace theme?', message: 'The dashboard will use each viewer\'s ROMIO theme instead of a custom workspace theme.', confirmLabel: 'Reset' }))) return;
+    resetBtn.disabled = true;
+    try { await updateWorkspace(wsId, { theme: null }); ws.theme = null; toast('Reset — inheriting the ROMIO theme.', 'success'); onChanged(); }
+    catch (err) { toast(err.message, 'error'); resetBtn.disabled = false; }
+  });
 
   panel.append(el('div', { class: 'field-modal' }, [
-    el('p', { class: 'muted' }, 'Give this workspace its own look. The theme applies to the workspace dashboard for everyone who opens it. Leave it off to inherit each viewer\'s personal theme.'),
-    el('label', { class: 'ws-perm' }, [enable, ' Use a custom theme for this workspace']),
-    controls,
-    el('div', { class: 'app-create-foot' }, [save]),
+    el('p', { class: 'muted' }, 'Choose light or dark, customize colors, card style and the background. This applies to the workspace dashboard for everyone. Reset to default lets each viewer\'s own ROMIO theme apply instead.'),
+    el('label', { class: 'settings-label' }, 'Mode'), segWrap,
+    el('label', { class: 'settings-label' }, 'Custom palette'), swatchWrap,
+    el('label', { class: 'settings-label' }, 'Card style'), cardWrap, glassCtl,
+    el('label', { class: 'settings-label' }, 'Background'), bgWrap, bgDetail,
+    el('div', { class: 'app-create-foot', style: 'justify-content:space-between' }, [resetBtn, save]),
   ]));
 }
 

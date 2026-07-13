@@ -94,6 +94,9 @@ if (window.top !== window.self) {
     let themeUser = null;
     let themeSaveTimer = null;
     window.addEventListener('rom-theme-changed', () => {
+        // Live-sync the theme into the embedded workspace iframe (dark/light,
+        // palette, glass) so it updates immediately, not just on reload.
+        try { const f = document.querySelector('.ws-module-frame'); if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'rom-theme-sync' }, location.origin); } catch { /* ignore */ }
         if (!themeUser) return;
         clearTimeout(themeSaveTimer);
         themeSaveTimer = setTimeout(() => { updateUserProfile(themeUser.uid, { theme: getThemeBundle() }).catch(() => {}); }, 800);

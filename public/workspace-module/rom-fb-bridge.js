@@ -133,6 +133,11 @@ applyThemeToModule();
 window.addEventListener('storage', (e) => {
   if (e.key === 'rom-palette' || e.key === 'rom-theme' || e.key === 'rom-appearance' || e.key === null) applyThemeToModule();
 });
+// ROMIO also pushes theme changes directly (storage events don't always reach a
+// nested iframe reliably), so light/dark + palette + glass update live here.
+window.addEventListener('message', (e) => {
+  if (e.origin === window.location.origin && e.data && e.data.type === 'rom-theme-sync') applyThemeToModule();
+});
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

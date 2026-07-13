@@ -620,7 +620,7 @@ function buildThemeSection() {
 
 // Compress an uploaded background so the theme (saved on the user doc) stays
 // well under Firestore's 1 MB limit.
-function compressBg(file, maxDim = 1280, quality = 0.68) {
+export function compressBg(file, maxDim = 1280, quality = 0.68) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => {
@@ -643,7 +643,7 @@ function compressBg(file, maxDim = 1280, quality = 0.68) {
 }
 
 // Normalize a CSS color value to a 6-digit hex for <input type=color>.
-function toHex(v) {
+export function toHex(v) {
   const s = String(v || '').trim();
   if (/^#[0-9a-fA-F]{6}$/.test(s)) return s;
   if (/^#[0-9a-fA-F]{3}$/.test(s)) return '#' + s.slice(1).split('').map((c) => c + c).join('');

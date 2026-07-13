@@ -781,6 +781,11 @@ select.input { cursor: pointer; }
 .ws-theme-bg { display: flex; flex-wrap: wrap; gap: 8px; }
 .ws-theme-bg .swatch { width: auto; height: auto; padding: 5px 12px; font-size: 12.5px; color: var(--text); font-weight: 600; }
 .ws-theme-bg .swatch--active { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
+.ws-theme-sliders { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.ws-theme-slider { display: flex; align-items: center; gap: 10px; }
+.ws-theme-slider > span:first-child { min-width: 62px; font-size: 12.5px; color: var(--muted); }
+.ws-theme-slider input[type="range"] { flex: 1 1 auto; accent-color: var(--primary); }
+.ws-theme-slider-val { min-width: 42px; text-align: right; font-size: 12.5px; }
 .field-cfg { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.25rem; }
 .opt-list { display: flex; flex-direction: column; gap: 0.4rem; }
 .opt-row { display: flex; align-items: center; gap: 0.5rem; }
