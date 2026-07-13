@@ -13,7 +13,7 @@ export function playAuthSuccess(type = 'signin') {
   const overlay = el('div', { class: 'auth-anim' }, el('div', { class: 'auth-anim-inner' }, [
     badge,
     el('div', { class: 'auth-anim-title' }, isSignup ? 'Account created!' : 'Welcome back'),
-    el('div', { class: 'auth-anim-sub' }, isSignup ? 'Setting up your ROMIO…' : 'Loading your command center…'),
+    el('div', { class: 'auth-anim-sub' }, isSignup ? 'Setting up your ROMIO…' : 'Loading your workspace…'),
   ]));
   document.body.append(overlay);
   if (isSignup) spawnConfetti(overlay);

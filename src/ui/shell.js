@@ -1,5 +1,5 @@
-// The application shell: a persistent left sidebar + top bar, modelled on the
-// ROMIO command center. Views render into the returned `content` element.
+// The application shell: a persistent left sidebar + top bar.
+// Views render into the returned `content` element.
 import { el, clear, icon } from './dom.js';
 import { displayNameOf, logOut } from '../auth/auth.js';
 import { applyAvatar } from '../profile/avatar.js';
@@ -49,10 +49,9 @@ export function buildShell(user, { onNavigate, onSearch }) {
 
   const collapseBtn = el('button', { class: 'sb-collapse', title: 'Collapse sidebar' }, icon('menu-2'));
   const brand = el('div', { class: 'sb-brand' }, [
-    el('img', { class: 'sb-brand-mark', src: '/logo.svg', alt: '', width: '34', height: '34' }),
+    el('img', { class: 'sb-brand-mark', src: '/romio-mark.png', alt: '', width: '34', height: '34' }),
     el('div', { class: 'sb-brand-txt' }, [
-      el('div', { class: 'sb-brand-name' }, 'ROMIO'),
-      el('div', { class: 'sb-brand-sub' }, 'COMMAND CENTER'),
+      el('span', { class: 'brand-word sb-brand-word', role: 'img', 'aria-label': 'ROMIO' }),
     ]),
     collapseBtn,
   ]);

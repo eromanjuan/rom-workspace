@@ -114,8 +114,9 @@ select.input { cursor: pointer; }
               radial-gradient(900px 500px at 110% 110%, color-mix(in srgb, var(--primary) 32%, transparent), transparent 55%),
               linear-gradient(160deg, #10131a, #191d27); color: #eef1f7; }
 .auth__aside-inner { position: relative; max-width: 420px; margin: auto; }
-.auth__logo { display: inline-flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 1.35rem; letter-spacing: 0.04em; }
-.auth__logo-mark { width: 2rem; height: 2rem; border-radius: 9px; object-fit: cover; display: block; }
+.auth__logo { display: inline-flex; align-items: center; gap: 0.55rem; }
+.auth__logo-mark { width: 2rem; height: 2rem; border-radius: 9px; object-fit: contain; display: block; }
+.auth__logo .brand-word { height: 1.2rem; }
 .auth__logo--mobile { display: none; margin-bottom: 1.25rem; color: var(--text); }
 .auth__aside-title { font-size: clamp(1.6rem, 2.4vw, 2.3rem); line-height: 1.2; margin: 1.75rem 0 0.75rem; font-weight: 800; }
 .auth__aside-sub { color: rgba(255,255,255,0.75); line-height: 1.6; margin: 0 0 2rem; }
@@ -230,13 +231,24 @@ select.input { cursor: pointer; }
 .app-shell { display: grid; grid-template-columns: 256px 1fr; height: 100vh; height: 100dvh; overflow: hidden; }
 .app-main { display: flex; flex-direction: column; min-width: 0; height: 100vh; height: 100dvh; }
 
+/* Official ROMIO wordmark. The art is an alpha mask, so it is *painted* with
+   currentColor — it stays legible on the dark theme, the light theme, and on
+   whatever background image a user sets. Size it by setting `height`. */
+.brand-word {
+  display: block;
+  height: 1.1rem;
+  aspect-ratio: 596 / 128;
+  background: currentColor;
+  -webkit-mask: url('/romio-wordmark.png') left center / contain no-repeat;
+  mask: url('/romio-wordmark.png') left center / contain no-repeat;
+}
+
 /* sidebar */
 .sidebar { display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border); padding: 0.85rem 0.7rem; overflow-y: auto; }
 .sb-brand { display: flex; align-items: center; gap: 0.6rem; padding: 0.25rem 0.4rem 0.75rem; }
-.sb-brand-mark { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; display: block; flex: none; }
+.sb-brand-mark { width: 34px; height: 34px; border-radius: 9px; object-fit: contain; display: block; flex: none; }
 .sb-brand-txt { flex: 1; min-width: 0; }
-.sb-brand-name { font-weight: 800; letter-spacing: 0.04em; }
-.sb-brand-sub { font-size: 0.62rem; letter-spacing: 0.18em; color: var(--muted); }
+.sb-brand-word { height: 1rem; color: var(--text); }
 .sb-collapse { flex: 0 0 auto; background: none; border: 1px solid var(--border); color: var(--muted); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; }
 .sb-collapse:hover { color: var(--text); border-color: var(--muted); }
 

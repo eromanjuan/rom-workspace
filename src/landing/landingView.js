@@ -63,7 +63,7 @@ export function renderLanding(root, { onLogin, onSignup } = {}) {
   const go = (fn) => (e) => { if (e) e.preventDefault(); fn && fn(); };
 
   const nav = el('nav', { class: 'lp-nav' }, [
-    el('div', { class: 'lp-brand' }, [el('img', { src: '/logo.svg', alt: '' }), 'ROMIO']),
+    el('div', { class: 'lp-brand' }, [el('img', { src: '/romio-mark.png', alt: '' }), el('span', { class: 'brand-word', role: 'img', 'aria-label': 'ROMIO' })]),
     el('div', { class: 'lp-nav-actions' }, [
       el('button', { class: 'lp-btn lp-btn--ghost', onclick: go(onLogin) }, 'Log in'),
       el('button', { class: 'lp-btn lp-btn--primary', onclick: go(onSignup) }, 'Get started'),
@@ -76,7 +76,7 @@ export function renderLanding(root, { onLogin, onSignup } = {}) {
       el('h1', { class: 'lp-h1' }, [
         'Your feed, your ', el('span', { class: 'grad' }, 'workspaces'), ', your apps.',
       ]),
-      el('p', { class: 'lp-sub' }, 'ROMIO brings a social feed, team messaging, and a no-code app builder into one place — connect with people and run your work from a single, customizable command center.'),
+      el('p', { class: 'lp-sub' }, 'ROMIO brings a social feed, team messaging, and a no-code app builder into one place — connect with people and run your work from a single, customizable home base.'),
       el('div', { class: 'lp-cta' }, [
         el('button', { class: 'lp-btn lp-btn--primary lp-btn--lg', onclick: go(onSignup) }, ['Create your account', icon('arrow-right')]),
         el('button', { class: 'lp-btn lp-btn--ghost lp-btn--lg', onclick: go(onLogin) }, 'I already have one'),
@@ -145,7 +145,7 @@ export function renderLanding(root, { onLogin, onSignup } = {}) {
   });
 
   const stats = el('section', { class: 'lp-section' }, el('div', { class: 'lp-stats lp-reveal' }, [
-    ['1', 'Command center'], ['24', 'App field types'], ['∞', 'Custom apps'], ['0', 'Lines of code'],
+    ['1', 'Home for your team'], ['24', 'App field types'], ['∞', 'Custom apps'], ['0', 'Lines of code'],
   ].map(([b, s]) => el('div', { class: 'lp-stat' }, [el('b', {}, b), el('span', {}, s)]))));
 
   const finalCta = el('section', { class: 'lp-final lp-reveal' }, [
@@ -159,7 +159,7 @@ export function renderLanding(root, { onLogin, onSignup } = {}) {
   ]);
 
   const footer = el('footer', { class: 'lp-footer' }, [
-    el('div', { class: 'lp-brand', style: 'font-size:16px' }, [el('img', { src: '/logo.svg', alt: '', style: 'width:22px;height:22px' }), 'ROMIO']),
+    el('div', { class: 'lp-brand lp-brand--sm' }, [el('img', { src: '/romio-mark.png', alt: '', style: 'width:22px;height:22px' }), el('span', { class: 'brand-word', role: 'img', 'aria-label': 'ROMIO' })]),
     el('div', {}, `© ${2026} ROMIO — your all-in-one social workspace.`),
   ]);
 

@@ -1,7 +1,7 @@
 import './styles.css';
 import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import opsCommandHeroUrl from './assets/romio-ops-command-hero.png';
+import workspaceHeroUrl from './assets/romio-workspace-hero.png';
 import romLogoMarkUrl from './assets/romio-logo-mark.png';
 import { requireOk, settleObserved } from './lib/result.js';
 import { PASSWORD_MIN_LENGTH, passwordPolicy, passwordRequirements } from './auth/password-policy.js';
@@ -4000,7 +4000,7 @@ function renderDeck(route) {
       <a class="logo logo-image-mark" href="${appHref(companyPath('dashboard', {}, companyId))}" data-router aria-label="ROM dashboard">
         ${romLogoImage()}
       </a>
-      <span><strong>ROM</strong><small>Command Center</small></span>
+      <span><strong>ROMIO</strong><small>Workspace</small></span>
       <button class="deck-toggle" type="button" data-action="toggle-sidebar" aria-label="${state.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}" aria-expanded="${state.sidebarCollapsed ? 'false' : 'true'}">
         <i class="ti ${state.sidebarCollapsed ? 'ti-layout-sidebar-right-expand' : 'ti-layout-sidebar-left-collapse'}"></i>
       </button>
@@ -18590,7 +18590,7 @@ function renderLandingPage(forceAuthModal = false) {
       <nav class="landing-nav">
         <a class="login-brand landing-brand" href="${appHref('/')}" data-router>
           <span class="side-mark logo-image-mark">${romLogoImage()}</span>
-          <span><strong>ROM</strong><small>Command Center</small></span>
+          <span><strong>ROMIO</strong><small>Workspace</small></span>
         </a>
         <div class="landing-nav-links" aria-label="Landing navigation">
           ${[
@@ -18610,7 +18610,7 @@ function renderLandingPage(forceAuthModal = false) {
         <div class="landing-hero-bg" aria-hidden="true"></div>
         <div class="landing-hero-copy">
           <div class="landing-pill"><i class="ti ti-shield-lock"></i>Private operations cockpit</div>
-          <h1>ROM Command Center for the whole roofing operation</h1>
+          <h1>One ROMIO workspace for your whole operation</h1>
           <p>Run ROM CRM, job files, forms, client portals, tasks, estimates, proposals, and team work from one controlled workspace built for daily production use.</p>
           <div class="landing-hero-actions">
             <button class="btn btn-primary" type="button" data-action="open-auth-modal" data-auth-mode="register">Start workspace<i class="ti ti-arrow-right"></i></button>
@@ -18618,8 +18618,8 @@ function renderLandingPage(forceAuthModal = false) {
           </div>
           <div class="landing-security-line"><i class="ti ti-circle-check"></i>ROM CRM ready <i class="ti ti-circle-check"></i>Files & forms wired <i class="ti ti-circle-check"></i>Client portals secured</div>
         </div>
-        <div class="landing-console image-mode" aria-label="ROM workspace command center preview">
-          <img class="landing-console-art" src="${h(opsCommandHeroUrl)}" alt="ROM operations command center preview showing CRM, files, forms, client portal plan review, finance, and job workflows." />
+        <div class="landing-console image-mode" aria-label="ROMIO workspace preview">
+          <img class="landing-console-art" src="${h(workspaceHeroUrl)}" alt="ROMIO workspace preview showing CRM, files, forms, client portal plan review, finance, and job workflows." />
           <div class="landing-symbol-strip" aria-hidden="true">
             ${[
               ['ti-users', 'ROM CRM'],

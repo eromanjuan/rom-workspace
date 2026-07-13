@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=27';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=28';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=27';
+const MODULE_PAGE = '/workspace-module/index.html?v=28';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };

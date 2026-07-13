@@ -1429,10 +1429,10 @@ button { cursor: pointer; }
 
 .logo-image-mark {
   overflow: hidden;
-  border: 1px solid rgba(240, 178, 59, .5);
-  background: #0b0a08;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: #000;
   color: transparent;
-  box-shadow: 0 8px 18px rgba(17, 12, 6, .16), inset 0 0 0 1px rgba(255, 255, 255, .04);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(255, 255, 255, .04);
 }
 
 .rom-logo-image {
@@ -18098,7 +18098,7 @@ textarea:focus {
 .contract-rows strong { font-size: 13.5px; font-weight: 750; }
 
 /* ===========================================================================
-   COMMAND CENTER FIDELITY - typography (Inter + JetBrains Mono) + single
+   BRAND FIDELITY - typography (Inter + JetBrains Mono) + single
    orange accent, matching the ROM reference. Appended last so
    it wins the cascade. Purely visual: no layout/behaviour changes.
    =========================================================================== */
@@ -21857,7 +21857,7 @@ textarea.wb-input { min-height: 70px; resize: vertical; }
   }
 }
 
-/* Front-page refresh: current ROM launch modules and generated command-center art. */
+/* Front-page refresh: current ROMIO launch modules and generated workspace art. */
 .landing-shell {
   background: #f6f0e6;
 }
@@ -22029,11 +22029,11 @@ textarea.wb-input { min-height: 70px; resize: vertical; }
 .deck-brand .logo.logo-image-mark,
 .client-portal-brand .side-mark.logo-image-mark {
   overflow: hidden;
-  border-color: rgba(240, 178, 59, .55);
-  background: #0b0a08;
+  border-color: rgba(255, 255, 255, .16);
+  background: #000;
   color: transparent;
   padding: 0;
-  box-shadow: 0 8px 18px rgba(17, 12, 6, .16), inset 0 0 0 1px rgba(255, 255, 255, .04);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(255, 255, 255, .04);
 }
 
 .logo-image-mark .rom-logo-image {

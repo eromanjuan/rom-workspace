@@ -22,9 +22,12 @@ export function renderAuth(root, opts = {}) {
     // --- brand / marketing aside (hidden on small screens) ---
     const aside = el('aside', { class: 'auth__aside' }, [
       el('div', { class: 'auth__aside-inner' }, [
-        el('div', { class: 'auth__logo' }, [el('img', { class: 'auth__logo-mark', src: '/logo.svg', alt: '', width: '32', height: '32' }), 'ROMIO']),
+        el('div', { class: 'auth__logo' }, [
+          el('img', { class: 'auth__logo-mark', src: '/romio-mark.png', alt: '', width: '32', height: '32' }),
+          el('span', { class: 'brand-word', role: 'img', 'aria-label': 'ROMIO' }),
+        ]),
         el('h2', { class: 'auth__aside-title' }, 'Your feed, your workspaces, your apps.'),
-        el('p', { class: 'auth__aside-sub' }, 'One command center for posting, collaborating, and building no-code apps with your team.'),
+        el('p', { class: 'auth__aside-sub' }, 'One place for posting, collaborating, and building no-code apps with your team.'),
         el('ul', { class: 'auth__features' }, [
           ['news', 'A shared feed with likes & comments'],
           ['layout-dashboard', 'Workspaces with roles & invites'],
@@ -190,7 +193,10 @@ export function renderAuth(root, opts = {}) {
         }
       },
     }, [
-      el('div', { class: 'auth__logo auth__logo--mobile' }, [el('img', { class: 'auth__logo-mark', src: '/logo.svg', alt: '', width: '32', height: '32' }), 'ROMIO']),
+      el('div', { class: 'auth__logo auth__logo--mobile' }, [
+        el('img', { class: 'auth__logo-mark', src: '/romio-mark.png', alt: '', width: '32', height: '32' }),
+        el('span', { class: 'brand-word', role: 'img', 'aria-label': 'ROMIO' }),
+      ]),
       el('h1', { class: 'auth__title' }, isSignup ? 'Create your account' : 'Welcome back'),
       el('p', { class: 'auth__subtitle' }, isSignup ? 'Join ROMIO — it only takes a minute.' : 'Log in to your feed and workspaces.'),
 

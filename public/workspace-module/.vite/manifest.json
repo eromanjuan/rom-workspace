@@ -38,12 +38,12 @@
     "src": "node_modules/pdfjs-dist/build/pdf.worker.mjs"
   },
   "src/assets/romio-logo-mark.png": {
-    "file": "assets/romio-logo-mark-Be0bYUH5.png",
+    "file": "assets/romio-logo-mark-B7-_JRpT.png",
     "src": "src/assets/romio-logo-mark.png"
   },
-  "src/assets/romio-ops-command-hero.png": {
-    "file": "assets/romio-ops-command-hero-Dc_5E_zX.png",
-    "src": "src/assets/romio-ops-command-hero.png"
+  "src/assets/romio-workspace-hero.png": {
+    "file": "assets/romio-workspace-hero-Dc_5E_zX.png",
+    "src": "src/assets/romio-workspace-hero.png"
   },
   "src/main.js": {
     "file": "assets/rom-module-entry.js",
@@ -63,7 +63,7 @@
     ],
     "assets": [
       "assets/pdf.worker-CPbhI6B3.mjs",
-      "assets/romio-logo-mark-Be0bYUH5.png"
+      "assets/romio-logo-mark-B7-_JRpT.png"
     ]
   }
 }
