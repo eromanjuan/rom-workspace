@@ -42,9 +42,25 @@
         const _pm = localStorage.getItem('tab-mode');
         document.documentElement.setAttribute('data-theme', (_pm === 'light' || _pm === 'dark') ? _pm : 'dark');
         
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // TWO Firebase apps, on purpose:
+        //  • romApp is the DEFAULT app, so it shares ROMIO's auth session (they key
+        //    persistence off the app name: firebase:authUser:<apiKey>:[DEFAULT]).
+        //    We only READ that session here, to detect a signed-in ROMIO master —
+        //    we never sign in or out on it.
+        //  • judgeApp is a NAMED app, so it has its OWN auth persistence. Judges are
+        //    signed in ANONYMOUSLY there. Doing that on the default app used to
+        //    overwrite a ROMIO user's session and log them out of ROMIO.
+        const romApp = initializeApp(firebaseConfig);
+        const romAuth = getAuth(romApp);
+        const romDb = getFirestore(romApp);
+        const judgeApp = initializeApp(firebaseConfig, 'romio-tabulation');
+        const judgeAuth = getAuth(judgeApp);
+        const judgeDb = getFirestore(judgeApp);
+
+        // The ACTIVE pair — a master acts as themselves (romApp); a judge acts as the
+        // anonymous user (judgeApp). Chosen in initSystem once we know who is here.
+        let auth = romAuth;
+        let db = romDb;
 
         // ---------- Output escaping (all Firestore data is untrusted) ----------
         // esc(): safe HTML text/attribute content. jattr(): safe argument for an
@@ -127,7 +143,8 @@
         });
 
         // ---------- Shared theme (master sets it; applied live to master + judges) ----------
-        const THEME_DOC = doc(db, "settings", "theme");
+        // `db` is only known after auth resolves, so build the ref lazily.
+        const themeDoc = () => doc(db, "settings", "theme");
         const THEME_DEFAULTS = { mode: 'dark', accent: '', bg: '', surface: '', text: '', danger: '', cardStyle: 'solid', cardBlur: 10, cardOpacity: 65, bgType: 'none', bgPattern: '', bgImage: '' };
         const BG_PATTERNS = {
             dots: { image: 'radial-gradient(color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.6px)', size: '16px 16px', repeat: 'repeat' },
@@ -159,11 +176,16 @@
             else clearBg();
         };
         // Live-apply the shared theme + propagate the master's changes to judges.
-        onSnapshot(THEME_DOC, (snap) => { window.applyTheme(snap.exists() ? snap.data() : {}); });
+        // Started only once we know which app (and therefore which session) is active.
+        let _themeUnsub = null;
+        function startThemeSync() {
+            if (_themeUnsub) { try { _themeUnsub(); } catch (e) {} }
+            _themeUnsub = onSnapshot(themeDoc(), (snap) => { window.applyTheme(snap.exists() ? snap.data() : {}); }, () => {});
+        }
         window.saveTheme = async (patch) => {
             currentTheme = { ...currentTheme, ...patch };
             window.applyTheme(currentTheme);
-            try { await setDoc(THEME_DOC, patch, { merge: true }); }
+            try { await setDoc(themeDoc(), patch, { merge: true }); }
             catch (e) { await tabAlert("Only the master account can change the theme.", "Not allowed"); }
         };
         function _themeCompress(file, maxDim = 1280, quality = 0.68) {
@@ -496,32 +518,41 @@
                 document.getElementById('judge-input').value = urlKey;
                 setTimeout(() => window.loginJudge(), 1000);
             }
-            onAuthStateChanged(auth, async (user) => {
-                if (!user) {
-                    // Judges have no ROMIO account. Sign them in anonymously so the
-                    // Firestore rules (which now require an authenticated session,
-                    // instead of the old world-writable `if true`) permit reads +
-                    // score writes. This handler re-fires with the anonymous user.
-                    // REQUIRES "Anonymous" to be enabled in Firebase console →
-                    // Authentication → Sign-in method, or judge access fails closed.
-                    try { await signInAnonymously(auth); }
-                    catch (e) {
-                        console.warn('[VESSCORE] anonymous sign-in failed — enable Anonymous auth in Firebase console', e);
-                        log.innerText = "SIGN-IN UNAVAILABLE — contact admin";
-                        log.style.background = "#7f1d1d";
+            // Watch ROMIO's session (default app) WITHOUT ever writing to it.
+            onAuthStateChanged(romAuth, async (romUser) => {
+                // A real ROMIO user is signed in → act as them (so the master's
+                // Firestore writes are authorised as the master).
+                if (romUser && !romUser.isAnonymous) {
+                    auth = romAuth; db = romDb;
+                    startThemeSync();
+                    const master = !!(await isRomioMaster(romUser));
+                    window.isTabMaster = master;
+                    if (master) {
+                        log.innerText = `ADMIN CONNECTED: ${romUser.email}`;
+                        log.style.background = "#064e3b";
+                        checkAdminSession(romUser);
+                    } else {
+                        log.innerText = "JUDGE MODE";
+                        log.style.background = "#064e3b";
                     }
                     return;
                 }
-                const master = !!(await isRomioMaster(user));
-                window.isTabMaster = master;
-                if (master) {
-                    log.innerText = `ADMIN CONNECTED: ${user.email}`;
-                    log.style.background = "#064e3b";
-                    checkAdminSession(user);
-                } else {
-                    log.innerText = "JUDGE MODE";
-                    log.style.background = "#064e3b";
+                // No ROMIO session → this is a judge. Sign in anonymously on the
+                // SEPARATE app so ROMIO's session is never touched.
+                auth = judgeAuth; db = judgeDb;
+                window.isTabMaster = false;
+                if (!judgeAuth.currentUser) {
+                    try { await signInAnonymously(judgeAuth); }
+                    catch (e) {
+                        console.warn('[VESSCORE] anonymous sign-in failed — enable Anonymous auth in the Firebase console', e);
+                        log.innerText = "SIGN-IN UNAVAILABLE — contact admin";
+                        log.style.background = "#7f1d1d";
+                        return;
+                    }
                 }
+                startThemeSync();
+                log.innerText = "JUDGE MODE";
+                log.style.background = "#064e3b";
             });
             if(savedTheme === 'dark') document.getElementById('checkbox').checked = true;
         }

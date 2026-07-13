@@ -126,7 +126,10 @@ if (window.top !== window.self) {
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
-        if (!user) {
+        // An ANONYMOUS session is never a ROMIO login. The tabulation signs judges
+        // in anonymously; if that ever lands in the shared auth persistence, ROMIO
+        // must treat it as signed-out rather than a broken half-logged-in user.
+        if (!user || user.isAnonymous) {
             authed = false;
             renderUnauthed();
             return;
