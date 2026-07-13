@@ -37,8 +37,13 @@ service cloud.firestore {
       return get(memberPath(wsId)).data.role;
     }
     function canWrite(wsId) {
-      // master, owner and editor may write; viewer may not
-      return isMaster() || (isMember(wsId) && myRole(wsId) in ['owner', 'editor']);
+      // master, owner and editor may write; a custom member may write if their
+      // stored `writer` flag is true (set when granted any create capability);
+      // viewer may not.
+      return isMaster() || (isMember(wsId) && (
+        myRole(wsId) in ['owner', 'editor']
+        || get(memberPath(wsId)).data.writer == true
+      ));
     }
     function isOwner(wsId) {
       return isMaster() || (isMember(wsId) && myRole(wsId) == 'owner');

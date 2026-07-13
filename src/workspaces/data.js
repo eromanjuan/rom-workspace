@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../firebase.js';
-import { isMaster } from './roles.js';
+import { isMaster, hasWritePerm } from './roles.js';
 import { ensureWorkspaceConversation, addWorkspaceConversationMember, removeWorkspaceConversationMember, renameWorkspaceConversation } from '../messages/messagesData.js';
 
 // Broadcast so mounted views (Settings, Profile, the Workspace tab) refresh
@@ -88,7 +88,10 @@ export async function updateWorkspace(wsId, patch) {
 // Set a member's role, and (for the 'custom' role) their permission set.
 export async function setMemberRole(wsId, memberUid, role, perms) {
   const patch = { role };
-  if (role === 'custom' && perms) patch.perms = perms;
+  // Store a derived `writer` flag so firestore.rules can grant workspace writes to
+  // a custom member who has any create/edit/interact capability.
+  if (role === 'custom' && perms) { patch.perms = perms; patch.writer = hasWritePerm(perms); }
+  else { patch.writer = role === 'owner' || role === 'editor'; }
   await updateDoc(doc(db, 'workspaces', wsId, 'members', memberUid), patch);
 }
 

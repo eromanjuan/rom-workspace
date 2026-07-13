@@ -29,7 +29,18 @@ function permsForMember(role, perms, isMaster) {
   if (role === 'owner') return ALL_PERMS;
   if (role === 'editor') return { ...ALL_PERMS, manage: false };
   if (role === 'viewer') return VIEWER_PERMS;
-  if (role === 'custom' && perms) return { ...VIEWER_PERMS, ...perms, manage: false };
+  if (role === 'custom' && perms) {
+    // Derive the dashboard's coarse enforcement flags from the granular toggles.
+    const anyView = perms.viewFeed || perms.viewPosts || perms.viewApps || perms.viewTiles || perms.viewActivity;
+    const anyWrite = perms.createPost || perms.createComment || perms.createApps || perms.createItems
+      || perms.createTiles || perms.editTiles || perms.interactTiles || perms.addEvent || perms.addChecklist;
+    return {
+      viewWorkspace: !!anyView, viewPosts: !!perms.viewPosts, viewTiles: !!perms.viewTiles,
+      interactTiles: !!(perms.interactTiles || anyWrite),
+      post: !!anyWrite, editTiles: !!(perms.createTiles || perms.editTiles),
+      deleteOwnPost: !!perms.createPost, manage: false,
+    };
+  }
   return NO_PERMS;
 }
 
@@ -101,14 +112,18 @@ function mirrorAppearance() {
     const pat = ROM_BG_PATTERNS[a.bgPattern]; bgImage = pat.image; bgSize = pat.size; bgRepeat = pat.repeat;
   }
   if (bgImage) {
-    css += `html,body{background:transparent !important}`
+    // Make the module's opaque shells transparent so the fixed background layer
+    // (body::before) shows through, then paint the chosen image/pattern.
+    css += `html,body,#app,.quest-app,.wb-builder,.wb-page,.tool-page,main{background:transparent !important}`
       + `body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;`
       + `background-image:${bgImage};background-size:${bgSize};background-repeat:${bgRepeat};background-position:center;}`;
   }
   if (a.cardStyle === 'glass') {
     const blur = (a.cardBlur != null ? a.cardBlur : 10) + 'px';
     const op = (a.cardOpacity != null ? a.cardOpacity : 65) + '%';
-    css += `.panel,.card,.surface,[class*="panel"],[class*="card"]{`
+    // Target the module's actual card/tile/panel classes (wb-*) so the frost + opacity land.
+    const sel = '.wb-card,.wb-tile,.wb-feed,.wb-feed-card,.wb-composer,.wb-members-bar,.wb-empty,.wb-bar,.wb-panel,.wb-topbar,.wb-report,.card,.panel,.tile,[class*="card"]';
+    css += `${sel}{`
       + `background-color:color-mix(in srgb, var(--surface) ${op}, transparent) !important;`
       + `backdrop-filter:blur(${blur}) saturate(1.15);-webkit-backdrop-filter:blur(${blur}) saturate(1.15);}`;
   }
