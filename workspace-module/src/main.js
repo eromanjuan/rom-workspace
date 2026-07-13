@@ -11104,6 +11104,30 @@ function wbComposeState() { state.wbCompose = state.wbCompose || { files: [] }; 
 function wbFeedOpenMap() { state.wbFeedOpen = state.wbFeedOpen || {}; return state.wbFeedOpen; }
 
 // Fan a feed post out to the workspace audience (+ anyone @mentioned in it).
+// Raise a ROMIO bell notification for each workspace member @mentioned in `text`.
+// Members come from __ROM_WS_MEMBERS__ (their `id` is the ROMIO uid); the bridge
+// helper skips self and unauthenticated cases.
+function romNotifyMentions(text, opts = {}) {
+  try {
+    const members = window.__ROM_WS_MEMBERS__;
+    const notify = window.__ROM_NOTIFY__;
+    if (!Array.isArray(members) || typeof notify !== 'function' || !text) return;
+    const lower = String(text).toLowerCase();
+    if (!lower.includes('@')) return;
+    const actor = actorName();
+    const where = opts.kind === 'comment' ? 'in a workspace comment' : 'in the workspace';
+    const done = new Set();
+    members.forEach((m) => {
+      const name = String(m.name || '').toLowerCase();
+      if (!m.id || !name || done.has(m.id)) return;
+      if (lower.includes('@' + name)) {
+        done.add(m.id);
+        notify(m.id, { type: 'mention', title: `${actor} mentioned you ${where}`, body: String(text).slice(0, 120) });
+      }
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
 function wbNotifyFeed(companyId, workspace, post) {
   const audience = wbNotifyAudience(companyId, workspace);
   const mentioned = post.text ? mentionedProfileIds(post.text, companyId) : [];
@@ -11118,6 +11142,8 @@ function wbNotifyFeed(companyId, workspace, post) {
     href: appHref(companyPath('workspaces', {}, companyId)),
     sourceType: 'workspace_feed', sourceId: post.id, excludeActor: true,
   });
+  // Also surface @mentions in the mentioned member's ROMIO notification bell.
+  romNotifyMentions(post.text, { kind: 'post' });
 }
 
 // Central client-side upload guard — runs the shared 3-layer check (extension +
@@ -11301,6 +11327,7 @@ function wbAddFeedComment(companyId, postId) {
   post.comments.push({ id: wbUid(), author: prof.full_name || prof.email || 'User', authorId: prof.id || '', text, ts: new Date().toISOString() });
   wbFeedOpenMap()[postId] = true;
   wbSave(companyId);
+  romNotifyMentions(text, { kind: 'comment' });
   render();
 }
 

@@ -18,7 +18,7 @@ const firebaseConfig = {
 
 const PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=18';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=20';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -113,6 +113,27 @@ window.addEventListener('storage', (e) => {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Let the embedded module raise a ROMIO notification (e.g. a workspace @mention)
+// into the recipient's ROMIO bell. actorId must equal the caller's uid to satisfy
+// the Firestore rules; self-notifications are skipped.
+window.__ROM_NOTIFY__ = async (uid, payload = {}) => {
+  const me = auth.currentUser;
+  if (!uid || !me || uid === me.uid) return;
+  try {
+    await addDoc(collection(db, 'notifications', uid, 'items'), {
+      read: false,
+      createdAt: serverTimestamp(),
+      type: payload.type || 'mention',
+      actorId: me.uid,
+      actorName: me.displayName || me.email || 'Someone',
+      title: String(payload.title || 'You were mentioned').slice(0, 300),
+      body: String(payload.body || '').slice(0, 500),
+      link: { view: 'workspace' },
+    });
+  } catch (e) { /* non-fatal */ }
+};
+
 // Per-workspace document (set in boot once we know the workspace). The legacy
 // global doc is used only for a one-time migration so existing data isn't lost.
 let ref = null;
