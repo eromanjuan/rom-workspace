@@ -10564,6 +10564,29 @@ function wbFeedPost(companyId, workspace, post) {
     </article>`;
 }
 
+// ---- File attachments: size + data:->blob: URL for the preview modal --------
+function wbFileSize(bytes) {
+  const b = Number(bytes || 0);
+  if (!b) return '';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+// Attachments are stored as data: URLs in the ROM embed, and browsers block those
+// in iframes / new tabs. Convert to a blob: URL so preview, open-in-new-tab and
+// download all work.
+function wbToBlobUrl(url) {
+  try {
+    if (!url || !url.startsWith('data:')) return url;
+    const [head, b64] = url.split(',');
+    const mime = (head.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: mime }));
+  } catch { return url; }
+}
+
 function wbFeedPostBody(companyId, post) {
   const text = post.text ? `<div class="wb-post-text">${wbFeedText(companyId, post.text)}</div>` : '';
   if (post.type === 'link' && post.link && post.link.url) {
@@ -10571,7 +10594,9 @@ function wbFeedPostBody(companyId, post) {
     return `${text}<a class="wb-post-link" href="${h(post.link.url)}" target="_blank" rel="noopener noreferrer"><i class="ti ti-world-www" aria-hidden="true"></i><span><b>${h(label)}</b><em>${h(post.link.url)}</em></span></a>`;
   }
   if (post.type === 'file' && post.attachments.length) {
-    const files = post.attachments.map((f) => `<a class="wb-post-file" href="${h(f.url || '#')}" target="_blank" rel="noopener noreferrer"><i class="ti ti-file" aria-hidden="true"></i><span>${h(f.name || 'File')}</span></a>`).join('');
+    // Opens a preview modal (view / open in new tab / download) instead of
+    // navigating straight to the raw file.
+    const files = post.attachments.map((f, i) => `<button class="wb-post-file" type="button" data-wb-file-open="${h(post.id)}" data-wb-file-idx="${i}"><i class="ti ${wbFileIcon(fileTypeKind({ file_name: f.name || '' }))}" aria-hidden="true"></i><span>${h(f.name || 'File')}</span><em class="wb-post-file-size">${h(wbFileSize(f.size))}</em></button>`).join('');
     return `${text}<div class="wb-post-files">${files}</div>`;
   }
   if (post.type === 'question' && post.poll) {
@@ -13010,7 +13035,13 @@ function wbFileIcon(kind) {
   return ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', pdf: 'ti-file-type-pdf', sheet: 'ti-file-spreadsheet', doc: 'ti-file-text', presentation: 'ti-presentation', archive: 'ti-file-zip', code: 'ti-file-code', text: 'ti-file-text' })[kind] || 'ti-file';
 }
 
-function openWbFilePreview(url, name) { if (!url) { showToast('No file is attached to this field.', 'local', 'Workspaces'); return; } openWbModal({ kind: 'file-preview', url, name: name || 'File' }); }
+// Files in the ROM embed are stored as data: URLs, and browsers refuse to render
+// those in an iframe or open them in a new tab — so the preview silently failed.
+// Convert to a blob: URL, which works for preview, open-in-new-tab AND download.
+function openWbFilePreview(url, name) {
+  if (!url) { showToast('No file is attached to this field.', 'local', 'Workspaces'); return; }
+  openWbModal({ kind: 'file-preview', url: wbToBlobUrl(url), name: name || 'File' });
+}
 
 // Flip a checkbox field straight from the item table (no modal). Mirrors the
 // item-modal "updated" path: log the change and run automations.
@@ -13098,10 +13129,13 @@ function renderWorkspaceBuilderModal() {
   if (m.kind === 'file-preview') {
     const url = m.url || '';
     const name = m.name || 'File';
-    const isData = url.startsWith('data:');
+    // blob: behaves like data: here — it's a local object URL, so it must NOT get
+    // a ?download= query appended (that would break it), and the Office viewer
+    // can't reach it either.
+    const isData = url.startsWith('data:') || url.startsWith('blob:');
     const kind = fileTypeKind({ file_name: name });
     // Supabase (and most CDNs) honor a `download` query param to force a
-    // save-as; data: URLs download via the anchor's download attribute.
+    // save-as; data:/blob: URLs download via the anchor's download attribute.
     const dlUrl = isData ? url : `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(name)}`;
     const unsupported = (msg) => `<div class="file-preview-empty"><div class="wb-file-unsupported-ico"><i class="ti ${wbFileIcon(kind)}"></i></div><strong>Preview not available</strong><p>${h(msg)}</p></div>`;
     let stage;
@@ -14234,6 +14268,13 @@ function mountWorkspaceBuilder() {
     bind('[data-wb-compose-share]', () => wbComposerShare(companyId));
     bind('[data-wb-open-user]', (el) => wbOpenUserProfile(el.dataset.wbOpenUser));
     bind('[data-wb-post-like]', (el) => wbToggleFeedLike(companyId, el.dataset.wbPostLike));
+    // Attachment click → the shared file-preview modal (view / open in new tab / download).
+    bind('[data-wb-file-open]', (el) => {
+      const { post } = wbFeedFindPost(companyId, el.dataset.wbFileOpen);
+      const att = post && (post.attachments || [])[Number(el.dataset.wbFileIdx || 0)];
+      if (!att) { showToast('This file is no longer available.', 'local', 'Workspaces'); return; }
+      openWbFilePreview(att.url, att.name);
+    });
     bind('[data-wb-post-del]', (el) => wbDeleteFeedPost(companyId, el.dataset.wbPostDel));
     bind('[data-wb-post-edit]', (el) => { state.wbEditPostId = el.dataset.wbPostEdit; render(); });
     bind('[data-wb-post-edit-cancel]', () => { state.wbEditPostId = null; render(); });
