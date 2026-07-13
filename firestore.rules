@@ -77,6 +77,26 @@ service cloud.firestore {
                     && (!('body' in request.resource.data)  || request.resource.data.body.size()  <= 500);
     }
 
+    // --- bug reports / feedback ---
+    // Any signed-in user may file a report (stamped with themselves as sender);
+    // only the master can read the inbox, mark reports resolved, or delete them.
+    match /reports/{id} {
+      allow create: if signedIn()
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() <= 4000;
+      allow read, update, delete: if isMaster();
+    }
+
+    // Master-only collection-group read over ALL chat messages, so the control
+    // panel's message search can look across every conversation. (Normal per-
+    // conversation reads are still governed by the member rule below; this extra
+    // recursive rule only ADDS master access and is required because a
+    // collectionGroup query isn't covered by the nested messages rule.)
+    match /{path=**}/messages/{msgId} {
+      allow read: if isMaster();
+    }
+
     // --- VESSCORE tabulation (embedded standalone app at /tabulation) ---
     // The master (admin) is a signed-in ROMIO master. Judges sign in via Firebase
     // ANONYMOUS auth on load, then enter a passkey inside the app. Requiring

@@ -144,6 +144,48 @@ export async function listWorkspaceApps(wsId) {
   } catch { return []; }
 }
 
+// --- bug reports / feedback ---
+export async function submitReport({ type, message }) {
+  const u = auth.currentUser;
+  return addDoc(collection(db, 'reports'), {
+    type: type === 'feedback' ? 'feedback' : 'bug',
+    message: String(message || '').slice(0, 4000),
+    fromUid: u?.uid || '',
+    fromName: u?.displayName || u?.email || 'User',
+    fromEmail: u?.email || '',
+    page: (typeof location !== 'undefined' ? location.pathname : '') || '',
+    status: 'open',
+    createdAt: serverTimestamp(),
+  });
+}
+// Live inbox of every report (master only). Newest first.
+export function listenReports(cb) {
+  return onSnapshot(
+    query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(200)),
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    () => cb([]),
+  );
+}
+export async function setReportStatus(id, status) {
+  await updateDoc(doc(db, 'reports', id), { status, resolvedAt: status === 'resolved' ? serverTimestamp() : null });
+}
+export async function deleteReport(id) { await deleteDoc(doc(db, 'reports', id)); }
+
+// Master-only: search across ALL chat messages (collection-group). No text index
+// in Firestore, so fetch a recent slice and filter client-side.
+export async function adminSearchMessages(term) {
+  const q = String(term || '').trim().toLowerCase();
+  if (!q) return [];
+  try {
+    const snap = await getDocs(query(collectionGroup(db, 'messages'), limit(500)));
+    return snap.docs
+      .map((d) => ({ id: d.id, convId: d.ref.parent.parent?.id || '', ...d.data() }))
+      .filter((m) => (m.text || '').toLowerCase().includes(q))
+      .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+      .slice(0, 50);
+  } catch { return []; }
+}
+
 // Merge arbitrary profile fields (displayName, phone, ...) onto users/{uid}.
 export async function updateUserProfile(uid, patch) {
   await setDoc(doc(db, 'users', uid), patch, { merge: true });

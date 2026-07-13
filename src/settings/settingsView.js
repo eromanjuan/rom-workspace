@@ -11,6 +11,7 @@ import {
   setCurrentWorkspace, getUserProfile, updateUserProfile, uploadWorkspaceImage,
   isUsernameAvailable, usernameFormatError, changeUsername, normalizeUsername,
   listAllUsers, adminSetUser, adminDeleteUser,
+  submitReport, listenReports, setReportStatus, deleteReport, adminSearchMessages,
 } from '../workspaces/data.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
@@ -18,6 +19,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   // Deep-linked sub-section (e.g. /settings/workspace) opens that accordion.
   const openIf = (key) => ({ open: section === key });
   const wsSection = collapsible(buildWorkspaceSection(user, onOpenWorkspace), openIf('workspace'));
+  const controlSection = isMaster(user) ? buildControlPanelSection(user) : null;
   host.append(
     el('div', { class: 'settings' }, [
       el('h2', { class: 'section__title' }, 'Settings'),
@@ -26,8 +28,9 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
       collapsible(buildEmailSection(user), openIf('email')),
       collapsible(buildPasswordSection(user), openIf('password')),
       collapsible(buildThemeSection(), openIf('theme')),
+      collapsible(buildReportSection(user), openIf('report')),
       wsSection,
-      isMaster(user) ? collapsible(buildControlPanelSection(user), openIf('control')) : null,
+      controlSection ? collapsible(controlSection, openIf('control')) : null,
     ]),
   );
   // Bring a deep-linked section into view.
@@ -38,7 +41,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   // Refresh the workspace list instantly when a workspace is added/removed.
   const onWsChange = () => { try { wsSection._reloadWorkspaces && wsSection._reloadWorkspaces(); } catch { /* ignore */ } };
   window.addEventListener('rom-workspaces-changed', onWsChange);
-  return () => window.removeEventListener('rom-workspaces-changed', onWsChange);
+  return () => { window.removeEventListener('rom-workspaces-changed', onWsChange); try { controlSection?._cleanup?.(); } catch { /* ignore */ } };
 }
 
 // Turn a settings-card <section> (first child = h3.settings-title) into a
@@ -63,6 +66,39 @@ function collapsible(section, { open = false } = {}) {
   setOpen(open);
   header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
   return section;
+}
+
+/* ---------- report a bug / send feedback (any user) ---------- */
+
+function buildReportSection(user) {
+  const typeSel = el('select', { class: 'input' }, [
+    el('option', { value: 'bug' }, 'Bug report'),
+    el('option', { value: 'feedback' }, 'Feedback / suggestion'),
+  ]);
+  const msg = el('textarea', { class: 'input', rows: '4', maxlength: '4000', placeholder: 'Describe the bug or share your feedback…' });
+  const send = el('button', { class: 'btn btn--primary' }, [icon('send'), ' Send report']);
+  const status = el('div', { class: 'field__hint', 'aria-live': 'polite' }, '');
+  send.addEventListener('click', async () => {
+    const text = msg.value.trim();
+    if (!text) { status.className = 'field__hint is-error'; status.textContent = 'Please write something first.'; return; }
+    send.disabled = true;
+    try {
+      await submitReport({ type: typeSel.value, message: text });
+      msg.value = '';
+      status.className = 'field__hint is-ok';
+      status.textContent = 'Thanks! Your report was sent to the team.';
+    } catch (e) { status.className = 'field__hint is-error'; status.textContent = e.message || 'Could not send — try again.'; }
+    finally { send.disabled = false; }
+  });
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('bug'), ' Report a bug or feedback']),
+    el('p', { class: 'muted' }, 'Found a problem or have an idea? Send it straight to the team.'),
+    el('label', { class: 'settings-label' }, 'Type'),
+    typeSel,
+    el('label', { class: 'settings-label' }, 'Details'),
+    msg,
+    el('div', { class: 'row', style: 'margin-top:.5rem' }, [status, el('div', { style: 'flex:1' }), send]),
+  ]);
 }
 
 /* ---------- master control panel: manage all users ---------- */
@@ -146,7 +182,78 @@ function buildControlPanelSection(user) {
   }
   load();
 
-  return el('section', { class: 'settings-card card' }, [
+  const fmtTime = (ts) => { try { const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null); return d ? d.toLocaleString() : ''; } catch { return ''; } };
+
+  // --- report inbox (live) ---
+  const reportSearch = el('input', { class: 'input', type: 'search', placeholder: 'Search reports by text or sender…' });
+  const reportCount = el('span', { class: 'muted admin-count' });
+  const reportList = el('div', { class: 'report-inbox' }, el('p', { class: 'muted' }, 'Loading reports…'));
+  let allReports = [];
+  function reportRow(r) {
+    const resolved = r.status === 'resolved';
+    const resolveBtn = el('button', { class: 'btn btn--ghost btn--sm' }, resolved ? 'Reopen' : 'Resolve');
+    resolveBtn.addEventListener('click', async () => { try { await setReportStatus(r.id, resolved ? 'open' : 'resolved'); } catch (e) { toast(e.message, 'error'); } });
+    const delBtn = el('button', { class: 'btn btn--danger btn--sm' }, 'Delete');
+    delBtn.addEventListener('click', async () => {
+      if (!(await confirmModal({ title: 'Delete report?', message: 'This permanently removes the report.', confirmLabel: 'Delete', danger: true }))) return;
+      try { await deleteReport(r.id); } catch (e) { toast(e.message, 'error'); }
+    });
+    return el('div', { class: `report-card ${resolved ? 'is-resolved' : ''}` }, [
+      el('div', { class: 'report-head' }, [
+        el('span', { class: `pill ${r.type === 'feedback' ? 'pill--editor' : 'pill--danger'}` }, r.type === 'feedback' ? 'Feedback' : 'Bug'),
+        el('span', { class: 'report-from' }, r.fromName || 'User'),
+        r.fromEmail ? el('span', { class: 'muted report-email' }, r.fromEmail) : null,
+        resolved ? el('span', { class: 'pill pill--viewer' }, 'Resolved') : null,
+        el('span', { class: 'muted report-time' }, fmtTime(r.createdAt)),
+      ]),
+      el('p', { class: 'report-msg' }, r.message || ''),
+      r.page ? el('div', { class: 'muted report-page' }, `Page: ${r.page}`) : null,
+      el('div', { class: 'report-acts' }, [resolveBtn, delBtn]),
+    ]);
+  }
+  function drawReports() {
+    const q = reportSearch.value.trim().toLowerCase();
+    const rows = allReports.filter((r) => !q
+      || (r.message || '').toLowerCase().includes(q)
+      || (r.fromName || '').toLowerCase().includes(q)
+      || (r.fromEmail || '').toLowerCase().includes(q));
+    clear(reportList);
+    if (!rows.length) reportList.append(el('p', { class: 'muted' }, allReports.length ? 'No reports match.' : 'No reports yet.'));
+    else for (const r of rows) reportList.append(reportRow(r));
+    const open = allReports.filter((r) => r.status !== 'resolved').length;
+    reportCount.textContent = `${open} open · ${allReports.length} total`;
+  }
+  reportSearch.addEventListener('input', drawReports);
+  const reportUnsub = listenReports((list) => { allReports = list; drawReports(); });
+
+  // --- search all messages (master only) ---
+  const msgSearch = el('input', { class: 'input', type: 'search', placeholder: 'Search everyone\'s messages by text…' });
+  const msgBtn = el('button', { class: 'btn btn--ghost btn--sm' }, [icon('search'), ' Search']);
+  const msgResults = el('div', { class: 'msg-search-results' });
+  let msgTimer = null;
+  async function runMsgSearch() {
+    const term = msgSearch.value.trim();
+    clear(msgResults);
+    if (!term) return;
+    msgResults.append(el('p', { class: 'muted' }, 'Searching…'));
+    try {
+      const hits = await adminSearchMessages(term);
+      clear(msgResults);
+      if (!hits.length) { msgResults.append(el('p', { class: 'muted' }, 'No messages match.')); return; }
+      for (const m of hits) {
+        const who = allUsers.find((u) => u.uid === m.senderId);
+        msgResults.append(el('div', { class: 'msg-search-hit' }, [
+          el('div', { class: 'msg-search-text' }, m.text || ''),
+          el('div', { class: 'muted msg-search-meta' }, `${who?.displayName || m.senderName || who?.email || m.senderId || 'Someone'} · ${fmtTime(m.createdAt)}`),
+        ]));
+      }
+    } catch (e) { clear(msgResults); msgResults.append(el('p', { class: 'error-text' }, e.message)); }
+  }
+  msgBtn.addEventListener('click', runMsgSearch);
+  msgSearch.addEventListener('input', () => { clearTimeout(msgTimer); msgTimer = setTimeout(runMsgSearch, 450); });
+  msgSearch.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runMsgSearch(); } });
+
+  const section = el('section', { class: 'settings-card card' }, [
     el('h3', { class: 'settings-title' }, [icon('shield-lock'), ' Control panel']),
     el('p', { class: 'muted' }, 'Master admin — manage every user and invite new people.'),
     el('label', { class: 'settings-label' }, 'Invite by email'),
@@ -154,7 +261,15 @@ function buildControlPanelSection(user) {
     el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
     search,
     wrap,
+    el('div', { class: 'admin-users-head', style: 'margin-top:1.25rem' }, [el('label', { class: 'settings-label' }, [icon('inbox'), ' Report inbox']), reportCount]),
+    reportSearch,
+    reportList,
+    el('label', { class: 'settings-label', style: 'margin-top:1.25rem' }, [icon('message'), ' Search messages']),
+    el('div', { class: 'admin-invite' }, [msgSearch, msgBtn]),
+    msgResults,
   ]);
+  section._cleanup = () => { try { reportUnsub(); } catch { /* ignore */ } };
+  return section;
 }
 
 /* ---------- profile visibility: what visitors can see ---------- */

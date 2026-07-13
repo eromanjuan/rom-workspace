@@ -943,6 +943,22 @@ select.input { cursor: pointer; }
 .admin-count { font-size: 12px; }
 .admin-table-wrap { margin-top: 8px; max-height: 440px; overflow: auto; border: 1px solid var(--border, #232a34); border-radius: 12px; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* Report inbox */
+.report-inbox { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; max-height: 460px; overflow: auto; }
+.report-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); }
+.report-card.is-resolved { opacity: 0.62; }
+.report-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.report-from { font-weight: 600; }
+.report-email { font-size: 12px; }
+.report-time { font-size: 12px; margin-left: auto; white-space: nowrap; }
+.report-msg { margin: 8px 0 6px; line-height: 1.5; white-space: pre-wrap; }
+.report-page { font-size: 12px; }
+.report-acts { display: flex; gap: 8px; margin-top: 6px; }
+/* Message search */
+.msg-search-results { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 360px; overflow: auto; }
+.msg-search-hit { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; background: var(--surface); }
+.msg-search-text { line-height: 1.45; }
+.msg-search-meta { font-size: 12px; margin-top: 3px; }
 .admin-table thead th {
   position: sticky; top: 0; z-index: 1; text-align: left; font-size: 11px; text-transform: uppercase;
   letter-spacing: .04em; color: var(--muted); background: var(--surface); padding: 8px 12px; border-bottom: 1px solid var(--border, #232a34);
