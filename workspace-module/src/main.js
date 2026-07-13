@@ -1,8 +1,8 @@
 import './styles.css';
 import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import opsCommandHeroUrl from './assets/quest-hq-ops-command-hero.png';
-import questLogoMarkUrl from './assets/quest-hq-logo-mark.png';
+import opsCommandHeroUrl from './assets/romio-ops-command-hero.png';
+import romLogoMarkUrl from './assets/romio-logo-mark.png';
 import { requireOk, settleObserved } from './lib/result.js';
 import { PASSWORD_MIN_LENGTH, passwordPolicy, passwordRequirements } from './auth/password-policy.js';
 import { createDeferredDomainAccumulator, createRealtimeBatcher, realtimeSubscriptions, shouldAcceptRealtimePayload, shouldDeferRealtimeRefresh } from './data/realtime-policy.js';
@@ -27,7 +27,7 @@ async function loadLeaflet() {
 
 const CONFIG = {
   buildId: 'ROM Company Workspace v1',
-  questAuthEnabled: import.meta.env.VITE_QUEST_AUTH_ENABLED !== 'false',
+  authEnabled: import.meta.env.VITE_AUTH_ENABLED !== 'false',
   // Local login is a dev/demo convenience with a client-side credential check —
   // it must never be active in a production build. Gate it behind DEV so even
   // VITE_LOCAL_LOGIN_ENABLED=true cannot turn it on in a `vite build`.
@@ -44,69 +44,69 @@ const CONFIG = {
 };
 
 const BASE_PATH = new URL(import.meta.env.BASE_URL || '/', window.location.origin).pathname.replace(/\/$/, '');
-const SESSION_KEY = 'quest-hq-local-session';
-const PROFILE_KEY = 'quest-hq-local-profile';
-const JOB_CACHE_KEY = 'quest-hq-job-cache-v2';
-const CONTACT_CACHE_KEY = 'quest-hq-contact-cache-v1';
-const ACCOUNT_CACHE_KEY = 'quest-hq-account-cache-v1';
+const SESSION_KEY = 'romio-local-session';
+const PROFILE_KEY = 'romio-local-profile';
+const JOB_CACHE_KEY = 'romio-job-cache-v2';
+const CONTACT_CACHE_KEY = 'romio-contact-cache-v1';
+const ACCOUNT_CACHE_KEY = 'romio-account-cache-v1';
 // Contact auto-formatting field sets. Declared here (not next to formatContactField)
 // so they are initialized before the module-load state seed runs normalizeContact.
 // Shown in place of an empty editable field value (instead of a bare "?").
 const EMPTY_FIELD_PLACEHOLDER = '—';
 const CONTACT_PROPER_CASE_FIELDS = new Set(['name', 'owner_name', 'street', 'city', 'province', 'country', 'barangay']);
 const CONTACT_FORM_FORMAT_FIELDS = new Set(['name', 'owner_name', 'street', 'block_no', 'zip', 'email', 'title', 'pay_type', 'roof_system', 'secondary_roof_system', 'source']);
-const DEAL_CACHE_KEY = 'quest-hq-deal-cache-v1';
-const SITE_CACHE_KEY = 'quest-hq-crm-site-cache-v1';
-const PROPOSAL_CACHE_KEY = 'quest-hq-proposal-cache-v1';
-const ACTIVITY_CACHE_KEY = 'quest-hq-activity-cache-v1';
-const JOB_STAGES_KEY = 'quest-hq-job-stages-v1';
-const CONTACT_STAGES_KEY = 'quest-hq-contact-stages-v3';
-const DEAL_STAGES_KEY = 'quest-hq-quote-stages-v2';
-const DEAL_BOARD_VIEW_KEY = 'quest-hq-deal-board-view';
-const TASK_CACHE_KEY = 'quest-hq-task-cache-v1';
-const FILE_CACHE_KEY = 'quest-hq-file-cache-v1';
-const DRIVE_FOLDER_CACHE_KEY = 'quest-hq-drive-folder-cache-v1';
-const TEAM_CACHE_KEY = 'quest-hq-team-cache-v1';
-const MEMBERSHIP_CACHE_KEY = 'quest-hq-company-membership-cache-v1';
-const FORM_CACHE_KEY = 'quest-hq-company-form-cache-v1';
-const FORM_RESPONSE_CACHE_KEY = 'quest-hq-company-form-response-cache-v1';
-const FINANCE_INVOICE_CACHE_KEY = 'quest-hq-finance-invoice-cache-v1';
-const FINANCE_PAYMENT_CACHE_KEY = 'quest-hq-finance-payment-cache-v1';
-const FINANCE_EXPENSE_CACHE_KEY = 'quest-hq-finance-expense-cache-v1';
-const FINANCE_VENDOR_CACHE_KEY = 'quest-hq-finance-vendor-cache-v1';
-const PRICEBOOK_VENDOR_CACHE_KEY = 'quest-hq-pricebook-vendors-v1';
-const PRICEBOOK_MATERIAL_CACHE_KEY = 'quest-hq-pricebook-materials-v1';
-const PRICEBOOK_PRICE_CACHE_KEY = 'quest-hq-pricebook-prices-v1';
-const TIME_ENTRY_CACHE_KEY = 'quest-hq-time-entry-cache-v1';
-const ACTIVE_TIMER_KEY = 'quest-hq-active-timer-v1';
-const COMPANY_KEY = 'quest-hq-active-company';
-const PENDING_WORKSPACE_REVIEW_KEY = 'quest-hq-pending-workspace-review-v1';
-const TASK_VIEW_KEY = 'quest-hq-task-view';
-const DRIVE_VIEW_KEY = 'quest-hq-drive-view';
-const SIDEBAR_COLLAPSED_KEY = 'quest-hq-sidebar-collapsed';
-const NAV_GROUP_COLLAPSED_KEY = 'quest-hq-nav-groups-collapsed';
-const NAV_EXPANDED_KEY = 'quest-hq-nav-expanded-v1';
-const JOB_BOARD_VIEW_KEY = 'quest-hq-job-board-view';
-const CONTACT_BOARD_VIEW_KEY = 'quest-hq-contact-board-view';
-const THEME_KEY = 'quest-theme';
-const ACCENT_KEY = 'quest-accent';
-const NOTIFICATION_CACHE_KEY = 'quest-hq-notification-cache-v1';
-const MESSAGE_CONVERSATION_CACHE_KEY = 'quest-hq-message-conversation-cache-v1';
-const MESSAGE_ACCESS_CACHE_KEY = 'quest-hq-message-access-cache-v1';
-const MESSAGE_CACHE_KEY = 'quest-hq-message-cache-v1';
-const MESSAGE_READ_CACHE_KEY = 'quest-hq-message-read-cache-v1';
-const MESSAGE_ATTACHMENT_CACHE_KEY = 'quest-hq-message-attachment-cache-v1';
-const CALENDAR_EVENT_CACHE_KEY = 'quest-hq-calendar-event-cache-v1';
-const CLIENT_PORTAL_CACHE_KEY = 'quest-hq-client-portal-cache-v1';
-const CLIENT_PORTAL_DOCUMENT_CACHE_KEY = 'quest-hq-client-portal-document-cache-v1';
-const CLIENT_PORTAL_ANNOTATION_CACHE_KEY = 'quest-hq-client-portal-annotation-cache-v1';
-const CLIENT_PORTAL_EVENT_CACHE_KEY = 'quest-hq-client-portal-event-cache-v1';
-const CLIENT_PORTAL_SESSION_KEY = 'quest-client-portal-session-v1';
+const DEAL_CACHE_KEY = 'romio-deal-cache-v1';
+const SITE_CACHE_KEY = 'romio-crm-site-cache-v1';
+const PROPOSAL_CACHE_KEY = 'romio-proposal-cache-v1';
+const ACTIVITY_CACHE_KEY = 'romio-activity-cache-v1';
+const JOB_STAGES_KEY = 'romio-job-stages-v1';
+const CONTACT_STAGES_KEY = 'romio-contact-stages-v3';
+const DEAL_STAGES_KEY = 'romio-quote-stages-v2';
+const DEAL_BOARD_VIEW_KEY = 'romio-deal-board-view';
+const TASK_CACHE_KEY = 'romio-task-cache-v1';
+const FILE_CACHE_KEY = 'romio-file-cache-v1';
+const DRIVE_FOLDER_CACHE_KEY = 'romio-drive-folder-cache-v1';
+const TEAM_CACHE_KEY = 'romio-team-cache-v1';
+const MEMBERSHIP_CACHE_KEY = 'romio-company-membership-cache-v1';
+const FORM_CACHE_KEY = 'romio-company-form-cache-v1';
+const FORM_RESPONSE_CACHE_KEY = 'romio-company-form-response-cache-v1';
+const FINANCE_INVOICE_CACHE_KEY = 'romio-finance-invoice-cache-v1';
+const FINANCE_PAYMENT_CACHE_KEY = 'romio-finance-payment-cache-v1';
+const FINANCE_EXPENSE_CACHE_KEY = 'romio-finance-expense-cache-v1';
+const FINANCE_VENDOR_CACHE_KEY = 'romio-finance-vendor-cache-v1';
+const PRICEBOOK_VENDOR_CACHE_KEY = 'romio-pricebook-vendors-v1';
+const PRICEBOOK_MATERIAL_CACHE_KEY = 'romio-pricebook-materials-v1';
+const PRICEBOOK_PRICE_CACHE_KEY = 'romio-pricebook-prices-v1';
+const TIME_ENTRY_CACHE_KEY = 'romio-time-entry-cache-v1';
+const ACTIVE_TIMER_KEY = 'romio-active-timer-v1';
+const COMPANY_KEY = 'romio-active-company';
+const PENDING_WORKSPACE_REVIEW_KEY = 'romio-pending-workspace-review-v1';
+const TASK_VIEW_KEY = 'romio-task-view';
+const DRIVE_VIEW_KEY = 'romio-drive-view';
+const SIDEBAR_COLLAPSED_KEY = 'romio-sidebar-collapsed';
+const NAV_GROUP_COLLAPSED_KEY = 'romio-nav-groups-collapsed';
+const NAV_EXPANDED_KEY = 'romio-nav-expanded-v1';
+const JOB_BOARD_VIEW_KEY = 'romio-job-board-view';
+const CONTACT_BOARD_VIEW_KEY = 'romio-contact-board-view';
+const THEME_KEY = 'romio-theme';
+const ACCENT_KEY = 'romio-accent';
+const NOTIFICATION_CACHE_KEY = 'romio-notification-cache-v1';
+const MESSAGE_CONVERSATION_CACHE_KEY = 'romio-message-conversation-cache-v1';
+const MESSAGE_ACCESS_CACHE_KEY = 'romio-message-access-cache-v1';
+const MESSAGE_CACHE_KEY = 'romio-message-cache-v1';
+const MESSAGE_READ_CACHE_KEY = 'romio-message-read-cache-v1';
+const MESSAGE_ATTACHMENT_CACHE_KEY = 'romio-message-attachment-cache-v1';
+const CALENDAR_EVENT_CACHE_KEY = 'romio-calendar-event-cache-v1';
+const CLIENT_PORTAL_CACHE_KEY = 'romio-client-portal-cache-v1';
+const CLIENT_PORTAL_DOCUMENT_CACHE_KEY = 'romio-client-portal-document-cache-v1';
+const CLIENT_PORTAL_ANNOTATION_CACHE_KEY = 'romio-client-portal-annotation-cache-v1';
+const CLIENT_PORTAL_EVENT_CACHE_KEY = 'romio-client-portal-event-cache-v1';
+const CLIENT_PORTAL_SESSION_KEY = 'romio-client-portal-session-v1';
 const CLIENT_PORTAL_GUEST_NAME = 'Client';
-const WORKSPACE_BACKUP_CACHE_KEY = 'quest-hq-workspace-backup-cache-v1';
-const WORKSPACE_BACKUP_SETTINGS_KEY = 'quest-hq-workspace-backup-settings-v1';
+const WORKSPACE_BACKUP_CACHE_KEY = 'romio-workspace-backup-cache-v1';
+const WORKSPACE_BACKUP_SETTINGS_KEY = 'romio-workspace-backup-settings-v1';
 const WORKSPACE_BACKUP_VERSION = 1;
-const RECYCLE_BIN_CACHE_KEY = 'quest-hq-recycle-bin-cache-v1';
+const RECYCLE_BIN_CACHE_KEY = 'romio-recycle-bin-cache-v1';
 const RECYCLE_BIN_RETENTION_DAYS = 30;
 const BACKUP_INTERVAL_OPTIONS = [
   ['manual', 'Manual only'],
@@ -146,11 +146,11 @@ const RECYCLE_BIN_TYPES = {
   calendar_event: { type: 'calendar_event', label: 'Calendar event', table: 'calendar_events', stateKey: 'calendarEvents', permission: 'calendar.manage', normalize: normalizeCalendarEvent, title: (record) => record.title || 'Calendar event', redirect: (companyId) => companyPath('calendar', {}, companyId) },
   activity: { type: 'activity', label: 'Activity', table: 'activities', stateKey: 'activities', permission: 'crm.manage', normalize: normalizeActivity, title: (record) => record.subject || 'Activity', redirect: (companyId) => companyPath('dashboard', { activity: '1' }, companyId) },
 };
-const WORKSPACE_BUILDER_STORAGE_PREFIX = 'qhq_workspace_builder_v1';
-const DASHBOARD_LAYOUT_CACHE_KEY = 'quest-hq-dashboard-layouts-v1';
-const DASHBOARD_ROLE_VIEW_CACHE_KEY = 'quest-hq-dashboard-role-views-v1';
-const DASHBOARD_APP_WIDGET_CACHE_KEY = 'quest-hq-dashboard-app-widgets-v1';
-const SIDEBAR_SCROLL_KEY = 'quest-hq-sidebar-scroll';
+const WORKSPACE_BUILDER_STORAGE_PREFIX = 'romio_workspace_v1';
+const DASHBOARD_LAYOUT_CACHE_KEY = 'romio-dashboard-layouts-v1';
+const DASHBOARD_ROLE_VIEW_CACHE_KEY = 'romio-dashboard-role-views-v1';
+const DASHBOARD_APP_WIDGET_CACHE_KEY = 'romio-dashboard-app-widgets-v1';
+const SIDEBAR_SCROLL_KEY = 'romio-sidebar-scroll';
 const LAUNCH_HIDE_FUTURE_MODULES = true;
 const LAUNCH_HIDE_UNREADY_DASHBOARD_WIDGETS = true;
 const ESTIMATE_TAX_RATE = 0.085;
@@ -954,34 +954,34 @@ const WORKSPACE_ICON_SVG = {
 
 const MODULE_REGISTRY = [
   { id: 'dashboard', group: 'Workspace', label: 'Dashboard', icon: 'ti-layout-dashboard', symbol: 'q-logo', status: 'live', permission: '' },
-  { id: 'workday', group: 'ROM CRM', label: 'Workday', icon: 'ti-clipboard-check', symbol: 'q-symbol-tasks', status: 'live', permission: 'crm.view' },
-  { id: 'jobs', group: 'ROM CRM', label: 'Jobs', icon: 'ti-hammer', symbol: 'q-symbol-jobs', status: 'live', permission: 'jobs.view' },
-  { id: 'tasks', group: 'Work', label: 'My tasks', icon: 'ti-list-check', symbol: 'q-symbol-tasks', status: 'live', permission: 'tasks.view' },
-  { id: 'files', group: 'Workspace', label: 'Files', icon: 'ti-folder', symbol: 'q-symbol-files', status: 'live', permission: 'files.view' },
-  { id: 'forms', group: 'Workspace', label: 'Forms', icon: 'ti-clipboard-list', symbol: 'q-symbol-forms', status: 'live', permission: 'forms.view' },
-  { id: 'client-portals', group: 'Workspace', label: 'Client portals', icon: 'ti-world-upload', symbol: 'q-symbol-files', status: 'live', permission: 'client_portals.view' },
-  { id: 'price-book', group: 'Estimating', label: 'Price Book', icon: 'ti-book', symbol: 'q-symbol-finance', status: 'live', permission: 'price_book.view' },
-  { id: 'workspaces', group: 'Workspace', label: 'Workspaces', icon: 'ti-layout-grid-add', symbol: 'q-symbol-templates', status: 'live', permission: 'workspaces.view' },
-  { id: 'analytics', group: 'Workspace', label: 'Analytics', icon: 'ti-chart-bar', symbol: 'q-symbol-analytics', status: 'live', permission: 'jobs.view' },
-  { id: 'crm', group: 'Workspace', label: 'Accounts', icon: 'ti-building-community', symbol: 'q-symbol-crm', status: 'live', permission: 'crm.view' },
-  { id: 'contacts', group: 'ROM CRM', label: 'Contacts', icon: 'ti-id-badge-2', symbol: 'q-symbol-crm', status: 'live', permission: 'crm.view' },
-  { id: 'deals', group: 'ROM CRM', label: 'Quotes', icon: 'ti-briefcase', symbol: 'q-symbol-jobs', status: 'live', permission: 'crm.view' },
-  { id: 'proposals', group: 'ROM CRM', label: 'Proposals', icon: 'ti-file-dollar', symbol: 'q-symbol-files', status: 'live', permission: 'crm.view' },
-  { id: 'underwriter', group: 'Workspace', label: 'Underwriter', icon: 'ti-clipboard-search', symbol: 'q-symbol-crm', status: 'live', permission: 'underwriter.view' },
-  { id: 'tickets', group: 'Workspace', label: 'Tickets', icon: 'ti-ticket', symbol: 'q-symbol-tickets', status: 'planned' },
-  { id: 'finance', group: 'Workspace', label: 'Finance', icon: 'ti-receipt-dollar', symbol: 'q-symbol-finance', status: 'live', permission: 'finance.view' },
-  { id: 'knowledge', group: 'Workspace', label: 'Knowledge Base', icon: 'ti-books', symbol: 'q-symbol-knowledge', status: 'planned' },
-  { id: 'automations', group: 'Workspace', label: 'Automations', icon: 'ti-automation', symbol: 'q-symbol-automations', status: 'planned' },
-  { id: 'templates', group: 'Workspace', label: 'Templates', icon: 'ti-template', symbol: 'q-symbol-templates', status: 'planned' },
-  { id: 'users', group: 'Company', label: 'Users', icon: 'ti-users', symbol: 'q-symbol-users', status: 'live', permission: 'users.view' },
-  { id: 'messages', group: 'Communication', label: 'Messages', icon: 'ti-messages', symbol: 'q-symbol-messages', status: 'live', permission: 'messages.view' },
-  { id: 'settings', group: 'Company', label: 'Settings', icon: 'ti-settings', symbol: 'q-symbol-settings', status: 'live', permission: 'settings.view' },
-  { id: 'team-chart', group: 'Company', label: 'Team chart', icon: 'ti-hierarchy-3', symbol: 'q-symbol-team-chart', status: 'live', permission: 'team.view' },
-  { id: 'time', group: 'Operations', label: 'My time', icon: 'ti-clock', symbol: 'q-symbol-time', status: 'live', permission: 'time.track' },
-  { id: 'calendar', group: 'Operations', label: 'Calendar', icon: 'ti-calendar', symbol: 'q-symbol-calendar', status: 'live', permission: 'calendar.view' },
-  { id: 'approvals', group: 'Operations', label: 'Approvals', icon: 'ti-user-check', symbol: 'q-symbol-approvals', status: 'live', permission: 'approvals.view' },
-  { id: 'team-workload', group: 'Operations', label: 'Team workload', icon: 'ti-users', symbol: 'q-symbol-team-workload', status: 'planned' },
-  { id: 'clock', group: 'Operations', label: 'Clock dashboard', icon: 'ti-clock-hour-4', symbol: 'q-symbol-clock', status: 'live', permission: 'clock.manage' },
+  { id: 'workday', group: 'ROM CRM', label: 'Workday', icon: 'ti-clipboard-check', symbol: 'rom-symbol-tasks', status: 'live', permission: 'crm.view' },
+  { id: 'jobs', group: 'ROM CRM', label: 'Jobs', icon: 'ti-hammer', symbol: 'rom-symbol-jobs', status: 'live', permission: 'jobs.view' },
+  { id: 'tasks', group: 'Work', label: 'My tasks', icon: 'ti-list-check', symbol: 'rom-symbol-tasks', status: 'live', permission: 'tasks.view' },
+  { id: 'files', group: 'Workspace', label: 'Files', icon: 'ti-folder', symbol: 'rom-symbol-files', status: 'live', permission: 'files.view' },
+  { id: 'forms', group: 'Workspace', label: 'Forms', icon: 'ti-clipboard-list', symbol: 'rom-symbol-forms', status: 'live', permission: 'forms.view' },
+  { id: 'client-portals', group: 'Workspace', label: 'Client portals', icon: 'ti-world-upload', symbol: 'rom-symbol-files', status: 'live', permission: 'client_portals.view' },
+  { id: 'price-book', group: 'Estimating', label: 'Price Book', icon: 'ti-book', symbol: 'rom-symbol-finance', status: 'live', permission: 'price_book.view' },
+  { id: 'workspaces', group: 'Workspace', label: 'Workspaces', icon: 'ti-layout-grid-add', symbol: 'rom-symbol-templates', status: 'live', permission: 'workspaces.view' },
+  { id: 'analytics', group: 'Workspace', label: 'Analytics', icon: 'ti-chart-bar', symbol: 'rom-symbol-analytics', status: 'live', permission: 'jobs.view' },
+  { id: 'crm', group: 'Workspace', label: 'Accounts', icon: 'ti-building-community', symbol: 'rom-symbol-crm', status: 'live', permission: 'crm.view' },
+  { id: 'contacts', group: 'ROM CRM', label: 'Contacts', icon: 'ti-id-badge-2', symbol: 'rom-symbol-crm', status: 'live', permission: 'crm.view' },
+  { id: 'deals', group: 'ROM CRM', label: 'Quotes', icon: 'ti-briefcase', symbol: 'rom-symbol-jobs', status: 'live', permission: 'crm.view' },
+  { id: 'proposals', group: 'ROM CRM', label: 'Proposals', icon: 'ti-file-dollar', symbol: 'rom-symbol-files', status: 'live', permission: 'crm.view' },
+  { id: 'underwriter', group: 'Workspace', label: 'Underwriter', icon: 'ti-clipboard-search', symbol: 'rom-symbol-crm', status: 'live', permission: 'underwriter.view' },
+  { id: 'tickets', group: 'Workspace', label: 'Tickets', icon: 'ti-ticket', symbol: 'rom-symbol-tickets', status: 'planned' },
+  { id: 'finance', group: 'Workspace', label: 'Finance', icon: 'ti-receipt-dollar', symbol: 'rom-symbol-finance', status: 'live', permission: 'finance.view' },
+  { id: 'knowledge', group: 'Workspace', label: 'Knowledge Base', icon: 'ti-books', symbol: 'rom-symbol-knowledge', status: 'planned' },
+  { id: 'automations', group: 'Workspace', label: 'Automations', icon: 'ti-automation', symbol: 'rom-symbol-automations', status: 'planned' },
+  { id: 'templates', group: 'Workspace', label: 'Templates', icon: 'ti-template', symbol: 'rom-symbol-templates', status: 'planned' },
+  { id: 'users', group: 'Company', label: 'Users', icon: 'ti-users', symbol: 'rom-symbol-users', status: 'live', permission: 'users.view' },
+  { id: 'messages', group: 'Communication', label: 'Messages', icon: 'ti-messages', symbol: 'rom-symbol-messages', status: 'live', permission: 'messages.view' },
+  { id: 'settings', group: 'Company', label: 'Settings', icon: 'ti-settings', symbol: 'rom-symbol-settings', status: 'live', permission: 'settings.view' },
+  { id: 'team-chart', group: 'Company', label: 'Team chart', icon: 'ti-hierarchy-3', symbol: 'rom-symbol-team-chart', status: 'live', permission: 'team.view' },
+  { id: 'time', group: 'Operations', label: 'My time', icon: 'ti-clock', symbol: 'rom-symbol-time', status: 'live', permission: 'time.track' },
+  { id: 'calendar', group: 'Operations', label: 'Calendar', icon: 'ti-calendar', symbol: 'rom-symbol-calendar', status: 'live', permission: 'calendar.view' },
+  { id: 'approvals', group: 'Operations', label: 'Approvals', icon: 'ti-user-check', symbol: 'rom-symbol-approvals', status: 'live', permission: 'approvals.view' },
+  { id: 'team-workload', group: 'Operations', label: 'Team workload', icon: 'ti-users', symbol: 'rom-symbol-team-workload', status: 'planned' },
+  { id: 'clock', group: 'Operations', label: 'Clock dashboard', icon: 'ti-clock-hour-4', symbol: 'rom-symbol-clock', status: 'live', permission: 'clock.manage' },
 ];
 
 // Standalone build: only the Workspace App Builder module is exposed.
@@ -1347,17 +1347,17 @@ const activitiesFallback = [
 ];
 
 const teamMembersFallback = [
-  { id: 'abraham', name: 'Abraham', full_name: 'Abraham Flores', email: 'abraham@quest-hq.local', color: '#f0b23b', active: true, company_ids: ['roofing', 'drafting'], supervisor_id: '' },
-  { id: 'maya', name: 'Maya', full_name: 'Maya Rosales', email: 'maya@quest-hq.local', color: '#60a5fa', active: true, company_ids: ['roofing'], supervisor_id: 'abraham' },
-  { id: 'andre', name: 'Andre', full_name: 'Andre Lee', email: 'andre@quest-hq.local', color: '#f97316', active: true, company_ids: ['roofing'], supervisor_id: 'maya' },
-  { id: 'noah', name: 'Noah', full_name: 'Noah Park', email: 'noah@quest-hq.local', color: '#a78bfa', active: true, company_ids: ['drafting'], supervisor_id: 'abraham' },
+  { id: 'abraham', name: 'Abraham', full_name: 'Abraham Flores', email: 'abraham@romio.local', color: '#f0b23b', active: true, company_ids: ['roofing', 'drafting'], supervisor_id: '' },
+  { id: 'maya', name: 'Maya', full_name: 'Maya Rosales', email: 'maya@romio.local', color: '#60a5fa', active: true, company_ids: ['roofing'], supervisor_id: 'abraham' },
+  { id: 'andre', name: 'Andre', full_name: 'Andre Lee', email: 'andre@romio.local', color: '#f97316', active: true, company_ids: ['roofing'], supervisor_id: 'maya' },
+  { id: 'noah', name: 'Noah', full_name: 'Noah Park', email: 'noah@romio.local', color: '#a78bfa', active: true, company_ids: ['drafting'], supervisor_id: 'abraham' },
   { id: 'lumen-ops', name: 'Lumen Ops', full_name: 'Lumen Operations', email: 'ops@lumen.local', color: '#7c3aed', active: true, company_ids: ['lumen'], supervisor_id: '' },
 ];
 
 const membershipsFallback = [
-  { company_id: 'roofing', profile_id: 'basic-quest-user', role: 'developer', status: 'active' },
-  { company_id: 'drafting', profile_id: 'basic-quest-user', role: 'developer', status: 'active' },
-  { company_id: 'lumen', profile_id: 'basic-quest-user', role: 'developer', status: 'active' },
+  { company_id: 'roofing', profile_id: 'basic-user', role: 'developer', status: 'active' },
+  { company_id: 'drafting', profile_id: 'basic-user', role: 'developer', status: 'active' },
+  { company_id: 'lumen', profile_id: 'basic-user', role: 'developer', status: 'active' },
 ];
 
 const tasksFallback = [
@@ -1801,7 +1801,7 @@ const notificationsFallback = [
   {
     id: 'notification-roofing-task-assigned',
     company_id: 'roofing',
-    recipient_profile_id: 'basic-quest-user',
+    recipient_profile_id: 'basic-user',
     type: 'task.assigned',
     title: 'Task assigned',
     body: 'Abraham assigned Leak inspection photos to you.',
@@ -1814,7 +1814,7 @@ const notificationsFallback = [
   {
     id: 'notification-roofing-task-priority',
     company_id: 'roofing',
-    recipient_profile_id: 'basic-quest-user',
+    recipient_profile_id: 'basic-user',
     type: 'task.priority',
     title: 'Task priority changed',
     body: 'Shan set priority to Urgent on HOA board approval package.',
@@ -1827,7 +1827,7 @@ const notificationsFallback = [
   {
     id: 'notification-roofing-approval',
     company_id: 'roofing',
-    recipient_profile_id: 'basic-quest-user',
+    recipient_profile_id: 'basic-user',
     type: 'approval.ready',
     title: 'Approval needs review',
     body: 'Estimate approval is waiting in the company review queue.',
@@ -1840,7 +1840,7 @@ const notificationsFallback = [
   {
     id: 'notification-drafting-task-review',
     company_id: 'drafting',
-    recipient_profile_id: 'basic-quest-user',
+    recipient_profile_id: 'basic-user',
     type: 'task.status',
     title: 'Task moved to review',
     body: 'Drawing package QA is ready for review.',
@@ -1853,7 +1853,7 @@ const notificationsFallback = [
   {
     id: 'notification-lumen-finance',
     company_id: 'lumen',
-    recipient_profile_id: 'basic-quest-user',
+    recipient_profile_id: 'basic-user',
     type: 'finance.invoice',
     title: 'Invoice drafted',
     body: 'Lumen onboarding invoice is ready for payment tracking.',
@@ -1871,7 +1871,7 @@ const messageConversationsFallback = [
     company_id: 'roofing',
     title: 'Roofing dispatch',
     type: 'company',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
     last_message_at: new Date(Date.now() - 16 * 60000).toISOString(),
     created_at: new Date(Date.now() - 86400000).toISOString(),
     updated_at: new Date(Date.now() - 16 * 60000).toISOString(),
@@ -1881,7 +1881,7 @@ const messageConversationsFallback = [
     company_id: 'roofing',
     title: 'Roofing crew',
     type: 'role',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
     last_message_at: new Date(Date.now() - 52 * 60000).toISOString(),
     created_at: new Date(Date.now() - 172800000).toISOString(),
     updated_at: new Date(Date.now() - 52 * 60000).toISOString(),
@@ -1891,7 +1891,7 @@ const messageConversationsFallback = [
     company_id: 'roofing',
     title: 'Shan Kumar',
     type: 'direct',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
     last_message_at: new Date(Date.now() - 8 * 60000).toISOString(),
     created_at: new Date(Date.now() - 3600000).toISOString(),
     updated_at: new Date(Date.now() - 8 * 60000).toISOString(),
@@ -1901,7 +1901,7 @@ const messageConversationsFallback = [
     company_id: 'drafting',
     title: 'Drafting review',
     type: 'company',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
     last_message_at: new Date(Date.now() - 74 * 60000).toISOString(),
     created_at: new Date(Date.now() - 259200000).toISOString(),
     updated_at: new Date(Date.now() - 74 * 60000).toISOString(),
@@ -1911,7 +1911,7 @@ const messageConversationsFallback = [
     company_id: 'lumen',
     title: 'Lumen launch room',
     type: 'custom',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
     last_message_at: new Date(Date.now() - 38 * 60000).toISOString(),
     created_at: new Date(Date.now() - 21600000).toISOString(),
     updated_at: new Date(Date.now() - 38 * 60000).toISOString(),
@@ -1921,10 +1921,10 @@ const messageConversationsFallback = [
 const messageAccessFallback = [
   { id: 'msg-access-roofing-all', conversation_id: 'msg-conv-roofing-all', company_id: 'roofing', target_type: 'all_company', target_id: 'all' },
   { id: 'msg-access-roofing-crew-role', conversation_id: 'msg-conv-roofing-crew', company_id: 'roofing', target_type: 'role', target_id: 'staff-roofing' },
-  { id: 'msg-access-roofing-direct-basic', conversation_id: 'msg-conv-roofing-direct-shan', company_id: 'roofing', target_type: 'profile', target_id: 'basic-quest-user' },
+  { id: 'msg-access-roofing-direct-basic', conversation_id: 'msg-conv-roofing-direct-shan', company_id: 'roofing', target_type: 'profile', target_id: 'basic-user' },
   { id: 'msg-access-roofing-direct-shan', conversation_id: 'msg-conv-roofing-direct-shan', company_id: 'roofing', target_type: 'profile', target_id: 'shan' },
   { id: 'msg-access-drafting-all', conversation_id: 'msg-conv-drafting-all', company_id: 'drafting', target_type: 'all_company', target_id: 'all' },
-  { id: 'msg-access-lumen-basic', conversation_id: 'msg-conv-lumen-product', company_id: 'lumen', target_type: 'profile', target_id: 'basic-quest-user' },
+  { id: 'msg-access-lumen-basic', conversation_id: 'msg-conv-lumen-product', company_id: 'lumen', target_type: 'profile', target_id: 'basic-user' },
   { id: 'msg-access-lumen-role', conversation_id: 'msg-conv-lumen-product', company_id: 'lumen', target_type: 'role', target_id: 'admin-lumen' },
 ];
 
@@ -1944,7 +1944,7 @@ const messagesFallback = [
     id: 'msg-roofing-all-2',
     conversation_id: 'msg-conv-roofing-all',
     company_id: 'roofing',
-    sender_profile_id: 'basic-quest-user',
+    sender_profile_id: 'basic-user',
     body: 'Got it. I am linking the job files now.',
     message_type: 'text',
     deleted_at: '',
@@ -1988,7 +1988,7 @@ const messagesFallback = [
     id: 'msg-lumen-product-1',
     conversation_id: 'msg-conv-lumen-product',
     company_id: 'lumen',
-    sender_profile_id: 'basic-quest-user',
+    sender_profile_id: 'basic-user',
     body: 'Finance and CRM are live enough for internal walkthrough. Next focus is polish and permissions.',
     message_type: 'text',
     deleted_at: '',
@@ -2003,7 +2003,7 @@ const messageAttachmentsFallback = [
     conversation_id: 'msg-conv-roofing-crew',
     message_id: 'msg-roofing-crew-1',
     company_id: 'roofing',
-    bucket_id: 'quest-message-attachments',
+    bucket_id: 'romio-message-attachments',
     object_path: '',
     file_name: 'roof-access-photo.jpg',
     mime_type: 'image/jpeg',
@@ -2014,11 +2014,11 @@ const messageAttachmentsFallback = [
 ];
 
 const messageReadsFallback = [
-  { conversation_id: 'msg-conv-roofing-all', company_id: 'roofing', profile_id: 'basic-quest-user', last_read_at: new Date(Date.now() - 10 * 60000).toISOString() },
-  { conversation_id: 'msg-conv-roofing-crew', company_id: 'roofing', profile_id: 'basic-quest-user', last_read_at: '' },
-  { conversation_id: 'msg-conv-roofing-direct-shan', company_id: 'roofing', profile_id: 'basic-quest-user', last_read_at: '' },
-  { conversation_id: 'msg-conv-drafting-all', company_id: 'drafting', profile_id: 'basic-quest-user', last_read_at: '' },
-  { conversation_id: 'msg-conv-lumen-product', company_id: 'lumen', profile_id: 'basic-quest-user', last_read_at: '' },
+  { conversation_id: 'msg-conv-roofing-all', company_id: 'roofing', profile_id: 'basic-user', last_read_at: new Date(Date.now() - 10 * 60000).toISOString() },
+  { conversation_id: 'msg-conv-roofing-crew', company_id: 'roofing', profile_id: 'basic-user', last_read_at: '' },
+  { conversation_id: 'msg-conv-roofing-direct-shan', company_id: 'roofing', profile_id: 'basic-user', last_read_at: '' },
+  { conversation_id: 'msg-conv-drafting-all', company_id: 'drafting', profile_id: 'basic-user', last_read_at: '' },
+  { conversation_id: 'msg-conv-lumen-product', company_id: 'lumen', profile_id: 'basic-user', last_read_at: '' },
 ];
 
 const calendarEventsFallback = [
@@ -2035,7 +2035,7 @@ const calendarEventsFallback = [
     linked_type: 'job',
     linked_id: 'job-east-ridge',
     assigned_profile_id: 'abraham',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
   },
   {
     id: 'calendar-roofing-estimate',
@@ -2050,7 +2050,7 @@ const calendarEventsFallback = [
     linked_type: '',
     linked_id: '',
     assigned_profile_id: 'shan',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
   },
   {
     id: 'calendar-drafting-review',
@@ -2065,7 +2065,7 @@ const calendarEventsFallback = [
     linked_type: '',
     linked_id: '',
     assigned_profile_id: '',
-    created_by: 'basic-quest-user',
+    created_by: 'basic-user',
   },
   {
     id: 'calendar-lumen-product',
@@ -2079,8 +2079,8 @@ const calendarEventsFallback = [
     visibility: 'company',
     linked_type: '',
     linked_id: '',
-    assigned_profile_id: 'basic-quest-user',
-    created_by: 'basic-quest-user',
+    assigned_profile_id: 'basic-user',
+    created_by: 'basic-user',
   },
 ];
 
@@ -2088,7 +2088,7 @@ const state = {
   route: null,
   session: readJson(SESSION_KEY, null),
   profileDraft: readJson(PROFILE_KEY, null),
-  authReady: !CONFIG.questAuthEnabled,
+  authReady: !CONFIG.authEnabled,
   authMode: 'signin',
   authBusy: false,
   jobs: activeRows(readSeededList(JOB_CACHE_KEY, jobsFallback)).map(normalizeJob),
@@ -2517,7 +2517,7 @@ async function initializeAuth() {
 }
 
 async function setSupabaseSession(session) {
-  if (!CONFIG.questAuthEnabled) return;
+  if (!CONFIG.authEnabled) return;
   if (!session?.user) {
     state.session = null;
     resetLiveWorkspaceData();
@@ -2569,7 +2569,7 @@ async function fetchSupabaseProfile(user) {
 function render() {
   state.route = getRoute();
 
-  if (CONFIG.questAuthEnabled && !state.authReady) {
+  if (CONFIG.authEnabled && !state.authReady) {
     renderAuthLoading();
     return;
   }
@@ -2587,7 +2587,7 @@ function render() {
       app.innerHTML = renderClientPortalPublicPage(state.route);
     } catch (error) {
       console.error('Client portal render failed', error);
-      app.innerHTML = `<main class="client-portal-public"><section class="client-portal-gate"><div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div><h1>Something went wrong</h1><div class="form-message error">${h(error.message || String(error))}</div></section></main>`;
+      app.innerHTML = `<main class="client-portal-public"><section class="client-portal-gate"><div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div><h1>Something went wrong</h1><div class="form-message error">${h(error.message || String(error))}</div></section></main>`;
       return;
     }
     queueMicrotask(() => {
@@ -2932,7 +2932,7 @@ function renderWorkspaceLoading(route) {
     <main class="login-shell">
       <section class="login-panel">
         <div class="login-brand">
-          <span class="side-mark logo-image-mark">${questLogoImage()}</span>
+          <span class="side-mark logo-image-mark">${romLogoImage()}</span>
           <span><strong>ROM</strong><small>Secure workspace</small></span>
         </div>
         ${emptyState('Loading workspace data...')}
@@ -2972,7 +2972,7 @@ function renderNoCompanyAccess() {
     <main class="login-shell">
       <section class="login-panel">
         <div class="login-brand">
-          <span class="side-mark logo-image-mark">${questLogoImage()}</span>
+          <span class="side-mark logo-image-mark">${romLogoImage()}</span>
           <span><strong>ROM</strong><small>Access pending</small></span>
         </div>
         <div>
@@ -3013,7 +3013,7 @@ function renderNoCompanyAccess() {
 }
 
 function needsLocalLogin(route) {
-  if (!CONFIG.questAuthEnabled && !CONFIG.localLoginEnabled) return false;
+  if (!CONFIG.authEnabled && !CONFIG.localLoginEnabled) return false;
   if (route.name === 'login' || route.name === 'home' || route.name === 'proposal-public' || route.name === 'form-public') return false;
   return !state.session;
 }
@@ -3024,7 +3024,7 @@ function renderAuthLoading() {
     <main class="login-shell">
       <section class="login-panel">
         <div class="login-brand">
-          <span class="side-mark logo-image-mark">${questLogoImage()}</span>
+          <span class="side-mark logo-image-mark">${romLogoImage()}</span>
           <span><strong>ROM</strong><small>Secure workspace</small></span>
         </div>
         ${emptyState('Checking secure session...')}
@@ -3560,73 +3560,73 @@ function renderSvgSprite() {
         <path d="M5 18.5V7.7L12 4l7 3.7v10.8" />
         <path d="M8 12h8M9.5 15h5" />
       </symbol>
-      <symbol id="q-symbol-jobs" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-jobs" viewBox="0 0 24 24">
         <path d="M5 20V8h14v12H5Z" />
         <path d="M9 8V5h6v3M8 12h8M8 16h5" />
       </symbol>
-      <symbol id="q-symbol-tasks" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-tasks" viewBox="0 0 24 24">
         <path d="M6 7h12M6 12h12M6 17h12" />
         <path d="m4 7 .9.9L6.4 6.4M4 12l.9.9 1.5-1.5M4 17l.9.9 1.5-1.5" />
       </symbol>
-      <symbol id="q-symbol-files" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-files" viewBox="0 0 24 24">
         <path d="M4 19.5V6h6l2 2h8v11.5H4Z" />
         <path d="M4 10h16" />
       </symbol>
-      <symbol id="q-symbol-forms" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-forms" viewBox="0 0 24 24">
         <path d="M7 4h10v16H7V4Z" />
         <path d="M9.5 8h5M9.5 12h5M9.5 16h3" />
       </symbol>
-      <symbol id="q-symbol-analytics" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-analytics" viewBox="0 0 24 24">
         <path d="M5 19V5" />
         <path d="M5 19h14" />
         <path d="M8 16v-4M12 16V8M16 16v-6" />
       </symbol>
-      <symbol id="q-symbol-crm" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-crm" viewBox="0 0 24 24">
         <circle cx="9" cy="9" r="3" />
         <path d="M3.8 19c.8-3 2.5-4.5 5.2-4.5s4.4 1.5 5.2 4.5" />
         <path d="M15.5 8.2a2.7 2.7 0 1 1 0 5.4M16.8 15.2c1.8.6 3 1.9 3.6 3.8" />
       </symbol>
-      <symbol id="q-symbol-tickets" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-tickets" viewBox="0 0 24 24">
         <path d="M4 8.5h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4v-3Z" />
         <path d="M9 9v10" />
       </symbol>
-      <symbol id="q-symbol-finance" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-finance" viewBox="0 0 24 24">
         <path d="M6 4h12v16H6V4Z" />
         <path d="M9 8h6M9 12h6M9 16h3" />
         <path d="M15.5 14.5c0 1.4-1 2.5-3.2 2.5" />
       </symbol>
-      <symbol id="q-symbol-knowledge" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-knowledge" viewBox="0 0 24 24">
         <path d="M5 5.5c2.8-.8 5-.4 7 1.2 2-1.6 4.2-2 7-1.2V19c-2.8-.8-5-.4-7 1.2-2-1.6-4.2-2-7-1.2V5.5Z" />
         <path d="M12 6.7v13.5" />
       </symbol>
-      <symbol id="q-symbol-automations" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-automations" viewBox="0 0 24 24">
         <path d="M7 8a4 4 0 0 1 8 0c0 3-4 3.5-4 7" />
         <path d="M9 20h4M10 17h2M16.5 13.5l3 3M20 13l-3.5 3.5" />
       </symbol>
-      <symbol id="q-symbol-templates" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-templates" viewBox="0 0 24 24">
         <path d="M5 5h14v14H5V5Z" />
         <path d="M5 10h14M10 10v9" />
       </symbol>
-      <symbol id="q-symbol-users" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-users" viewBox="0 0 24 24">
         <circle cx="8.5" cy="9" r="3" />
         <circle cx="16" cy="10" r="2.5" />
         <path d="M3.8 19c.8-3 2.3-4.5 4.7-4.5s3.9 1.5 4.7 4.5M13.4 15.3c2.6 0 4.2 1.2 4.8 3.7" />
       </symbol>
-      <symbol id="q-symbol-messages" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-messages" viewBox="0 0 24 24">
         <path d="M4.5 6.5h15v9.5h-8l-4.5 3v-3H4.5v-9.5Z" />
         <path d="M8 10h8M8 13h5" />
       </symbol>
-      <symbol id="q-symbol-company-chat" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-company-chat" viewBox="0 0 24 24">
         <path d="M4 18V7l8-4 8 4v11" />
         <path d="M8 18v-6h8v6" />
         <path d="M6.5 21h11M8 8h.1M12 7h.1M16 8h.1" />
       </symbol>
-      <symbol id="q-symbol-role-chat" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-role-chat" viewBox="0 0 24 24">
         <circle cx="8" cy="8" r="3" />
         <circle cx="16" cy="9" r="2.5" />
         <path d="M3.8 18c.8-3 2.2-4.5 4.2-4.5s3.4 1.5 4.2 4.5M13 14.5c2.8.1 4.5 1.6 5.2 4.5" />
       </symbol>
-      <symbol id="q-symbol-direct-chat" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-direct-chat" viewBox="0 0 24 24">
         <circle cx="12" cy="8" r="3.5" />
         <path d="M5.5 20c1-4 3.1-6 6.5-6s5.5 2 6.5 6" />
       </symbol>
@@ -3639,34 +3639,34 @@ function renderSvgSprite() {
         <circle cx="9" cy="10" r="1.4" />
         <path d="m6.8 16 3.6-3.5 2.3 2.1 2.1-2.7 2.8 4.1" />
       </symbol>
-      <symbol id="q-symbol-settings" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-settings" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="3" />
         <path d="M12 3.8v2.4M12 17.8v2.4M4.9 6l1.7 1.7M17.4 16.3l1.7 1.7M3.8 12h2.4M17.8 12h2.4M4.9 18l1.7-1.7M17.4 7.7 19.1 6" />
       </symbol>
-      <symbol id="q-symbol-team-chart" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-team-chart" viewBox="0 0 24 24">
         <path d="M12 5v5M7 15v4M17 15v4M7 15h10M12 10h-5v5M12 10h5v5" />
         <circle cx="12" cy="4" r="2" />
         <circle cx="7" cy="20" r="2" />
         <circle cx="17" cy="20" r="2" />
       </symbol>
-      <symbol id="q-symbol-time" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-time" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="8" />
         <path d="M12 7.5V12l3 2" />
       </symbol>
-      <symbol id="q-symbol-calendar" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-calendar" viewBox="0 0 24 24">
         <path d="M5 5.5h14v14H5v-14Z" />
         <path d="M8 3.5v4M16 3.5v4M5 9.5h14M8.5 13h2M13.5 13h2M8.5 16h2" />
       </symbol>
-      <symbol id="q-symbol-approvals" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-approvals" viewBox="0 0 24 24">
         <path d="M5 12.5 9.2 17 19 7" />
         <path d="M5 5h14v14H5V5Z" />
       </symbol>
-      <symbol id="q-symbol-team-workload" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-team-workload" viewBox="0 0 24 24">
         <path d="M4 18c.7-2.7 2.1-4 4.2-4s3.5 1.3 4.2 4M12.5 18c.7-2.7 2.1-4 4.2-4s3.5 1.3 4.2 4" />
         <circle cx="8.2" cy="9" r="3" />
         <circle cx="16.7" cy="9" r="3" />
       </symbol>
-      <symbol id="q-symbol-clock" viewBox="0 0 24 24">
+      <symbol id="rom-symbol-clock" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="8" />
         <path d="M12 6.8v5.4l3.7 2.1" />
         <path d="M5 4.8 3.5 6.3M19 4.8l1.5 1.5" />
@@ -3679,8 +3679,8 @@ function svgIcon(id, className = 'symbol-icon') {
   return `<svg class="${h(className)}" aria-hidden="true" focusable="false"><use href="#${h(id)}"></use></svg>`;
 }
 
-function questLogoImage(alt = 'ROM') {
-  return `<img class="quest-logo-image" src="${h(questLogoMarkUrl)}" alt="${h(alt)}" />`;
+function romLogoImage(alt = 'ROM') {
+  return `<img class="rom-logo-image" src="${h(romLogoMarkUrl)}" alt="${h(alt)}" />`;
 }
 
 function moduleSymbol(section = state.route?.section || 'jobs') {
@@ -3689,14 +3689,14 @@ function moduleSymbol(section = state.route?.section || 'jobs') {
 
 function metricSymbol(label) {
   const value = String(label || '').toLowerCase();
-  if (value.includes('job') || value.includes('pipeline')) return 'q-symbol-jobs';
-  if (value.includes('task') || value.includes('review')) return 'q-symbol-tasks';
-  if (value.includes('file')) return 'q-symbol-files';
-  if (value.includes('form')) return 'q-symbol-forms';
-  if (value.includes('account') || value.includes('customer') || value.includes('member') || value.includes('user') || value.includes('lead')) return 'q-symbol-crm';
-  if (value.includes('invoice') || value.includes('collected') || value.includes('expense') || value.includes('net') || value.includes('outstanding')) return 'q-symbol-finance';
-  if (value.includes('time') || value.includes('today') || value.includes('days') || value.includes('timer') || value.includes('entries')) return 'q-symbol-clock';
-  if (value.includes('approval') || value.includes('access')) return 'q-symbol-approvals';
+  if (value.includes('job') || value.includes('pipeline')) return 'rom-symbol-jobs';
+  if (value.includes('task') || value.includes('review')) return 'rom-symbol-tasks';
+  if (value.includes('file')) return 'rom-symbol-files';
+  if (value.includes('form')) return 'rom-symbol-forms';
+  if (value.includes('account') || value.includes('customer') || value.includes('member') || value.includes('user') || value.includes('lead')) return 'rom-symbol-crm';
+  if (value.includes('invoice') || value.includes('collected') || value.includes('expense') || value.includes('net') || value.includes('outstanding')) return 'rom-symbol-finance';
+  if (value.includes('time') || value.includes('today') || value.includes('days') || value.includes('timer') || value.includes('entries')) return 'rom-symbol-clock';
+  if (value.includes('approval') || value.includes('access')) return 'rom-symbol-approvals';
   return moduleSymbol();
 }
 
@@ -3753,12 +3753,12 @@ function shellTemplate(route, workspace) {
   const companyId = activeCompanyId();
   const emailVerified = isSessionEmailVerified(session);
   return `
-    <div class="quest-app ${state.sidebarCollapsed ? 'sidebar-collapsed' : ''}" data-route="${h(route.name)}" data-section="${h(route.section || '')}">
+    <div class="romio-app ${state.sidebarCollapsed ? 'sidebar-collapsed' : ''}" data-route="${h(route.name)}" data-section="${h(route.section || '')}">
       ${renderSvgSprite()}
       <header class="topbar">
         <div class="topbar-left">
           <a class="logo logo-image-mark" href="${appHref(companyPath('dashboard', {}, companyId))}" data-router aria-label="ROM workspace">
-            ${questLogoImage()}
+            ${romLogoImage()}
           </a>
           <div>
             <div class="brand-name">ROM</div>
@@ -3819,16 +3819,16 @@ function renderMobileStatusRail(companyId) {
   return `
     <div class="mobile-status-rail" aria-label="Workspace status">
       <a href="${appHref(companyPath('settings', { tab: 'billing' }, companyId))}" data-router>
-        ${svgIcon('q-symbol-approvals')}<span>${h(subscriptionLabel(companyId))}</span>
+        ${svgIcon('rom-symbol-approvals')}<span>${h(subscriptionLabel(companyId))}</span>
       </a>
       <a href="${appHref(companyPath('users', {}, companyId))}" data-router>
-        ${svgIcon('q-symbol-users')}<span>${h(String(activeUsers))} active</span>
+        ${svgIcon('rom-symbol-users')}<span>${h(String(activeUsers))} active</span>
       </a>
       <a href="${appHref(companyPath('tasks', {}, companyId))}" data-router>
-        ${svgIcon('q-symbol-tasks')}<span>${h(String(overdueTasks))} overdue</span>
+        ${svgIcon('rom-symbol-tasks')}<span>${h(String(overdueTasks))} overdue</span>
       </a>
       <a href="${appHref(companyPath('settings', {}, companyId))}" data-router>
-        ${svgIcon('q-symbol-settings')}<span>Health: ${h(health)}</span>
+        ${svgIcon('rom-symbol-settings')}<span>Health: ${h(health)}</span>
       </a>
     </div>
   `;
@@ -3998,7 +3998,7 @@ function renderDeck(route) {
   return `
     <div class="deck-brand">
       <a class="logo logo-image-mark" href="${appHref(companyPath('dashboard', {}, companyId))}" data-router aria-label="ROM dashboard">
-        ${questLogoImage()}
+        ${romLogoImage()}
       </a>
       <span><strong>ROM</strong><small>Command Center</small></span>
       <button class="deck-toggle" type="button" data-action="toggle-sidebar" aria-label="${state.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}" aria-expanded="${state.sidebarCollapsed ? 'false' : 'true'}">
@@ -5757,7 +5757,7 @@ function dashboardRepDisplayName(user) {
 
 function isInternalDashboardRepName(name) {
   const key = dashboardOwnerKey(name);
-  return key === 'basic-quest-user' || key === 'demo-readonly-user' || /^profile-[a-f0-9-]+$/.test(key);
+  return key === 'basic-user' || key === 'demo-readonly-user' || /^profile-[a-f0-9-]+$/.test(key);
 }
 
 function personOwnerDisplayName(name, companyId = activeCompanyId()) {
@@ -9993,7 +9993,7 @@ function renderUsersPage(route, companyId) {
         <div class="section-head"><div><h2>Access model</h2><p>Membership is company-scoped; UI hiding is convenience, RLS is the real privacy layer.</p></div></div>
         ${contractRows([
           ['Tenant key', 'company_id on jobs, tasks, files, forms, users, settings'],
-          ['Privacy status', CONFIG.questAuthEnabled ? 'Supabase Auth + RLS' : 'Client-filtered demo only'],
+          ['Privacy status', CONFIG.authEnabled ? 'Supabase Auth + RLS' : 'Client-filtered demo only'],
           ['Your role', roleForCompany(companyId)],
           ['Can manage users', canManageUsers ? 'Yes' : 'No'],
         ])}
@@ -10169,7 +10169,7 @@ function normalizeFeedPost(p) {
     type,
     authorId: post.authorId || '',
     // ROM: unique per-user identity (all local sessions share authorId
-    // 'basic-quest-user', so post ownership is keyed on the ROM email instead).
+    // 'basic-user', so post ownership is keyed on the ROM email instead).
     authorEmail: post.authorEmail || '',
     author: post.author || 'User',
     ts: post.ts || new Date().toISOString(),
@@ -10976,7 +10976,7 @@ function wbTileImageSignedUrl(tile) {
   tile._imgTried = true;
   const client = createSupabaseClient();
   if (!client) return '';
-  client.storage.from(tile.config.bucket || 'quest-job-files').createSignedUrl(tile.config.objectPath, 3600)
+  client.storage.from(tile.config.bucket || 'romio-job-files').createSignedUrl(tile.config.objectPath, 3600)
     .then(({ data, error }) => { if (!error && data?.signedUrl) { tile._imgUrl = data.signedUrl; render(); } })
     .catch((err) => console.warn('Tile image sign failed', err));
   return '';
@@ -10990,10 +10990,10 @@ async function wbUploadTileImage(companyId, file) {
   if (client) {
     try {
       const path = `${canonicalCompanyId(companyId)}/workspace-tiles/${crypto.randomUUID()}-${slugify(file.name)}`;
-      const up = await client.storage.from('quest-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
+      const up = await client.storage.from('romio-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
       if (!up.error) {
-        const signed = await client.storage.from('quest-job-files').createSignedUrl(path, 3600);
-        return { objectPath: path, bucket: 'quest-job-files', previewUrl: signed.data?.signedUrl || '' };
+        const signed = await client.storage.from('romio-job-files').createSignedUrl(path, 3600);
+        return { objectPath: path, bucket: 'romio-job-files', previewUrl: signed.data?.signedUrl || '' };
       }
       if (live) { showToast(up.error.message || 'Image upload failed.', 'error', 'Workspaces'); return null; }
     } catch (error) {
@@ -11168,10 +11168,10 @@ async function wbUploadFeedFiles(companyId, files) {
     if (client) {
       try {
         const path = `${canonicalCompanyId(companyId)}/workspace-feed/${crypto.randomUUID()}-${slugify(file.name)}`;
-        const up = await client.storage.from('quest-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
+        const up = await client.storage.from('romio-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
         if (!up.error) {
           objectPath = path;
-          const signed = await client.storage.from('quest-job-files').createSignedUrl(path, 604800);
+          const signed = await client.storage.from('romio-job-files').createSignedUrl(path, 604800);
           if (signed.data?.signedUrl) url = signed.data.signedUrl;
         }
       } catch (error) { console.warn('Feed file upload failed', error); }
@@ -11179,7 +11179,7 @@ async function wbUploadFeedFiles(companyId, files) {
     if (live && !objectPath) { showToast(`"${file.name}" could not be uploaded.`, 'error', 'Workspaces'); continue; }
     if (!url && !live && file.size <= 2 * 1024 * 1024) url = await wbReadFileAsDataUrl(file);
     if (!url && !objectPath) { showToast(`"${file.name}" is too large to attach — link it by URL instead.`, 'error', 'Workspaces'); continue; }
-    out.push({ name: file.name, url, objectPath, bucket: 'quest-job-files', size: file.size, mime: contentTypeFor(file) });
+    out.push({ name: file.name, url, objectPath, bucket: 'romio-job-files', size: file.size, mime: contentTypeFor(file) });
   }
   return out;
 }
@@ -11204,7 +11204,7 @@ function wbMirrorFeedFileToDrive(attachment, companyId, workspaceName) {
       category: wsName,
       notes: `Posted to workspace feed "${wsName}".`,
       uploaded_by_label: activeSession().profile.full_name || 'ROM',
-      bucket_id: attachment.bucket || 'quest-job-files',
+      bucket_id: attachment.bucket || 'romio-job-files',
       object_path: attachment.objectPath || '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -11561,7 +11561,7 @@ function wbSaveTileConfig(companyId) {
   else if (tile.type === 'image') {
     if (m.draft.objectPath) {
       tile.config.objectPath = m.draft.objectPath;
-      tile.config.bucket = m.draft.bucket || 'quest-job-files';
+      tile.config.bucket = m.draft.bucket || 'romio-job-files';
       tile.config.url = '';
     } else {
       tile.config.objectPath = '';
@@ -12676,7 +12676,7 @@ function wbDownloadApp(companyId, workspaceId, appId) {
   const { app } = wbFind(companyId, workspaceId, appId);
   if (!app) return;
   const bundle = {
-    format: 'quest-hq-app',
+    format: 'romio-app',
     version: 1,
     exported_at: new Date().toISOString(),
     app: {
@@ -13760,7 +13760,7 @@ function wbMirrorFileToDrive(file, objectPath, companyId, fieldId) {
       category: appName,
       notes: `Uploaded from workspace app "${appName}" · field "${fieldName}".`,
       uploaded_by_label: activeSession().profile.full_name || 'ROM',
-      bucket_id: 'quest-job-files',
+      bucket_id: 'romio-job-files',
       object_path: objectPath,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -13829,14 +13829,14 @@ function wbMountFileFields(overlay) {
       if (client) {
         try {
           const path = `${canonicalCompanyId(companyId)}/workspace/${crypto.randomUUID()}-${slugify(file.name)}`;
-          const up = await client.storage.from('quest-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
+          const up = await client.storage.from('romio-job-files').upload(path, file, { cacheControl: '3600', contentType: contentTypeFor(file) });
           bar.style.width = '70%';
           if (!up.error) {
             objectPath = path;
             // Short-lived signed URL for immediate viewing. We persist object_path
             // (below) so links can be re-minted on demand instead of storing a
             // year-long bearer token inside the shared workspace doc.
-            const signed = await client.storage.from('quest-job-files').createSignedUrl(path, 604800);
+            const signed = await client.storage.from('romio-job-files').createSignedUrl(path, 604800);
             if (signed.data?.signedUrl) url = signed.data.signedUrl;
           } else { uploadError = up.error; }
         } catch (error) { uploadError = error; console.warn('Workspace file upload failed', error); }
@@ -14588,9 +14588,9 @@ function renderSettingsPage(route, companyId) {
       <article class="panel">
         <div class="section-head"><div><h2>Access</h2><p>Memberships, invites, and join requests.</p></div></div>
         ${contractRows([
-          ['Auth switch', CONFIG.questAuthEnabled ? 'Enabled' : 'Disabled'],
+          ['Auth switch', CONFIG.authEnabled ? 'Enabled' : 'Disabled'],
           ['Local login', CONFIG.localLoginEnabled ? 'Enabled' : 'Disabled'],
-          ['Isolation', CONFIG.questAuthEnabled ? 'Server-enforced when migration is applied' : 'Client-filtered only'],
+          ['Isolation', CONFIG.authEnabled ? 'Server-enforced when migration is applied' : 'Client-filtered only'],
           ['Active memberships', String(state.memberships.filter((item) => item.company_id === companyId && item.status === 'active').length)],
           ['Disabled/left', String(state.memberships.filter((item) => item.company_id === companyId && ['disabled', 'left'].includes(item.status)).length)],
           ['Invites', String(state.companyInvites.filter((item) => item.company_id === companyId && item.status === 'pending').length)],
@@ -14800,7 +14800,7 @@ function renderClientPortalPublicPage(route) {
     return `
       <main class="client-portal-public">
         <section class="client-portal-gate ${portal?.loading ? 'loading' : ''}">
-          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div>
+          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div>
           <h1>${portal?.error ? 'Could not open portal' : 'Opening plan portal'}</h1>
           <p>${portal?.error ? 'This public portal link could not be opened. Ask the workspace team to confirm the link is active.' : 'Checking this link. If no password was set, the plan review will open automatically.'}</p>
           ${portal?.error ? `<div class="form-message error">${h(portal.error)}</div>` : '<div class="client-portal-status">Opening...</div>'}
@@ -14953,7 +14953,7 @@ async function cpDocumentSourceUrl(doc) {
   }
   const client = createSupabaseClient();
   if (client && doc.object_path) {
-    const bucket = doc.bucket_id || 'quest-client-portal-documents';
+    const bucket = doc.bucket_id || 'romio-client-portal-documents';
     const signed = await cpWithTimeout(client.storage.from(bucket).createSignedUrl(doc.object_path, 900), 8000, 'Document URL');
     if (!signed.error && signed.data?.signedUrl) return signed.data.signedUrl;
     const download = await cpWithTimeout(client.storage.from(bucket).download(doc.object_path), 15000, 'Document download');
@@ -15139,7 +15139,7 @@ function renderClientPortalAnnotate(mode) {
   return `
     <div class="cp-annotate" data-cp-annotate data-cp-mode="${h(mode)}">
       <header class="cp-an-top">
-        <div class="cp-mk logo-image-mark">${questLogoImage('ROM Client Portal')}</div>
+        <div class="cp-mk logo-image-mark">${romLogoImage('ROM Client Portal')}</div>
         <div class="cp-an-title"><strong>${h(title)}</strong><small>${h(client)}</small></div>
         ${doc ? `<span class="cp-an-crumb">${h(doc.file_name)}${doc.version_number > 1 ? ` · v${h(String(doc.version_number))}` : ''}</span>` : ''}
         <div class="cp-sp"></div>
@@ -15769,7 +15769,7 @@ function renderBillingSettings(companyId) {
       <div class="section-head"><div><h2>Billing gate</h2><p>Paid modules open only after approval or an active billing state.</p></div></div>
       ${contractRows([
         ['Workspace access', subscriptionAllowsCompany(companyId) ? 'Allowed' : 'Suspended'],
-        ['Finance/files privacy', CONFIG.questAuthEnabled ? 'Requires Auth + RLS' : 'Demo only'],
+        ['Finance/files privacy', CONFIG.authEnabled ? 'Requires Auth + RLS' : 'Demo only'],
         ['Seat billing', 'Tracked later; not charged in v1'],
       ])}
     </article>
@@ -16467,7 +16467,7 @@ function renderPublicFormPage(route) {
     return `
       <main class="form-public-shell">
         <section class="form-public-card complete">
-          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Form')}</span><span><strong>ROM Forms</strong><small>${h(company.name || 'Submission received')}</small></span></div>
+          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Form')}</span><span><strong>ROM Forms</strong><small>${h(company.name || 'Submission received')}</small></span></div>
           <h1>Thanks, we received it.</h1>
           <p>Your response was sent to the workspace team.</p>
         </section>
@@ -16478,7 +16478,7 @@ function renderPublicFormPage(route) {
     return `
       <main class="form-public-shell">
         <section class="form-public-card ${current?.loading ? 'loading' : ''}">
-          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Form')}</span><span><strong>ROM Forms</strong><small>Secure response</small></span></div>
+          <div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Form')}</span><span><strong>ROM Forms</strong><small>Secure response</small></span></div>
           <h1>${current?.error ? 'Could not open form' : 'Opening form'}</h1>
           <p>${current?.error ? 'This form link is unavailable or no longer published.' : 'Checking this public form link.'}</p>
           ${current?.error ? `<div class="form-message error">${h(current.error)}</div>` : '<div class="client-portal-status">Opening...</div>'}
@@ -16489,7 +16489,7 @@ function renderPublicFormPage(route) {
   return `
     <main class="form-public-shell">
       <form class="form-public-card response-form" data-public-form-response data-form-id="${h(form.id)}" style="--form-accent:${h(form.theme_color || company.color || '#f45d22')}">
-        <div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Form')}</span><span><strong>${h(company.name || 'ROM Forms')}</strong><small>${h(form.audience || 'Response')}</small></span></div>
+        <div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Form')}</span><span><strong>${h(company.name || 'ROM Forms')}</strong><small>${h(form.audience || 'Response')}</small></span></div>
         <div class="designed-form-header">
           <span>${h(company.name || 'ROM')}</span>
           <h1>${h(form.title)}</h1>
@@ -16941,7 +16941,7 @@ function renderProposalPublicPage(route) {
   return `
     <main class="proposal-public-shell">
       <section class="proposal-public-brand">
-        <span class="side-mark logo-image-mark">${questLogoImage()}</span>
+        <span class="side-mark logo-image-mark">${romLogoImage()}</span>
         <span><strong>ROM Roofing</strong><small>Customer proposal</small></span>
       </section>
       ${error ? `
@@ -17422,7 +17422,7 @@ function renderClientPortalPasswordGate(token, portal) {
   return `
     <main class="client-portal-public">
       <section class="client-portal-gate">
-        <div class="client-portal-brand"><span class="side-mark logo-image-mark">${questLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div>
+        <div class="client-portal-brand"><span class="side-mark logo-image-mark">${romLogoImage('ROM Client Portal')}</span><span><strong>ROM Client Portal</strong><small>Plan review</small></span></div>
         <h1>Portal password</h1>
         <p>This portal is password protected. Enter the password shared with you to review the plans.</p>
         <form data-client-portal-open-form autocomplete="off">
@@ -17639,7 +17639,7 @@ function renderMessageComposer(conversation) {
 function renderNoConversationState(companyId) {
   return `
     <div class="messages-empty-panel message-simple-empty">
-      ${svgIcon('q-symbol-messages')}
+      ${svgIcon('rom-symbol-messages')}
       <h2>No chat selected</h2>
       <p>Start a group, send a direct message, or pick a conversation from the list.</p>
       <div class="message-empty-actions">
@@ -18497,7 +18497,7 @@ function renderLandingPage(forceAuthModal = false) {
   document.title = 'ROM | Company operations workspace';
   const route = state.route || getRoute();
   const returnUrl = safeReturnUrl(route.params.get('return_url') || appHref(companyPath('jobs', {}, defaultCompanyId())));
-  const authEnabled = CONFIG.questAuthEnabled;
+  const authEnabled = CONFIG.authEnabled;
   const inviteToken = String(route.params.get('invite') || '').trim();
   const authParam = String(route.params.get('auth') || '').trim();
   const requestedMode = normalizeAuthMode(route.params.get('mode') || authParam, inviteToken);
@@ -18509,7 +18509,7 @@ function renderLandingPage(forceAuthModal = false) {
     <main class="landing-shell">
       <nav class="landing-nav">
         <a class="login-brand landing-brand" href="${appHref('/')}" data-router>
-          <span class="side-mark logo-image-mark">${questLogoImage()}</span>
+          <span class="side-mark logo-image-mark">${romLogoImage()}</span>
           <span><strong>ROM</strong><small>Command Center</small></span>
         </a>
         <div class="landing-nav-links" aria-label="Landing navigation">
@@ -18518,7 +18518,7 @@ function renderLandingPage(forceAuthModal = false) {
             ['Files', 'platform'],
             ['Forms', 'platform'],
             ['Client Portal', 'security'],
-            ['Access', 'why-quest-hq'],
+            ['Access', 'why-ROMIO'],
           ].map(([item, target]) => `<a href="#${h(target)}">${h(item)}</a>`).join('')}
         </div>
         <div class="landing-nav-actions">
@@ -18669,7 +18669,7 @@ function renderLandingPage(forceAuthModal = false) {
           </div>
         </article>
       </section>
-      <section class="landing-proof" id="why-quest-hq">
+      <section class="landing-proof" id="why-ROMIO">
         ${[
           ['ti-users', 'ROM CRM', 'Live sales flow'],
           ['ti-folder', 'Files', 'Storage verified'],
@@ -20195,7 +20195,7 @@ async function exportProposalPdf(proposalId) {
     `Valid through ${formatDate(draft.valid)}.`,
   ].filter(Boolean).join('\n');
   pdf.text(pdf.splitTextToSize(terms, pageWidth - margin * 2), margin, y);
-  pdf.save(`quest-Proposal-${slugify(proposal.proposal_no || proposal.id)}.pdf`);
+  pdf.save(`ROMIO-Proposal-${slugify(proposal.proposal_no || proposal.id)}.pdf`);
 }
 
 function renderTaskRouteModal(route, companyId) {
@@ -20446,7 +20446,7 @@ function onDocumentKeydown(event) {
   handleAction(event, action);
 }
 
-// quest-specific tile interactions for the embedded Calendar + Checklist tiles.
+// ROM-specific tile interactions for the embedded Calendar + Checklist tiles.
 // These read live data from window.__ROM_WS_EVENTS__ / __ROM_WS_CHECKLISTS__ and
 // write through the permission-gated bridge API (window.__ROM_ADD_EVENT__ etc).
 // Returns true when it handled the click so onDocumentClick stops there.
@@ -23041,7 +23041,7 @@ async function signOut() {
   try { teardownGlobalRealtime(); } catch { /* ignore */ }
   if (isLiveSupabaseSession()) {
     const client = createSupabaseClient();
-    if (CONFIG.questAuthEnabled && client?.auth) await client.auth.signOut();
+    if (CONFIG.authEnabled && client?.auth) await client.auth.signOut();
   }
   localStorage.removeItem(SESSION_KEY);
   state.session = null;
@@ -24624,7 +24624,7 @@ async function saveMessageAttachments(message, files) {
     let objectSaved = '';
     if (isLiveSupabaseSession() && client) {
       const upload = await client.storage
-        .from('quest-message-attachments')
+        .from('romio-message-attachments')
         .upload(objectPath, file, { cacheControl: '3600', upsert: false, contentType: contentTypeFor(file) });
       if (upload.error) {
         showToast(upload.error.message || 'Attachment upload failed.', 'local', 'Messages');
@@ -24639,7 +24639,7 @@ async function saveMessageAttachments(message, files) {
       conversation_id: message.conversation_id,
       message_id: message.id,
       company_id: message.company_id,
-      bucket_id: 'quest-message-attachments',
+      bucket_id: 'romio-message-attachments',
       object_path: objectSaved,
       file_name: file.name || 'attachment',
       mime_type: file.type || 'application/octet-stream',
@@ -24651,7 +24651,7 @@ async function saveMessageAttachments(message, files) {
       const result = await client.from('message_attachments').insert(messageAttachmentPayload(attachment)).select().single();
       if (result.error) {
         showToast(result.error.message || 'Attachment record failed.', 'local', 'Messages');
-        if (objectSaved) await client.storage.from('quest-message-attachments').remove([objectSaved]);
+        if (objectSaved) await client.storage.from('romio-message-attachments').remove([objectSaved]);
         continue;
       }
       saved.push(normalizeMessageAttachment(result.data));
@@ -24722,7 +24722,7 @@ async function openMessageAttachment(attachmentId) {
   }
   const client = createSupabaseClient();
   if (isLiveSupabaseSession() && client && attachment.object_path) {
-    const result = await client.storage.from(attachment.bucket_id || 'quest-message-attachments').createSignedUrl(attachment.object_path, 900, { download: attachment.file_name });
+    const result = await client.storage.from(attachment.bucket_id || 'romio-message-attachments').createSignedUrl(attachment.object_path, 900, { download: attachment.file_name });
     if (!result.error && result.data?.signedUrl) {
       window.open(result.data.signedUrl, '_blank', 'noopener,noreferrer');
       return;
@@ -25188,7 +25188,7 @@ async function saveFileRecord(form) {
     let uploaded = false;
     if (client && item) {
       const storageResult = await client.storage
-        .from('quest-job-files')
+        .from('romio-job-files')
         .upload(objectPath, item, { cacheControl: '3600', upsert: false, contentType: contentTypeFor(item) });
       uploaded = !storageResult.error;
       if (storageResult.error) lastError = storageResult.error;
@@ -25207,7 +25207,7 @@ async function saveFileRecord(form) {
       category: fields.category || folderLabel(folder),
       notes: fields.notes || '',
       uploaded_by_label: fields.uploaded_by_label || activeSession().profile.full_name,
-      bucket_id: 'quest-job-files',
+      bucket_id: 'romio-job-files',
       object_path: uploaded || !item ? objectPath : '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -25220,7 +25220,7 @@ async function saveFileRecord(form) {
         liveSaved += 1;
         continue;
       }
-      if (uploaded) await client.storage.from('quest-job-files').remove([objectPath]);
+      if (uploaded) await client.storage.from('romio-job-files').remove([objectPath]);
       // Live session but the DB record failed to persist — don't keep a phantom
       // local-only row; report it as failed so the user knows to retry.
       if (live) { failed += 1; lastError = result.error || new Error('File record insert returned no record.'); continue; }
@@ -25342,7 +25342,7 @@ async function saveClientPortalDocuments(form) {
     let uploaded = false;
     if (isLiveSupabaseSession() && client) {
       const upload = await client.storage
-        .from('quest-client-portal-documents')
+        .from('romio-client-portal-documents')
         .upload(objectPath, file, { cacheControl: '3600', upsert: false, contentType: contentTypeFor(file) });
       if (upload.error) {
         showToast(upload.error.message || 'Plan upload failed.', 'local', 'Client Portal');
@@ -25354,7 +25354,7 @@ async function saveClientPortalDocuments(form) {
       id,
       company_id: companyId,
       portal_id: portal.id,
-      bucket_id: 'quest-client-portal-documents',
+      bucket_id: 'romio-client-portal-documents',
       object_path: uploaded ? objectPath : '',
       file_name: file.name || 'Plan set',
       mime_type: file.type || 'application/octet-stream',
@@ -25364,7 +25364,7 @@ async function saveClientPortalDocuments(form) {
     if (isLiveSupabaseSession() && client) {
       const result = await client.from('client_portal_documents').insert(clientPortalDocumentPayload(doc)).select().single();
       if (result.error) {
-        if (uploaded) await client.storage.from('quest-client-portal-documents').remove([objectPath]);
+        if (uploaded) await client.storage.from('romio-client-portal-documents').remove([objectPath]);
         showToast(result.error.message || 'Document record failed.', 'local', 'Client Portal');
         continue;
       }
@@ -26658,7 +26658,7 @@ async function exportClientPortalMarkedPdf() {
     else pdf.addPage([base.w, base.h], orientation);
     pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, base.w, base.h);
   }
-  pdf.save(`quest-Portal-Markups-${new Date().toISOString().slice(0, 10)}.pdf`);
+  pdf.save(`ROMIO-Portal-Markups-${new Date().toISOString().slice(0, 10)}.pdf`);
   if (cpIsGuest()) {
     await fetch('/api/client-portal-export-event', {
       method: 'POST',
@@ -26951,7 +26951,7 @@ async function downloadFile(id) {
   }
   const client = createSupabaseClient();
   if (!client) return;
-  const result = await client.storage.from(file.bucket_id || 'quest-job-files').createSignedUrl(file.object_path, 3600, { download: file.file_name });
+  const result = await client.storage.from(file.bucket_id || 'romio-job-files').createSignedUrl(file.object_path, 3600, { download: file.file_name });
   if (result.error || !result.data?.signedUrl) {
     state.sync = { label: 'Download failed', mode: 'local' };
     render();
@@ -27069,7 +27069,7 @@ async function performFilesTransfer() {
         ? `${file.object_path.slice(0, Math.max(0, file.object_path.lastIndexOf('/') + 1))}${copyId}-${slugify(file.file_name)}`
         : '';
       if (client && isLiveSupabaseSession() && file.object_path) {
-        const storageResult = await client.storage.from(file.bucket_id || 'quest-job-files').copy(file.object_path, copiedObjectPath);
+        const storageResult = await client.storage.from(file.bucket_id || 'romio-job-files').copy(file.object_path, copiedObjectPath);
         if (storageResult.error) {
           notifySyncFailure(storageResult.error, 'File copy');
           continue;
@@ -27085,7 +27085,7 @@ async function performFilesTransfer() {
     if (result.error) {
       if (copiedObjectPath) {
         await settleObserved(
-          client.storage.from(file.bucket_id || 'quest-job-files').remove([copiedObjectPath]),
+          client.storage.from(file.bucket_id || 'romio-job-files').remove([copiedObjectPath]),
           (cleanupError) => console.warn('Copied file cleanup failed', cleanupError),
         );
       }
@@ -28839,12 +28839,12 @@ async function downloadBackupZip(backup) {
   }
   const JSZip = await loadJsZip();
   const zip = new JSZip();
-  zip.file('quest-backup.json', JSON.stringify(target.payload || buildWorkspaceBackupPayload(target.company_id), null, 2));
+  zip.file('romio-backup.json', JSON.stringify(target.payload || buildWorkspaceBackupPayload(target.company_id), null, 2));
   const blob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${slugify(target.label || 'quest-backup') || 'quest-backup'}.zip`;
+  anchor.download = `${slugify(target.label || 'romio-backup') || 'romio-backup'}.zip`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -28857,8 +28857,8 @@ async function importWorkspaceBackupFile(file) {
   if (!check.ok) throw new Error(check.reason);
   const JSZip = await loadJsZip();
   const zip = await JSZip.loadAsync(file);
-  const entry = zip.file('quest-backup.json');
-  if (!entry) throw new Error('This zip does not contain quest-backup.json.');
+  const entry = zip.file('romio-backup.json');
+  if (!entry) throw new Error('This zip does not contain romio-backup.json.');
   const payload = JSON.parse(await entry.async('string'));
   validateWorkspaceBackupPayload(payload);
   const now = new Date().toISOString();
@@ -29290,7 +29290,7 @@ async function permanentlyDeleteRecycleBinItem(itemId, options = {}) {
   const client = createSupabaseClient();
   if (isLiveSupabaseSession() && client) {
     if (typeConfig.type === 'file' && snapshot.object_path) {
-      const storageResult = await client.storage.from('quest-job-files').remove([snapshot.object_path]);
+      const storageResult = await client.storage.from('romio-job-files').remove([snapshot.object_path]);
       if (storageResult.error) { notifySyncFailure(storageResult.error, 'Permanent delete'); return false; }
     }
     const result = await client.rpc('recycle_permanently_delete_item', { p_item_id: item.id });
@@ -30827,7 +30827,7 @@ async function mountLocationPicker() {
   }).addTo(locationPickerMap);
   locationPickerMarker = mapLibrary.marker([lat, lng], {
     draggable: true,
-    icon: mapLibrary.divIcon({ className: 'quest-map-pin', html: '<i class="ti ti-map-pin-filled"></i>', iconSize: [34, 34], iconAnchor: [17, 34] }),
+    icon: mapLibrary.divIcon({ className: 'rom-map-pin', html: '<i class="ti ti-map-pin-filled"></i>', iconSize: [34, 34], iconAnchor: [17, 34] }),
   }).addTo(locationPickerMap);
   const sync = (reverse = false) => {
     const pos = locationPickerMarker.getLatLng();
@@ -30993,10 +30993,7 @@ function fileCountForJob(jobId) {
 }
 
 function canonicalCompanyId(id) {
-  return {
-    'quest-roofing': 'roofing',
-    'quest-drafting': 'drafting',
-  }[String(id || '').trim()] || String(id || '').trim();
+  return String(id || '').trim();
 }
 
 function mergeCompanies(companies) {
@@ -31350,7 +31347,7 @@ function normalizeFile(input) {
     mime_type: String(input.mime_type || 'application/octet-stream'),
     size_bytes: number(input.size_bytes),
     category,
-    bucket_id: input.bucket_id || 'quest-job-files',
+    bucket_id: input.bucket_id || 'romio-job-files',
     object_path: input.object_path || '',
     uploaded_by_label: String(input.uploaded_by_label || 'ROM'),
     notes: String(input.notes || ''),
@@ -31460,7 +31457,7 @@ function normalizeClientPortalDocument(input) {
       : 'pending',
     scale: Number.isFinite(scale) && scale > 0 ? scale : null,
     scale_unit: ['ft', 'in', 'cm'].includes(scaleUnit) ? scaleUnit : '',
-    bucket_id: String(input.bucket_id || 'quest-client-portal-documents'),
+    bucket_id: String(input.bucket_id || 'romio-client-portal-documents'),
     object_path: String(input.object_path || ''),
     file_name: String(input.file_name || 'Plan set.pdf'),
     mime_type: String(input.mime_type || 'application/octet-stream'),
@@ -31602,7 +31599,7 @@ function normalizeSubscription(input) {
   return {
     company_id: canonicalCompanyId(input.company_id || ''),
     status: normalizeSubscriptionStatus(input.status) || 'pending_review',
-    plan_code: String(input.plan_code || 'quest_company_300'),
+    plan_code: String(input.plan_code || 'rom_company_300'),
     amount_cents: number(input.amount_cents || 30000),
     currency: String(input.currency || 'usd'),
     stripe_customer_id: String(input.stripe_customer_id || ''),
@@ -31625,7 +31622,7 @@ function normalizeWorkspaceReview(input) {
     icon_key: workspaceIconOption(input.icon_key).key,
     icon_image: sanitizeWorkspaceIconImage(input.icon_image),
     status: normalizeSubscriptionStatus(input.status) || 'pending_review',
-    plan_code: String(input.plan_code || 'quest_company_300'),
+    plan_code: String(input.plan_code || 'rom_company_300'),
     amount_cents: number(input.amount_cents || 30000),
     currency: String(input.currency || 'usd'),
     owner_profile_id: String(input.owner_profile_id || ''),
@@ -31837,7 +31834,7 @@ function normalizeMessageAttachment(input) {
     conversation_id: String(input.conversation_id || ''),
     message_id: String(input.message_id || ''),
     company_id: canonicalCompanyId(input.company_id || ''),
-    bucket_id: String(input.bucket_id || 'quest-message-attachments'),
+    bucket_id: String(input.bucket_id || 'romio-message-attachments'),
     object_path: String(input.object_path || ''),
     file_name: String(input.file_name || 'attachment'),
     mime_type: String(input.mime_type || 'application/octet-stream'),
@@ -32197,8 +32194,8 @@ function buildSupabaseSession(session, profile) {
 
 function buildLocalSession() {
   const profile = {
-    id: 'basic-quest-user',
-    email: window.__ROM_USER_EMAIL__ || 'local-demo@quest-hq.local',
+    id: 'basic-user',
+    email: window.__ROM_USER_EMAIL__ || 'local-demo@romio.local',
     full_name: window.__ROM_USER_NAME__ || 'You',
     role: 'developer',
     role_label: 'Member',
@@ -32219,7 +32216,7 @@ function buildLocalSession() {
 function buildDemoSession() {
   const profile = {
     id: 'demo-readonly-user',
-    email: 'demo@quest-hq.local',
+    email: 'demo@romio.local',
     full_name: 'Demo Visitor',
     role: 'owner',
     role_label: 'Demo',
@@ -32259,7 +32256,7 @@ function normalizeNotification(input) {
   return {
     id: String(input.id || `notification-${crypto.randomUUID()}`),
     company_id: canonicalCompanyId(input.company_id || ''),
-    recipient_profile_id: String(input.recipient_profile_id || input.profile_id || input.member_id || 'basic-quest-user'),
+    recipient_profile_id: String(input.recipient_profile_id || input.profile_id || input.member_id || 'basic-user'),
     type: String(input.type || (input.task_id ? 'task.notification' : 'general')),
     title: String(input.title || input.meta || 'Notification'),
     body: String(input.body || legacyBody || ''),
@@ -32767,11 +32764,11 @@ function filterMessagePeopleList(input) {
 
 function messageTypeSymbol(type) {
   return {
-    company: 'q-symbol-company-chat',
-    role: 'q-symbol-role-chat',
-    custom: 'q-symbol-messages',
-    direct: 'q-symbol-direct-chat',
-  }[type] || 'q-symbol-messages';
+    company: 'rom-symbol-company-chat',
+    role: 'rom-symbol-role-chat',
+    custom: 'rom-symbol-messages',
+    direct: 'rom-symbol-direct-chat',
+  }[type] || 'rom-symbol-messages';
 }
 
 function accessSummary(conversation) {
@@ -32828,7 +32825,7 @@ function subscribeToMessageRealtime(companyId, conversationId) {
     refreshRealtimeDomains(['messages']).catch((error) => console.warn('Message refresh failed', error));
   };
   state.messageRealtimeChannel = client
-    .channel(`quest-messages-${conversationId}`)
+    .channel(`romio-messages-${conversationId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, refreshFromRealtime)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'message_attachments', filter: `conversation_id=eq.${conversationId}` }, refreshFromRealtime)
     .subscribe();
@@ -33040,7 +33037,7 @@ function subscribeToGlobalRealtime() {
     refreshRealtimeDomains(pendingDomains).catch((error) => console.warn('Realtime refresh failed', error));
   };
   state.globalRealtimeBatcher = createRealtimeBatcher({ onFlush: refreshWhenSafe, delay: 700 });
-  let channel = client.channel(`quest-global-realtime-${state.session?.user?.id || 'session'}`);
+  let channel = client.channel(`romio-global-realtime-${state.session?.user?.id || 'session'}`);
   realtimeSubscriptions(companyIds).forEach((subscription) => {
     channel = channel.on('postgres_changes', {
       event: '*',
@@ -33078,16 +33075,16 @@ function runMessageScenario(companyId) {
 
 function saveScenarioConversation(companyId, title, type, body, unread = false, attachment = false) {
   const now = new Date().toISOString();
-  const conversation = normalizeMessageConversation({ id: `msg-conv-${crypto.randomUUID()}`, company_id: companyId, title, type, created_by: 'basic-quest-user', last_message_at: now, created_at: now, updated_at: now });
+  const conversation = normalizeMessageConversation({ id: `msg-conv-${crypto.randomUUID()}`, company_id: companyId, title, type, created_by: 'basic-user', last_message_at: now, created_at: now, updated_at: now });
   const accessRows = type === 'direct'
     ? [
-        normalizeMessageAccess({ id: `msg-access-${crypto.randomUUID()}`, company_id: companyId, conversation_id: conversation.id, target_type: 'profile', target_id: 'basic-quest-user' }),
+        normalizeMessageAccess({ id: `msg-access-${crypto.randomUUID()}`, company_id: companyId, conversation_id: conversation.id, target_type: 'profile', target_id: 'basic-user' }),
         normalizeMessageAccess({ id: `msg-access-${crypto.randomUUID()}`, company_id: companyId, conversation_id: conversation.id, target_type: 'profile', target_id: 'shan' }),
       ]
     : messageAccessFromForm(new FormData(), conversation, type === 'role' ? 'role' : 'company');
   state.messageConversations.unshift(conversation);
   state.messageAccess = accessRows.concat(state.messageAccess);
-  const message = normalizeMessage({ id: `msg-${crypto.randomUUID()}`, conversation_id: conversation.id, company_id: companyId, sender_profile_id: unread ? 'shan' : 'basic-quest-user', body, created_at: now, updated_at: now, message_type: attachment ? 'attachment' : 'text' });
+  const message = normalizeMessage({ id: `msg-${crypto.randomUUID()}`, conversation_id: conversation.id, company_id: companyId, sender_profile_id: unread ? 'shan' : 'basic-user', body, created_at: now, updated_at: now, message_type: attachment ? 'attachment' : 'text' });
   state.messages.push(message);
   if (attachment) {
     state.messageAttachments.push(normalizeMessageAttachment({ id: `msg-attachment-${crypto.randomUUID()}`, conversation_id: conversation.id, message_id: message.id, company_id: companyId, file_name: 'permit-packet.pdf', mime_type: 'application/pdf', size_bytes: 420000, created_at: now }));
@@ -33786,7 +33783,7 @@ async function ensureFileThumbnails(files) {
   if (need.length) {
     need.forEach((f) => { f._thumbTried = true; });
     const byBucket = {};
-    need.forEach((f) => { const b = f.bucket_id || 'quest-job-files'; (byBucket[b] = byBucket[b] || []).push(f); });
+    need.forEach((f) => { const b = f.bucket_id || 'romio-job-files'; (byBucket[b] = byBucket[b] || []).push(f); });
     let changed = false;
     for (const [bucket, list] of Object.entries(byBucket)) {
       try {
@@ -33830,7 +33827,7 @@ async function ensureFileSignedUrl(file) {
   const client = createSupabaseClient();
   if (!client) { file._urlFailed = true; return; }
   try {
-    const { data, error } = await client.storage.from(file.bucket_id || 'quest-job-files').createSignedUrl(file.object_path, 3600);
+    const { data, error } = await client.storage.from(file.bucket_id || 'romio-job-files').createSignedUrl(file.object_path, 3600);
     if (!error && data?.signedUrl) file.signed_url = data.signedUrl;
     else file._urlFailed = true;
   } catch (err) {
@@ -34247,7 +34244,7 @@ async function createFormFromModal(formEl) {
     description,
     type: FORM_TYPES.includes(data.type) ? data.type : template?.type || 'Internal',
     audience: String(data.audience || 'Internal').trim() || 'Internal',
-    creator_id: activeSession().profile.member_id || activeSession().profile.id || 'basic-quest-user',
+    creator_id: activeSession().profile.member_id || activeSession().profile.id || 'basic-user',
     linked_job_id: String(data.linked_job_id || ''),
     theme_color: companyColor(activeCompanyId()),
     background: 'clean',

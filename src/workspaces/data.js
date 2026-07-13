@@ -131,7 +131,9 @@ export async function listWorkspaceApps(wsId) {
     const keys = snap.data().keys || {};
     const apps = []; const seen = new Set();
     for (const [k, v] of Object.entries(keys)) {
-      if (!k.startsWith('qhq_workspace_builder_v1')) continue;
+      // Current prefix, plus the pre-rename one (a workspace only migrates the
+      // first time its dashboard is opened, so both can be in flight).
+      if (!k.startsWith('romio_workspace_v1') && !k.startsWith('qhq_workspace_builder_v1')) continue;
       let blob; try { blob = JSON.parse(v); } catch { continue; }
       const spaces = Array.isArray(blob?.workspaces) ? blob.workspaces : [];
       for (const ws of spaces) {

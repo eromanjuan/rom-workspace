@@ -37,13 +37,13 @@
     "file": "assets/pdf.worker-CPbhI6B3.mjs",
     "src": "node_modules/pdfjs-dist/build/pdf.worker.mjs"
   },
-  "src/assets/quest-hq-logo-mark.png": {
-    "file": "assets/quest-hq-logo-mark-Be0bYUH5.png",
-    "src": "src/assets/quest-hq-logo-mark.png"
+  "src/assets/romio-logo-mark.png": {
+    "file": "assets/romio-logo-mark-Be0bYUH5.png",
+    "src": "src/assets/romio-logo-mark.png"
   },
-  "src/assets/quest-hq-ops-command-hero.png": {
-    "file": "assets/quest-hq-ops-command-hero-Dc_5E_zX.png",
-    "src": "src/assets/quest-hq-ops-command-hero.png"
+  "src/assets/romio-ops-command-hero.png": {
+    "file": "assets/romio-ops-command-hero-Dc_5E_zX.png",
+    "src": "src/assets/romio-ops-command-hero.png"
   },
   "src/main.js": {
     "file": "assets/rom-module-entry.js",
@@ -63,7 +63,7 @@
     ],
     "assets": [
       "assets/pdf.worker-CPbhI6B3.mjs",
-      "assets/quest-hq-logo-mark-Be0bYUH5.png"
+      "assets/romio-logo-mark-Be0bYUH5.png"
     ]
   }
 }

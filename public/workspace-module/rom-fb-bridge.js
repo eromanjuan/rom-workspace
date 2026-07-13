@@ -16,12 +16,15 @@ const firebaseConfig = {
   appId: '1:192979949981:web:162d2e67ffe5cb4a8e3774',
 };
 
-const PREFIX = 'qhq_workspace_builder_v1';
+const PREFIX = 'romio_workspace_v1';
+// Data written before the de-branding rename. Migrated once, in place, so an
+// existing workspace's apps/tiles/feed carry over untouched.
+const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=23';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=24';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=23';
+const MODULE_PAGE = '/workspace-module/index.html?v=24';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -84,7 +87,7 @@ function romAppearance() {
 }
 function applyThemeToModule() {
   const t = romTheme();
-  localStorage.setItem('quest-theme', t);
+  localStorage.setItem('romio-theme', t);
   const root = document.documentElement;
   root.dataset.themeMode = t;
   root.dataset.theme = t;
@@ -117,7 +120,7 @@ function mirrorAppearance() {
   if (bgImage) {
     // Make the module's opaque shells transparent so the fixed background layer
     // (body::before) shows through, then paint the chosen image/pattern.
-    css += `html,body,#app,.quest-app,.wb-builder,.wb-page,.tool-page,main{background:transparent !important}`
+    css += `html,body,#app,.romio-app,.wb-builder,.wb-page,.tool-page,main{background:transparent !important}`
       + `body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;`
       + `background-image:${bgImage};background-size:${bgSize};background-repeat:${bgRepeat};background-position:center;}`;
   }
@@ -186,9 +189,11 @@ function collectLocal() {
   return map;
 }
 function clearLocal() {
+  // Clear both the current and the pre-rename prefix, so stale legacy entries
+  // can't linger next to the migrated ones.
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const k = localStorage.key(i);
-    if (k && k.startsWith(PREFIX)) origRemove(k);
+    if (k && (k.startsWith(PREFIX) || k.startsWith(LEGACY_PREFIX))) origRemove(k);
   }
 }
 function applyKeys(keys) {
@@ -197,12 +202,24 @@ function applyKeys(keys) {
   for (const [k, v] of Object.entries(keys || {})) origSet(k, v);
   applyingRemote = false;
 }
+// One-time, lossless migration of the pre-rename storage keys: rewrite any
+// `${LEGACY_PREFIX}:*` entry to `${PREFIX}:*`, keeping its value. Returns the
+// migrated map plus whether anything changed (so we can persist it once).
+function migrateLegacyKeys(keys) {
+  const out = {}; let changed = false;
+  for (const [k, v] of Object.entries(keys || {})) {
+    if (k.startsWith(LEGACY_PREFIX)) { out[`${PREFIX}${k.slice(LEGACY_PREFIX.length)}`] = v; changed = true; }
+    else out[k] = v;
+  }
+  return { keys: out, changed };
+}
 // The module stores its data under `${PREFIX}:${companyId}` but keeps the ACTIVE
 // company in a separate localStorage key that was never synced. On a fresh
 // browser (or if that key changed) the module would open a DIFFERENT, empty
 // company — so a workspace's apps looked like they had vanished even though the
 // data was safe in Firestore. Point the module at the company we actually seeded.
-const COMPANY_KEY = 'quest-hq-active-company';
+const COMPANY_KEY = 'romio-active-company';
+const LEGACY_COMPANY_KEY = 'quest-hq-active-company';
 function syncActiveCompanyFromKeys() {
   try {
     const p = `${PREFIX}:`;
@@ -220,6 +237,7 @@ function syncActiveCompanyFromKeys() {
       if (score > bestScore) { bestScore = score; best = k.slice(p.length); }
     }
     if (best) origSet(COMPANY_KEY, best);
+    origRemove(LEGACY_COMPANY_KEY); // drop the pre-rename key
   } catch { /* ignore */ }
 }
 
@@ -340,8 +358,14 @@ async function boot() {
     try {
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        seededKeyCount = Object.keys(snap.data().keys || {}).length;
-        applyKeys(snap.data().keys);
+        // Migrate pre-rename keys in place (lossless), then persist once.
+        const m = migrateLegacyKeys(snap.data().keys);
+        seededKeyCount = Object.keys(m.keys).length;
+        applyKeys(m.keys);
+        if (m.changed) {
+          try { await setDoc(ref, { keys: m.keys, updatedAt: serverTimestamp() }); }
+          catch (e) { console.warn('[ROM] storage-key migration save failed', e); }
+        }
       } else {
         // First time on this workspace doc. Migrate the legacy global doc ONCE
         // (into whichever workspace loads first), then delete it so every other
@@ -349,8 +373,10 @@ async function boot() {
         // workspace no longer makes it appear in all of them.
         const legacy = await getDoc(legacyRef);
         if (legacy.exists() && Object.keys(legacy.data().keys || {}).length) {
-          applyKeys(legacy.data().keys);
-          await setDoc(ref, { keys: legacy.data().keys, updatedAt: serverTimestamp() });
+          const m = migrateLegacyKeys(legacy.data().keys);
+          seededKeyCount = Object.keys(m.keys).length;
+          applyKeys(m.keys);
+          await setDoc(ref, { keys: m.keys, updatedAt: serverTimestamp() });
           try { await deleteDoc(legacyRef); } catch (e) { /* best effort */ }
         } else {
           clearLocal(); // don't inherit another workspace's data from this browser
@@ -365,8 +391,9 @@ async function boot() {
       if (!snap.exists() || snap.metadata.hasPendingWrites) return;
       const remote = JSON.stringify(snap.data().keys || {});
       if (remote === JSON.stringify(collectLocal())) return;
-      seededKeyCount = Object.keys(snap.data().keys || {}).length;
-      applyKeys(snap.data().keys);
+      const m = migrateLegacyKeys(snap.data().keys);
+      seededKeyCount = Object.keys(m.keys).length;
+      applyKeys(m.keys);
       syncActiveCompanyFromKeys();
       // Reload the MODULE page. NOT location.reload(): the module's router
       // pushState's app paths (/workspaces/…, /login) into this iframe's URL, and
