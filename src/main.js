@@ -189,11 +189,22 @@ if (window.top !== window.self) {
 
         // Populate the expandable "Workspace" sub-list with the current
         // workspace's apps (read from the module's synced builder blob).
+        let pendingOpenAppId = null; // an app to deep-link once the iframe is ready
+        const postToWorkspace = (msg) => {
+            try { const f = wsHost.querySelector('.ws-module-frame'); if (f && f.contentWindow) f.contentWindow.postMessage(msg, location.origin); } catch { /* ignore */ }
+        };
+        // Clicking an app opens the workspace AND deep-links straight to that app.
+        const openWorkspaceApp = (app) => {
+            if (!app || !app.id) return;
+            pendingOpenAppId = app.id;
+            go('workspace');
+            postToWorkspace({ type: 'rom-open-app', appId: app.id }); // fires now if already loaded
+        };
         const refreshWorkspaceApps = async (wsId) => {
             try {
                 const id = wsId || (await getUserProfile(user.uid))?.currentWorkspaceId;
-                shell.setWorkspaceApps(id ? await listWorkspaceApps(id) : [], () => go('workspace'));
-            } catch { shell.setWorkspaceApps([], () => go('workspace')); }
+                shell.setWorkspaceApps(id ? await listWorkspaceApps(id) : [], openWorkspaceApp);
+            } catch { shell.setWorkspaceApps([], openWorkspaceApp); }
         };
         refreshWorkspaceApps(profile?.currentWorkspaceId);
         if (wsAppsOff) wsAppsOff();
@@ -279,7 +290,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=20', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=21', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
@@ -289,7 +300,11 @@ if (window.top !== window.self) {
             if (wsReadyHandler) window.removeEventListener('message', wsReadyHandler);
             const clearReady = () => { if (wsReadyHandler) { window.removeEventListener('message', wsReadyHandler); wsReadyHandler = null; } };
             wsReadyHandler = (e) => {
-                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') { loading.remove(); clearReady(); refreshWorkspaceApps(wsId); }
+                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') {
+                    loading.remove(); clearReady(); refreshWorkspaceApps(wsId);
+                    // Deep-link to a pending app now that the module is loaded.
+                    if (pendingOpenAppId) { postToWorkspace({ type: 'rom-open-app', appId: pendingOpenAppId }); pendingOpenAppId = null; }
+                }
             };
             window.addEventListener('message', wsReadyHandler);
             setTimeout(() => { loading.remove(); clearReady(); }, 12000);

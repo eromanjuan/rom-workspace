@@ -11605,6 +11605,24 @@ function wbLocateApp(app) {
   }
   return { companyId: activeCompanyId(), workspace: null };
 }
+
+// ROMIO can deep-link to a specific app from its sidebar "Workspace" list. Find
+// the app by id across the loaded companies/workspaces and route straight to it.
+function romOpenAppById(appId) {
+  if (!appId) return false;
+  const docs = state.workspaceBuilderDocs || {};
+  for (const companyId of Object.keys(docs)) {
+    for (const workspace of (docs[companyId]?.workspaces || [])) {
+      const app = (workspace.apps || []).find((a) => a.id === appId);
+      if (app) { navigate(companyPath('workspaces', { workspace_id: workspace.id, app_id: app.id, tab: 'items' }, companyId)); return true; }
+    }
+  }
+  return false;
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== window.location.origin || !e.data) return;
+  if (e.data.type === 'rom-open-app' && e.data.appId) romOpenAppById(e.data.appId);
+});
 // A flat (non-recursive) name for an item — the first field, in order, that
 // yields a plain label. Resolves member names, dropdown labels, etc.; only
 // relationship links are skipped (to avoid title recursion) so a raw record id
