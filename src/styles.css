@@ -359,8 +359,24 @@ select.input { cursor: pointer; }
 .composer__actions { display: flex; justify-content: flex-end; }
 .feed__list { display: flex; flex-direction: column; gap: 0.75rem; }
 .post { position: relative; }
-.post__head { display: flex; justify-content: space-between; margin-bottom: 0.4rem; }
-.post__author { font-weight: 600; }
+.post__head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+.post__head-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.post__author { font-weight: 600; text-align: left; }
+/* Author photo on a post / comment (falls back to initials) */
+.post__avatar {
+  width: 40px; height: 40px; border-radius: 999px; flex: 0 0 auto; overflow: hidden;
+  display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  background: linear-gradient(135deg, var(--primary), #8a5bff);
+}
+.comment__avatar {
+  width: 28px; height: 28px; border-radius: 999px; flex: 0 0 auto; overflow: hidden; margin-top: 2px;
+  display: inline-grid; place-items: center; font-weight: 700; font-size: 10.5px; color: #fff;
+  background: linear-gradient(135deg, var(--primary), #8a5bff);
+}
+.post__avatar.has-photo, .comment__avatar.has-photo { background: none; }
+.post__avatar img, .comment__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.post__avatar.is-link, .comment__avatar.is-link { cursor: pointer; }
+.post__avatar.is-link:hover, .comment__avatar.is-link:hover { box-shadow: 0 0 0 2px var(--primary); }
 .post__body { line-height: 1.5; }
 .post__delete { position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; color: var(--muted); font-size: 0.8rem; }
 .post__actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
@@ -369,9 +385,9 @@ select.input { cursor: pointer; }
 .post__act--danger:hover { color: var(--danger); border-color: var(--danger); }
 .post__act .ti { font-size: 0.9rem; }
 .post__editor { margin-top: 0.4rem; }
-/* 3-dot options menu (top-right of a post, above the time) */
-.post__head { align-items: flex-start; }
-.post__head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+/* 3-dot options menu (top-right of a post) */
+.post__head-right { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; margin-left: auto; }
+.post__time { font-size: 0.78rem; }
 .post__menu-wrap { position: relative; }
 .post__kebab { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.05rem; }
 .post__kebab:hover { color: var(--text); background: var(--surface-2); }

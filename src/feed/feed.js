@@ -14,6 +14,7 @@ import { el, clear, escapeHtml, timeAgo, toast, icon, confirmModal } from '../ui
 import { displayNameOf } from '../auth/auth.js';
 import { isMaster } from '../workspaces/roles.js';
 import { notify } from '../workspaces/data.js';
+import { avatarNode, applyAvatar } from '../profile/avatar.js';
 import { renderWidgetsPanel } from './widgets.js';
 import { loadMentionUsers, renderBodyWithMentions, attachMentionAutocomplete, extractMentions } from './feedMentions.js';
 import { renderComposer } from './composer.js';
@@ -84,12 +85,12 @@ export function renderFeed(root, user, opts = {}) {
       const sig = postSig(d);
       let entry = cards.get(d.id);
       if (!entry) {
-        const elCard = postCard(d, user, { expanded, drafts, onOpenUser });
+        const elCard = postCard(d, user, { expanded, drafts, onOpenUser, getMentionUsers: () => mentionUsers });
         entry = { el: elCard, sig }; cards.set(d.id, entry);
         if (prev) prev.after(elCard); else list.prepend(elCard);
       } else if (entry.sig !== sig) {
         // Only the changed post's card is rebuilt — the rest stay put.
-        const elCard = postCard(d, user, { expanded, drafts, onOpenUser });
+        const elCard = postCard(d, user, { expanded, drafts, onOpenUser, getMentionUsers: () => mentionUsers });
         entry.el.replaceWith(elCard); entry.el = elCard; entry.sig = sig;
       } else if (prev ? prev.nextSibling !== entry.el : list.firstChild !== entry.el) {
         // Unchanged content — just fix ordering if a newer post moved above it.
@@ -121,14 +122,36 @@ export function postCard(d, user, ui) {
   const comments = Array.isArray(p.comments) ? p.comments : [];
   const liked = likes.includes(user.uid);
 
-  // Candidate users for @mentions in comments (cached list; empty until loaded).
+  // Candidate users for @mentions in comments, and the source for author photos.
+  // Posts only store authorId/authorName, so the picture is looked up here — that
+  // way EXISTING posts get an avatar too, and it stays fresh if someone changes it.
   let cmtUsers = (ui.getMentionUsers && ui.getMentionUsers()) || [];
-  if (!cmtUsers.length) loadMentionUsers().then((u) => { cmtUsers = u; });
+  const photoOf = (uid) => (cmtUsers.find((u) => u.uid === uid) || {}).photoURL || '';
+  const avatars = new Map(); // uid -> [avatar nodes to fill once users load]
+  const trackAvatar = (uid, name, node) => {
+    if (!avatars.has(uid)) avatars.set(uid, []);
+    avatars.get(uid).push({ node, name });
+  };
+  const fillAvatars = () => {
+    for (const [uid, nodes] of avatars) {
+      const ph = photoOf(uid);
+      if (ph) for (const a of nodes) applyAvatar(a.node, a.name, ph);
+    }
+  };
+  if (!cmtUsers.length) loadMentionUsers().then((u) => { cmtUsers = u; fillAvatars(); });
 
   const openUser = ui.onOpenUser || null;
+  const authorName = p.authorName || 'Someone';
+  const authorAvatar = avatarNode(authorName, photoOf(p.authorId), 'post__avatar');
+  if (p.authorId) trackAvatar(p.authorId, authorName, authorAvatar);
+  if (openUser && p.authorId) {
+    authorAvatar.classList.add('is-link');
+    authorAvatar.title = authorName;
+    authorAvatar.addEventListener('click', () => openUser(p.authorId));
+  }
   const authorEl = (openUser && p.authorId)
-    ? el('button', { class: 'post__author post__author--link', onclick: () => openUser(p.authorId) }, p.authorName || 'Someone')
-    : el('span', { class: 'post__author' }, p.authorName || 'Someone');
+    ? el('button', { class: 'post__author post__author--link', onclick: () => openUser(p.authorId) }, authorName)
+    : el('span', { class: 'post__author' }, authorName);
 
   const body = el('div', { class: 'post__body', html: p.text ? renderBodyWithMentions(p.text, p.mentions) : '' });
   if (!p.text) body.style.display = 'none';
@@ -236,11 +259,20 @@ export function postCard(d, user, ui) {
     thread.style.display = '';
     for (const c of comments) {
       const cMine = c.authorId === user.uid;
+      const cName = c.authorName || 'Someone';
+      const cAvatar = avatarNode(cName, photoOf(c.authorId), 'comment__avatar');
+      if (c.authorId) trackAvatar(c.authorId, cName, cAvatar);
+      if (openUser && c.authorId) {
+        cAvatar.classList.add('is-link');
+        cAvatar.title = cName;
+        cAvatar.addEventListener('click', () => openUser(c.authorId));
+      }
       thread.append(el('div', { class: 'comment' }, [
+        cAvatar,
         el('div', { class: 'comment__main' }, [
           (openUser && c.authorId)
-            ? el('button', { class: 'comment__author comment__author--link', onclick: () => openUser(c.authorId) }, c.authorName || 'Someone')
-            : el('span', { class: 'comment__author' }, c.authorName || 'Someone'),
+            ? el('button', { class: 'comment__author comment__author--link', onclick: () => openUser(c.authorId) }, cName)
+            : el('span', { class: 'comment__author' }, cName),
           el('span', { class: 'comment__text', html: renderBodyWithMentions(c.text || '', c.mentions) }),
         ]),
         (cMine || canModerate)
@@ -310,11 +342,12 @@ export function postCard(d, user, ui) {
 
   const card = el('div', { class: `post card ${isHidden ? 'is-hidden' : ''}` }, [
     el('div', { class: 'post__head' }, [
-      authorEl,
-      el('div', { class: 'post__head-right' }, [
-        menuWrap,
+      authorAvatar,
+      el('div', { class: 'post__head-main' }, [
+        authorEl,
         el('span', { class: 'post__time muted' }, `${when}${p.editedAt ? ' · edited' : ''}`),
       ]),
+      el('div', { class: 'post__head-right' }, [menuWrap]),
     ]),
     isHidden ? el('div', { class: 'post__hidden-tag' }, [icon('eye-off'), ' Hidden · only you can see this']) : null,
     typeBadge,
