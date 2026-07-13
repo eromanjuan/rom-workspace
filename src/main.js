@@ -264,7 +264,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=18', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=19', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
@@ -316,11 +316,11 @@ if (window.top !== window.self) {
             } else if (view === 'messages') {
                 viewUnsub = renderMessages(content, user, { initialConvId: arg, onOpenUser: openUserProfile });
             } else if (view === 'profile') {
-                viewUnsub = renderProfile(content, user);
+                viewUnsub = renderProfile(content, user, { onOpenWorkspace: () => go('workspace') });
             } else if (view === 'search') {
                 viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace'), onMessage: openDirectMessage });
             } else if (view === 'user') {
-                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage });
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage, onOpenWorkspace: () => go('workspace') });
             } else if (view === 'settings') {
                 viewUnsub = renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
             } else if (view === 'files') {

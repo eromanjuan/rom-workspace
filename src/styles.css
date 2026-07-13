@@ -616,6 +616,12 @@ select.input { cursor: pointer; }
 .profile-ws-grouptitle { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
 .profile-ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.6rem; }
 .profile-ws-card { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem; }
+/* Clickable workspace card (button reset + hover affordance) */
+.profile-ws-card--btn { width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; border: 1px solid var(--border); transition: border-color .15s, transform .05s, box-shadow .15s; }
+.profile-ws-card--btn:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+.profile-ws-card--btn:active { transform: translateY(1px); }
+.profile-ws-card--btn:disabled { opacity: .6; cursor: default; }
+.profile-ws-open { margin-left: auto; display: inline-flex; }
 .profile-ws-meta { min-width: 0; }
 .profile-ws-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .widget { padding: 0.75rem 0.85rem; }
@@ -1021,12 +1027,20 @@ select.input { cursor: pointer; }
   .msg-back { display: inline-flex; }
 }
 
-/* Frosted-glass cards (Theme → card style: Glass) */
-:root[data-cards="glass"] .card {
+/* Frosted-glass cards (Theme → card style: Glass) — also the Messages panel so
+   chat adapts to the theme like everything else. */
+:root[data-cards="glass"] .card,
+:root[data-cards="glass"] .msg-layout {
   background-color: color-mix(in srgb, var(--surface) var(--card-opacity, 65%), transparent) !important;
   backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--card-blur, 10px)) saturate(1.2);
 }
+/* Glass on: make the chat sub-panels transparent so the frost + background show
+   through the whole Messages surface instead of a solid inner block. */
+:root[data-cards="glass"] .msg-sidebar,
+:root[data-cards="glass"] .msg-conv-item,
+:root[data-cards="glass"] .msg-bubble { background-color: transparent; }
+:root[data-cards="glass"] .msg-bubble-row.is-mine .msg-bubble { background-color: color-mix(in srgb, var(--primary) 82%, transparent); }
 
 /* Custom app background (uploaded image or preset pattern) behind everything */
 body::before {
@@ -1202,6 +1216,8 @@ body::before {
 .profile-email { margin-top: 2px; }
 .profile-ws-list { display: flex; flex-direction: column; gap: 10px; }
 .profile-ws-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.profile-ws-item-main { min-width: 0; flex: 1; }
+.profile-ws-action { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .profile-ws-ic { width: 40px; height: 40px; border-radius: 10px; display: inline-grid; place-items: center; color: #fff; flex: 0 0 auto; }
 .profile-ws-name { font-weight: 600; }
 .profile-private { padding: 16px 0; }

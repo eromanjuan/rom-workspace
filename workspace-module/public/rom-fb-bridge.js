@@ -34,23 +34,80 @@ function permsForMember(role, perms, isMaster) {
 }
 
 function romTheme() { return localStorage.getItem('rom-theme') === 'light' ? 'light' : 'dark'; }
-function romAccent() {
-  try { const p = JSON.parse(localStorage.getItem('rom-palette') || '{}'); if (p['--primary']) return p['--primary']; } catch { /* ignore */ }
-  return romTheme() === 'light' ? '#3f6fff' : '#5b8cff';
+// ROMIO palette defaults (mirror of src/ui/theme.js PALETTE_VARS) so the module
+// adopts ROMIO's colours even when the user hasn't customised them.
+const ROM_PALETTE_DEFAULTS = {
+  '--primary': { dark: '#5b8cff', light: '#3f6fff' },
+  '--bg':      { dark: '#0f1115', light: '#f4f6fa' },
+  '--surface': { dark: '#1a1d24', light: '#ffffff' },
+  '--text':    { dark: '#e7e9ee', light: '#1c2230' },
+  '--danger':  { dark: '#ff6b6b', light: '#e5484d' },
+};
+// Preset patterns (mirror of src/ui/theme.js BG_PATTERNS).
+const ROM_BG_PATTERNS = {
+  dots:     { image: 'radial-gradient(color-mix(in srgb, var(--text) 16%, transparent) 1px, transparent 1.6px)', size: '16px 16px', repeat: 'repeat' },
+  grid:     { image: 'linear-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1px)', size: '24px 24px', repeat: 'repeat' },
+  diagonal: { image: 'repeating-linear-gradient(45deg, color-mix(in srgb, var(--text) 7%, transparent) 0 1px, transparent 1px 13px)', size: 'auto', repeat: 'repeat' },
+  glow:     { image: 'radial-gradient(at 18% 18%, color-mix(in srgb, var(--primary) 24%, transparent), transparent 42%), radial-gradient(at 82% 62%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 46%)', size: 'cover', repeat: 'no-repeat' },
+  mesh:     { image: 'radial-gradient(at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 40%), radial-gradient(at 100% 0%, color-mix(in srgb, var(--danger) 20%, transparent), transparent 42%), radial-gradient(at 60% 100%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 44%)', size: 'cover', repeat: 'no-repeat' },
+};
+function romVar(name) {
+  try { const p = JSON.parse(localStorage.getItem('rom-palette') || '{}'); if (p[name]) return p[name]; } catch { /* ignore */ }
+  const d = ROM_PALETTE_DEFAULTS[name];
+  return d ? d[romTheme()] : '';
+}
+function romAppearance() {
+  try { return JSON.parse(localStorage.getItem('rom-appearance') || '{}') || {}; } catch { return {}; }
 }
 function applyThemeToModule() {
   const t = romTheme();
-  const c = romAccent();
   localStorage.setItem('quest-theme', t);
   const root = document.documentElement;
   root.dataset.themeMode = t;
   root.dataset.theme = t;
-  root.style.setProperty('--orange', c, 'important');
-  root.style.setProperty('--amber', c, 'important');
+  const accent = romVar('--primary');
+  const set = (v, val) => { if (val) root.style.setProperty(v, val, 'important'); };
+  // Accent → the module's accent vars.
+  set('--primary', accent); set('--orange', accent); set('--amber', accent); set('--blue', accent);
+  // Core surfaces/text/danger → the module's equivalents, so the workspace
+  // dashboard matches ROMIO's palette (custom or theme default).
+  const bg = romVar('--bg'), surface = romVar('--surface'), text = romVar('--text'), danger = romVar('--danger');
+  set('--bg', bg);
+  set('--surface', surface); set('--surface-2', surface); set('--surface-3', surface); set('--panel', surface);
+  set('--text', text); set('--ink', text);
+  set('--red', danger);
+  mirrorAppearance();
+}
+// Mirror ROMIO's background image/pattern + glass into the (same-origin) module
+// document via an injected stylesheet, so the dashboard adapts to Theme settings.
+function mirrorAppearance() {
+  if (!document.head) return;
+  let st = document.getElementById('rom-mirror-appearance');
+  if (!st) { st = document.createElement('style'); st.id = 'rom-mirror-appearance'; document.head.appendChild(st); }
+  const a = romAppearance();
+  let css = '';
+  let bgImage = '', bgSize = 'cover', bgRepeat = 'no-repeat';
+  if (a.bgType === 'image' && a.bgImage) { bgImage = `url("${a.bgImage}")`; }
+  else if (a.bgType === 'pattern' && a.bgPattern && ROM_BG_PATTERNS[a.bgPattern]) {
+    const pat = ROM_BG_PATTERNS[a.bgPattern]; bgImage = pat.image; bgSize = pat.size; bgRepeat = pat.repeat;
+  }
+  if (bgImage) {
+    css += `html,body{background:transparent !important}`
+      + `body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;`
+      + `background-image:${bgImage};background-size:${bgSize};background-repeat:${bgRepeat};background-position:center;}`;
+  }
+  if (a.cardStyle === 'glass') {
+    const blur = (a.cardBlur != null ? a.cardBlur : 10) + 'px';
+    const op = (a.cardOpacity != null ? a.cardOpacity : 65) + '%';
+    css += `.panel,.card,.surface,[class*="panel"],[class*="card"]{`
+      + `background-color:color-mix(in srgb, var(--surface) ${op}, transparent) !important;`
+      + `backdrop-filter:blur(${blur}) saturate(1.15);-webkit-backdrop-filter:blur(${blur}) saturate(1.15);}`;
+  }
+  st.textContent = css;
 }
 applyThemeToModule();
 window.addEventListener('storage', (e) => {
-  if (e.key === 'rom-palette' || e.key === 'rom-theme' || e.key === null) applyThemeToModule();
+  if (e.key === 'rom-palette' || e.key === 'rom-theme' || e.key === 'rom-appearance' || e.key === null) applyThemeToModule();
 });
 
 const app = initializeApp(firebaseConfig);

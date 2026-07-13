@@ -1,13 +1,13 @@
 // The Profile page: user/owner details, previous posts, and personal widgets.
-import { el, clear, icon, escapeHtml, timeAgo } from '../ui/dom.js';
+import { el, clear, icon, escapeHtml, timeAgo, toast } from '../ui/dom.js';
 import { displayNameOf } from '../auth/auth.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
-import { getUserProfile, listMyPosts, listMyWorkspaces } from '../workspaces/data.js';
+import { getUserProfile, listMyPosts, listMyWorkspaces, setCurrentWorkspace } from '../workspaces/data.js';
 import { renderWidgetsPanel } from '../feed/widgets.js';
 import { avatarNode, applyAvatar, pickAndEditAvatar, removeAvatar } from './avatar.js';
 
 // Returns an unsubscribe function (for the live widgets listener).
-export function renderProfile(host, user) {
+export function renderProfile(host, user, { onOpenWorkspace } = {}) {
   clear(host);
   const name = displayNameOf(user);
 
@@ -66,15 +66,25 @@ export function renderProfile(host, user) {
       clear(workspacesBox);
       const owned = spaces.filter((w) => w.myRole === 'owner');
       const member = spaces.filter((w) => w.myRole !== 'owner');
-      const wsCard = (w) => el('div', { class: 'profile-ws-card card' }, [
-        w.imageUrl
-          ? el('div', { class: 'ws-avatar ws-avatar--img' }, el('img', { src: w.imageUrl, alt: w.name }))
-          : el('div', { class: 'ws-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard')),
-        el('div', { class: 'profile-ws-meta' }, [
-          el('div', { class: 'profile-ws-name' }, w.name),
-          el('div', { class: 'muted' }, roleLabel(w.myRole)),
-        ]),
-      ]);
+      const wsCard = (w) => {
+        // Clicking a workspace you belong to switches to it and opens the dashboard.
+        const card = el('button', { class: 'profile-ws-card card profile-ws-card--btn', title: `Open ${w.name}` }, [
+          w.imageUrl
+            ? el('div', { class: 'ws-avatar ws-avatar--img' }, el('img', { src: w.imageUrl, alt: w.name }))
+            : el('div', { class: 'ws-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard')),
+          el('div', { class: 'profile-ws-meta' }, [
+            el('div', { class: 'profile-ws-name' }, w.name),
+            el('div', { class: 'muted' }, roleLabel(w.myRole)),
+          ]),
+          el('span', { class: 'profile-ws-open muted' }, icon('arrow-up-right')),
+        ]);
+        card.addEventListener('click', async () => {
+          card.disabled = true;
+          try { await setCurrentWorkspace(user.uid, w.id); (onOpenWorkspace || (() => {}))(); }
+          catch (e) { toast(e.message, 'error'); card.disabled = false; }
+        });
+        return card;
+      };
       const group = (title, items) => el('div', { class: 'profile-ws-group' }, [
         el('div', { class: 'profile-ws-grouptitle muted' }, `${title} (${items.length})`),
         items.length ? el('div', { class: 'profile-ws-grid' }, items.map(wsCard)) : el('p', { class: 'muted' }, 'None yet.'),
