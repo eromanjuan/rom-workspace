@@ -3,6 +3,7 @@
 import { el, clear, icon } from './dom.js';
 import { displayNameOf, logOut } from '../auth/auth.js';
 import { applyAvatar } from '../profile/avatar.js';
+import { isMaster } from '../workspaces/roles.js';
 
 // Sidebar navigation.
 const NAV_GROUPS = [
@@ -27,7 +28,7 @@ const NAV_GROUPS = [
       { id: 'calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'checklist', label: 'Checklist', icon: 'checklist' },
       { id: 'notes', label: 'Notes', icon: 'notes' },
-      { id: 'tabulation', label: 'Tabulation', icon: 'table' },
+      { id: 'tabulation', label: 'Tabulation', icon: 'table', newTab: true, href: '/tabulation/', masterOnly: true },
     ],
   },
   {
@@ -63,15 +64,16 @@ export function buildShell(user, { onNavigate, onSearch }) {
   for (const group of NAV_GROUPS) {
     nav.append(el('div', { class: 'sb-group' }, group.title));
     for (const item of group.items) {
+      if (item.masterOnly && !isMaster(user)) continue; // e.g. Tabulation admin
       const badge = el('span', { class: 'sb-badge', style: 'display:none' });
       navBadges.set(item.id, badge);
       const btn = el('button', {
         class: `sb-item${item.soon ? ' sb-item--soon' : ''}`,
-        onclick: () => onNavigate(item.id, item),
+        onclick: () => { if (item.newTab) window.open(item.href, '_blank', 'noopener'); else onNavigate(item.id, item); },
       }, [
         icon(item.icon),
         el('span', { class: 'sb-item-label' }, item.label),
-        item.soon ? el('span', { class: 'sb-soon' }, 'soon') : badge,
+        item.soon ? el('span', { class: 'sb-soon' }, 'soon') : (item.newTab ? el('span', { class: 'sb-ext' }, icon('external-link')) : badge),
       ]);
       navButtons.set(item.id, btn);
       nav.append(btn);

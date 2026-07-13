@@ -47,7 +47,7 @@ if (window.top !== window.self) {
     let notifCleanup = null;
     const VIEW_KEY = 'rom-view';
     const savedView = localStorage.getItem(VIEW_KEY);
-    const validViews = ['feed', 'messages', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes', 'tabulation'];
+    const validViews = ['feed', 'messages', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
     const state = { view: validViews.includes(savedView) ? savedView : 'feed', wsId: null, pendingInvite: getInviteIdFromUrl() };
 
     // The embedded Workspace module can ask ROM to open a user's profile (e.g.
@@ -70,7 +70,7 @@ if (window.top !== window.self) {
             case 'settings': return arg ? `/settings/${arg}` : '/settings';
             case 'messages': return arg ? `/messages/${arg}` : '/messages';
             case 'feed': case 'profile': case 'files': case 'calendar':
-            case 'checklist': case 'notes': case 'tabulation': return `/${view}`;
+            case 'checklist': case 'notes': return `/${view}`;
             default: return '/feed';
         }
     }
@@ -331,11 +331,6 @@ if (window.top !== window.self) {
                 viewUnsub = renderChecklist(content, user);
             } else if (view === 'notes') {
                 viewUnsub = renderNotes(content, user);
-            } else if (view === 'tabulation') {
-                // VESSCORE tabulation app — a self-contained static page embedded
-                // in an iframe (runs on its own Firebase project).
-                content.style.padding = '0';
-                content.append(el('iframe', { class: 'tool-frame', src: '/tabulation/index.html', title: 'Tabulation' }));
             } else {
                 renderPlaceholder(content, 'Coming soon', 'This module is part of a later phase.');
             }

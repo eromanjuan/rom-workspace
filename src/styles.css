@@ -918,8 +918,10 @@ select.input { cursor: pointer; }
 .notif-time { font-size: 11px; margin-top: 3px; }
 .notif-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--primary); }
 
-/* Embedded tool page (Tabulation / VESSCORE) */
-.tool-frame { width: 100%; height: calc(100dvh - 64px); min-height: 480px; border: 0; display: block; background: var(--bg); }
+/* External-link nav item hint (opens in a new tab, e.g. Tabulation) */
+.sb-ext { margin-left: auto; opacity: .5; display: inline-flex; }
+.sb-ext .ti { font-size: 15px; }
+.sidebar-collapsed .sb-ext { display: none; }
 
 /* Master control panel (admin) */
 .admin-invite { display: flex; gap: 8px; }

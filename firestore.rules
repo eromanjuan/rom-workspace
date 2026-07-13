@@ -73,6 +73,17 @@ service cloud.firestore {
       allow create: if signedIn();
     }
 
+    // --- VESSCORE tabulation (embedded standalone app at /tabulation) ---
+    // The master (admin) is a signed-in ROMIO master. Judges authenticate with a
+    // passkey inside the app (NOT Firebase Auth), so they read the setup and write
+    // scores unauthenticated. Setup management is master-only.
+    match /categories/{id}  { allow read: if true; allow write: if isMaster(); }
+    match /candidates/{id}  { allow read: if true; allow write: if isMaster(); }
+    match /criteria/{id}    { allow read: if true; allow write: if isMaster(); }
+    match /judges/{id}      { allow read: if true; allow write: if isMaster(); }
+    match /scores/{id}      { allow read: if true; allow create, update: if true; allow delete: if isMaster(); }
+    match /judge_syncs/{id} { allow read, write: if true; }
+
     // --- chat: conversations (direct + workspace groups) and their messages ---
     // A conversation is readable/writable only by its members. Any member may
     // update it (post lastMessage, add members). Messages are member-only and

@@ -13,14 +13,18 @@
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, getDocs, collection, query, where, setDoc, onSnapshot, addDoc, updateDoc, deleteDoc, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        // Connected to ROMIO's Firebase project (same DB + auth). When the master
+        // is signed into ROMIO (same origin), this tab shares that session and
+        // becomes admin; judges open the link with a passkey (no ROMIO account).
         const firebaseConfig = {
-            apiKey: "AIzaSyCmPGWo32eP1r1kS1GF4p3bZvzdC4HkyUQ",
-            authDomain: "mysundayproject-50d65.firebaseapp.com",
-            projectId: "mysundayproject-50d65",
-            storageBucket: "mysundayproject-50d65.firebasestorage.app",
-            messagingSenderId: "212383066252",
-            appId: "1:212383066252:web:86cb012a641ca0039db3a9"
+            apiKey: "AIzaSyDgJai9t4UxicjzaIyHdc-hk5pTyAVF0bI",
+            authDomain: "rom-database-0909.firebaseapp.com",
+            projectId: "rom-database-0909",
+            storageBucket: "rom-database-0909.firebasestorage.app",
+            messagingSenderId: "192979949981",
+            appId: "1:192979949981:web:162d2e67ffe5cb4a8e3774"
         };
+        const ROMIO_MASTER_EMAIL = "eugenioiromanjuan@gmail.com";
 
         window.toggleTheme = () => {
             const currentTheme = document.documentElement.getAttribute('data-theme');
@@ -234,13 +238,16 @@
             XLSX.writeFile(workbook, `${catName}_Results.xlsx`);
         };
 
+        // Admin = a ROMIO master account (the hardcoded master email OR a user
+        // whose ROMIO profile has isMaster == true). Everyone else is a judge.
+        async function isRomioMaster(user) {
+            if (!user) return false;
+            if ((user.email || '').toLowerCase() === ROMIO_MASTER_EMAIL) return true;
+            try { const s = await getDoc(doc(db, "users", user.uid)); return s.exists() && s.data().isMaster === true; }
+            catch { return false; }
+        }
         async function checkAdminSession(user) {
-            if (!user) return;
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists() && userSnap.data().role === 'admin') {
-                showView('view-master');
-            }
+            if (await isRomioMaster(user)) showView('view-master');
         }
 
         async function initSystem() {
@@ -251,8 +258,8 @@
                 document.getElementById('judge-input').value = urlKey;
                 setTimeout(() => window.loginJudge(), 1000);
             }
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
+            onAuthStateChanged(auth, async (user) => {
+                if (user && await isRomioMaster(user)) {
                     log.innerText = `ADMIN CONNECTED: ${user.email}`;
                     log.style.background = "#064e3b";
                     checkAdminSession(user);
