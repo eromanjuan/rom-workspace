@@ -15,7 +15,7 @@ import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
 import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
-import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, updateUserProfile } from './workspaces/data.js';
+import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, updateUserProfile, listWorkspaceApps } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
 import { logOut } from './auth/auth.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
@@ -45,6 +45,7 @@ if (window.top !== window.self) {
 } else {
     let viewUnsub = null;
     let notifCleanup = null;
+    let wsAppsOff = null; // removes the previous shell's workspace-apps listener
     const VIEW_KEY = 'rom-view';
     const savedView = localStorage.getItem(VIEW_KEY);
     const validViews = ['feed', 'messages', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
@@ -186,6 +187,20 @@ if (window.top !== window.self) {
         setShellAvatar = shell.setAvatar;
         if (profile?.photoURL) shell.setAvatar(profile.photoURL);
 
+        // Populate the expandable "Workspace" sub-list with the current
+        // workspace's apps (read from the module's synced builder blob).
+        const refreshWorkspaceApps = async (wsId) => {
+            try {
+                const id = wsId || (await getUserProfile(user.uid))?.currentWorkspaceId;
+                shell.setWorkspaceApps(id ? await listWorkspaceApps(id) : [], () => go('workspace'));
+            } catch { shell.setWorkspaceApps([], () => go('workspace')); }
+        };
+        refreshWorkspaceApps(profile?.currentWorkspaceId);
+        if (wsAppsOff) wsAppsOff();
+        const wsAppsListener = () => refreshWorkspaceApps();
+        window.addEventListener('rom-workspaces-changed', wsAppsListener);
+        wsAppsOff = () => window.removeEventListener('rom-workspaces-changed', wsAppsListener);
+
         function onNav(view, item) {
             if (item?.soon) { toast(`${item.label} is coming soon.`, 'info'); return; }
             go(view);
@@ -274,7 +289,7 @@ if (window.top !== window.self) {
             if (wsReadyHandler) window.removeEventListener('message', wsReadyHandler);
             const clearReady = () => { if (wsReadyHandler) { window.removeEventListener('message', wsReadyHandler); wsReadyHandler = null; } };
             wsReadyHandler = (e) => {
-                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') { loading.remove(); clearReady(); }
+                if (e.origin === location.origin && e.data && e.data.type === 'rom-ws-ready') { loading.remove(); clearReady(); refreshWorkspaceApps(wsId); }
             };
             window.addEventListener('message', wsReadyHandler);
             setTimeout(() => { loading.remove(); clearReady(); }, 12000);

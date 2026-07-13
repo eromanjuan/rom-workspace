@@ -61,6 +61,8 @@ export function buildShell(user, { onNavigate, onSearch }) {
 
   const nav = el('nav', { class: 'sb-nav' });
   const navBadges = new Map();
+  let wsSubnav = null;      // collapsible list of the current workspace's apps
+  let onOpenWsApp = null;   // set via setWorkspaceApps
   for (const group of NAV_GROUPS) {
     nav.append(el('div', { class: 'sb-group' }, group.title));
     for (const item of group.items) {
@@ -84,8 +86,40 @@ export function buildShell(user, { onNavigate, onSearch }) {
           ]);
       navButtons.set(item.id, btn);
       nav.append(btn);
+
+      // The Workspace item expands to list the current workspace's apps.
+      if (item.id === 'workspace') {
+        const caret = el('button', { class: 'sb-caret', title: 'Show apps', 'aria-label': 'Show workspace apps' }, icon('chevron-right'));
+        btn.append(caret);
+        wsSubnav = el('div', { class: 'sb-subnav', style: 'display:none' });
+        nav.append(wsSubnav);
+        caret.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const open = wsSubnav.style.display === 'none';
+          wsSubnav.style.display = open ? '' : 'none';
+          caret.classList.toggle('open', open);
+        });
+      }
     }
   }
+  // Populate the Workspace sub-list with the current workspace's apps.
+  const setWorkspaceApps = (apps, onOpen) => {
+    if (!wsSubnav) return;
+    onOpenWsApp = onOpen || onOpenWsApp;
+    clear(wsSubnav);
+    if (!apps || !apps.length) {
+      wsSubnav.append(el('div', { class: 'sb-subempty muted' }, 'No apps in this workspace yet'));
+      return;
+    }
+    for (const app of apps) {
+      const b = el('button', { class: 'sb-subitem', title: app.name }, [
+        el('span', { class: 'sb-subdot', style: `background:${app.color || '#e0552d'}` }),
+        el('span', { class: 'sb-subitem-label' }, app.name),
+      ]);
+      b.addEventListener('click', () => { if (onOpenWsApp) onOpenWsApp(app); });
+      wsSubnav.append(b);
+    }
+  };
   // Update a nav item's activity badge (0 hides it).
   const setNavBadge = (id, count) => {
     const b = navBadges.get(id);
@@ -161,7 +195,7 @@ export function buildShell(user, { onNavigate, onSearch }) {
     applyAvatar(footAvatar, displayNameOf(user), photoURL);
   };
 
-  return { root, content, wsHost, setActive, bell, setAvatar, setNavBadge };
+  return { root, content, wsHost, setActive, bell, setAvatar, setNavBadge, setWorkspaceApps };
 }
 
 // A simple "coming soon" panel for Phase 2 modules.

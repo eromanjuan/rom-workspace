@@ -117,6 +117,33 @@ export async function setCurrentWorkspace(uid, wsId) {
   await setDoc(doc(db, 'users', uid), { currentWorkspaceId: wsId }, { merge: true });
 }
 
+// The apps built inside a workspace live in the embedded module's synced blob
+// (workspaceBuilder/{wsId}, a { keys: { <localStorage key>: <json string> } } map).
+// Parse the app list out of it defensively so ROM can list them in the sidebar.
+export async function listWorkspaceApps(wsId) {
+  if (!wsId) return [];
+  try {
+    const snap = await getDoc(doc(db, 'workspaceBuilder', wsId));
+    if (!snap.exists()) return [];
+    const keys = snap.data().keys || {};
+    const apps = []; const seen = new Set();
+    for (const [k, v] of Object.entries(keys)) {
+      if (!k.startsWith('qhq_workspace_builder_v1')) continue;
+      let blob; try { blob = JSON.parse(v); } catch { continue; }
+      const spaces = Array.isArray(blob?.workspaces) ? blob.workspaces : [];
+      for (const ws of spaces) {
+        for (const app of (Array.isArray(ws?.apps) ? ws.apps : [])) {
+          if (app && app.id && !seen.has(app.id)) {
+            seen.add(app.id);
+            apps.push({ id: app.id, name: app.name || 'Untitled app', color: app.color || '#e0552d' });
+          }
+        }
+      }
+    }
+    return apps.sort((a, b) => a.name.localeCompare(b.name));
+  } catch { return []; }
+}
+
 // Merge arbitrary profile fields (displayName, phone, ...) onto users/{uid}.
 export async function updateUserProfile(uid, patch) {
   await setDoc(doc(db, 'users', uid), patch, { merge: true });

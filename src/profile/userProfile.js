@@ -42,6 +42,10 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
         p?.username ? el('div', { class: 'muted profile-username' }, `@${p.username}`) : null,
         vis.email && p?.email ? el('div', { class: 'muted profile-email' }, p.email) : null,
         vis.verified && p?.emailVerified ? el('span', { class: 'pill pill--editor profile-verified' }, [icon('circle-check'), ' Verified']) : null,
+        p?.bio ? el('p', { class: 'profile-bio' }, p.bio) : null,
+        (p?.website && /^https?:\/\//i.test(p.website))
+          ? el('a', { class: 'profile-website', href: p.website, target: '_blank', rel: 'noopener noreferrer' }, [icon('link'), el('span', {}, p.website.replace(/^https?:\/\//, ''))])
+          : null,
         vis.memberSince && since ? el('div', { class: 'muted profile-since' }, `Member since ${since}`) : null,
         msgBtn,
       ]),

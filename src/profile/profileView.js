@@ -19,6 +19,8 @@ export function renderProfile(host, user, { onOpenWorkspace } = {}) {
   removeAvatarBtn.addEventListener('click', () => removeAvatar(user, () => { applyAvatar(avatar, name, null); removeAvatarBtn.style.display = 'none'; }));
   const avatarWrap = el('div', { class: 'profile-avatar-wrap' }, [avatar, editAvatarBtn, removeAvatarBtn]);
 
+  const bioEl = el('p', { class: 'profile-bio', style: 'display:none' });
+  const siteEl = el('a', { class: 'profile-website', target: '_blank', rel: 'noopener noreferrer', style: 'display:none' }, [icon('link'), el('span', {})]);
   const details = el('div', { class: 'profile-head card' }, [
     avatarWrap,
     el('div', {}, [
@@ -30,6 +32,8 @@ export function renderProfile(host, user, { onOpenWorkspace } = {}) {
           isMaster(user) ? 'Master · full access' : 'Member'),
         user.emailVerified ? el('span', { class: 'pill pill--editor' }, [icon('circle-check'), ' Verified']) : null,
       ]),
+      bioEl,
+      siteEl,
       el('div', { class: 'muted profile-since', id: 'profile-since' }, ''),
     ]),
   ]);
@@ -102,6 +106,8 @@ export function renderProfile(host, user, { onOpenWorkspace } = {}) {
     const since = p?.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : null;
     if (since) document.getElementById('profile-since').textContent = `Member since ${since}`;
     if (p?.photoURL) { applyAvatar(avatar, name, p.photoURL); removeAvatarBtn.style.display = ''; }
+    if (p?.bio) { bioEl.textContent = p.bio; bioEl.style.display = ''; }
+    if (p?.website && /^https?:\/\//i.test(p.website)) { siteEl.href = p.website; siteEl.querySelector('span').textContent = p.website.replace(/^https?:\/\//, ''); siteEl.style.display = ''; }
   }).catch(() => {});
 
   // load previous posts

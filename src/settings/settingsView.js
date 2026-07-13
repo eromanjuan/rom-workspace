@@ -212,9 +212,12 @@ function buildProfileSection(user) {
   const lastInput = el('input', { class: 'input', placeholder: 'Surname' });
   const userInput = el('input', { class: 'input', placeholder: 'username' });
   const phoneInput = el('input', { class: 'input', type: 'tel', placeholder: 'e.g. +63 917 000 0000' });
+  const bioInput = el('textarea', { class: 'input', rows: '3', maxlength: '400', placeholder: 'A short bio about you…' });
+  const siteInput = el('input', { class: 'input', type: 'url', placeholder: 'https://your-website.com' });
   const saveName = el('button', { class: 'btn btn--primary' }, 'Save');
   const saveUser = el('button', { class: 'btn btn--primary' }, 'Save');
   const savePhone = el('button', { class: 'btn btn--primary' }, 'Save');
+  const saveAbout = el('button', { class: 'btn btn--primary' }, 'Save');
   const userHint = el('div', { class: 'field__hint', 'aria-live': 'polite' }, 'Your unique @handle.');
 
   let originalUsername = '';
@@ -226,6 +229,8 @@ function buildProfileSection(user) {
     originalUsername = p?.username || '';
     userInput.value = originalUsername;
     if (p?.phone) phoneInput.value = p.phone;
+    if (p?.bio) bioInput.value = p.bio;
+    if (p?.website) siteInput.value = p.website;
   }).catch(() => {});
 
   // Live availability while editing the username.
@@ -274,6 +279,22 @@ function buildProfileSection(user) {
     catch (err) { toast(err.message, 'error'); }
     finally { savePhone.disabled = false; }
   });
+  saveAbout.addEventListener('click', async () => {
+    // Normalise the website: add https:// if missing, and only accept http(s).
+    let site = siteInput.value.trim();
+    if (site) {
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(site)) site = `https://${site}`;
+      try { const u = new URL(site); if (!['http:', 'https:'].includes(u.protocol)) throw 0; site = u.href; }
+      catch { return toast('Enter a valid website URL (e.g. https://example.com).', 'error'); }
+    }
+    saveAbout.disabled = true;
+    try {
+      await updateUserProfile(user.uid, { bio: bioInput.value.trim().slice(0, 400), website: site });
+      siteInput.value = site;
+      toast('About you saved.', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    finally { saveAbout.disabled = false; }
+  });
 
   return el('section', { class: 'settings-card card' }, [
     el('h3', { class: 'settings-title' }, [icon('user'), ' Profile']),
@@ -285,6 +306,11 @@ function buildProfileSection(user) {
     userHint,
     el('label', { class: 'settings-label' }, 'Phone number'),
     el('div', { class: 'row' }, [phoneInput, savePhone]),
+    el('label', { class: 'settings-label' }, 'About you'),
+    bioInput,
+    el('label', { class: 'settings-label' }, 'Website'),
+    siteInput,
+    el('div', { class: 'row', style: 'margin-top:.5rem' }, [el('div', { style: 'flex:1' }), saveAbout]),
   ]);
 }
 
