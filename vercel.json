@@ -3,11 +3,11 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "redirects": [
-    { "source": "/tabulation", "destination": "/tabulation/", "permanent": false }
-  ],
   "rewrites": [
+    { "source": "/tabulation", "destination": "/tabulation/index.html" },
     { "source": "/tabulation/", "destination": "/tabulation/index.html" },
+    { "source": "/tabulation/master", "destination": "/tabulation/index.html" },
+    { "source": "/tabulation/judge", "destination": "/tabulation/index.html" },
     { "source": "/((?!.*\\.).*)", "destination": "/index.html" }
   ]
 }

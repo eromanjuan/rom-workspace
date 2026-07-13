@@ -28,7 +28,7 @@ const NAV_GROUPS = [
       { id: 'calendar', label: 'Calendar', icon: 'calendar' },
       { id: 'checklist', label: 'Checklist', icon: 'checklist' },
       { id: 'notes', label: 'Notes', icon: 'notes' },
-      { id: 'tabulation', label: 'Tabulation', icon: 'table', newTab: true, href: '/tabulation/', masterOnly: true },
+      { id: 'tabulation', label: 'Tabulation', icon: 'table', newTab: true, href: '/tabulation', masterOnly: true },
     ],
   },
   {
@@ -67,14 +67,21 @@ export function buildShell(user, { onNavigate, onSearch }) {
       if (item.masterOnly && !isMaster(user)) continue; // e.g. Tabulation admin
       const badge = el('span', { class: 'sb-badge', style: 'display:none' });
       navBadges.set(item.id, badge);
-      const btn = el('button', {
-        class: `sb-item${item.soon ? ' sb-item--soon' : ''}`,
-        onclick: () => { if (item.newTab) window.open(item.href, '_blank', 'noopener'); else onNavigate(item.id, item); },
-      }, [
-        icon(item.icon),
-        el('span', { class: 'sb-item-label' }, item.label),
-        item.soon ? el('span', { class: 'sb-soon' }, 'soon') : (item.newTab ? el('span', { class: 'sb-ext' }, icon('external-link')) : badge),
-      ]);
+      // New-tab items are real anchors (reliable across browsers + no popup block).
+      const btn = item.newTab
+        ? el('a', { class: 'sb-item', href: item.href, target: '_blank', rel: 'noopener' }, [
+            icon(item.icon),
+            el('span', { class: 'sb-item-label' }, item.label),
+            el('span', { class: 'sb-ext' }, icon('external-link')),
+          ])
+        : el('button', {
+            class: `sb-item${item.soon ? ' sb-item--soon' : ''}`,
+            onclick: () => onNavigate(item.id, item),
+          }, [
+            icon(item.icon),
+            el('span', { class: 'sb-item-label' }, item.label),
+            item.soon ? el('span', { class: 'sb-soon' }, 'soon') : badge,
+          ]);
       navButtons.set(item.id, btn);
       nav.append(btn);
     }

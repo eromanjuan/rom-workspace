@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Served at /tabulation, /tabulation/master and /tabulation/judge — this
+         base makes all relative asset paths resolve under /tabulation/. -->
+    <base href="/tabulation/">
     <title>VESSCORE | Tabulation System </title>
     <link rel="icon" type="image/png" href="images/2.png">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -379,7 +382,7 @@
 
         window.refreshMaster = async () => {
             onSnapshot(query(collection(db, "judges"), orderBy("name", "asc")), (snap) => {
-                const baseUrl = window.location.href.split('?')[0]; 
+                const baseUrl = `${window.location.origin}/tabulation/judge`; // judges land on the judge route
                 document.getElementById('judge-list').innerHTML = snap.docs.map(doc => {
                     const data = doc.data();
                     const judgeLink = `${baseUrl}?key=${data.passkey}`;
@@ -721,6 +724,11 @@
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById(id).classList.add('active');
             if(id === 'view-master') window.refreshMaster();
+            // Reflect the active view in the URL (/tabulation, /master, /judge).
+            const path = id === 'view-master' ? '/tabulation/master'
+                : id === 'view-scoring' ? '/tabulation/judge'
+                : '/tabulation';
+            try { const q = window.location.search || ''; history.replaceState(null, '', path + q); } catch (e) {}
         };
 
         window.masterAccess = () => auth.currentUser ? window.showView('view-master') : alert("Admin required");
