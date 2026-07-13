@@ -14238,6 +14238,31 @@ function wbConfirmDelete() {
   state.builderModal = null; wbSave(companyId); showToast('Deleted.', 'local', 'Workspaces'); render();
 }
 
+// render() swaps the whole app HTML, so every scroll position resets. After an
+// in-place action (Save changes, Share app) the user must stay where they are —
+// snapshot what is scrolled, re-render, put it back.
+function renderKeepScroll() {
+  const root = document.scrollingElement || document.documentElement;
+  const pageY = window.scrollY || root.scrollTop || 0;
+  const panes = [];
+  document.querySelectorAll('[class]').forEach((node) => {
+    if (node.scrollTop > 0 && typeof node.className === 'string') {
+      const sel = node.tagName.toLowerCase() + node.className.trim().split(/\s+/).map((c) => '.' + CSS.escape(c)).join('');
+      panes.push({ sel, top: node.scrollTop });
+    }
+  });
+  render();
+  const restore = () => {
+    root.scrollTop = pageY;
+    window.scrollTo(0, pageY);
+    for (const p of panes) {
+      try { const node = document.querySelector(p.sel); if (node) node.scrollTop = p.top; } catch { /* stale selector */ }
+    }
+  };
+  restore();
+  requestAnimationFrame(restore);
+}
+
 function wbSaveAppSettings(companyId, workspaceId, appId) {
   const { app } = wbFind(companyId, workspaceId, appId);
   app.name = (document.getElementById('wbSetName')?.value || '').trim() || app.name;
@@ -14245,7 +14270,7 @@ function wbSaveAppSettings(companyId, workspaceId, appId) {
   app.type = (document.getElementById('wbSetType')?.value || '').trim();
   const icon = document.querySelector('#wbSetIcons .wb-emoji-opt.sel'); if (icon) app.icon = icon.dataset.icon;
   const color = document.querySelector('#wbSetColors .wb-swatch.sel'); if (color) app.color = color.dataset.color;
-  wbSave(companyId); showToast('App settings saved.', 'local', 'Workspaces'); render();
+  wbSave(companyId); showToast('App settings saved.', 'local', 'Workspaces'); renderKeepScroll();
 }
 
 // Bind the builder's content + modal interactions after each render.
@@ -14310,7 +14335,7 @@ function mountWorkspaceBuilder() {
     bind('[data-wb-cal-nav]', (el) => { const c = wbCalCursor(); const d = new Date(c.year, c.month + Number(el.dataset.wbCalNav), 1); state.wbCalMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; render(); });
     bind('[data-wb-install-app]', () => wbInstallAppPrompt(companyId, workspaceId));
     bind('[data-wb-download-app]', () => wbDownloadApp(companyId, workspaceId, appId));
-    bind('[data-wb-share-app]', () => { if (!wbGuard()) return; const { app } = wbFind(companyId, workspaceId, appId); if (!app) return; app.shared = !app.shared; wbSave(companyId); showToast(app.shared ? `"${app.name}" is now shared to the ROM App Market.` : `"${app.name}" removed from the ROM App Market.`, 'local', 'Workspaces'); render(); });
+    bind('[data-wb-share-app]', () => { if (!wbGuard()) return; const { app } = wbFind(companyId, workspaceId, appId); if (!app) return; app.shared = !app.shared; wbSave(companyId); showToast(app.shared ? `"${app.name}" is now shared to the ROM App Market.` : `"${app.name}" removed from the ROM App Market.`, 'local', 'Workspaces'); renderKeepScroll(); });
     bind('[data-wb-delete-workspace]', () => { const ws = wbCompanyWorkspace(companyId); if (ws) openWbDeleteWorkspace(companyId, ws); });
     bind('[data-tab]', (el) => nav({ app_id: appId, tab: el.dataset.tab }));
     bind('[data-add-field]', () => nav({ app_id: appId, tab: 'fields' }));
