@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=24';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=25';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=24';
+const MODULE_PAGE = '/workspace-module/index.html?v=25';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -148,6 +148,29 @@ window.addEventListener('message', (e) => {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// The workspace the module is currently showing (set in boot) — stamped onto
+// audit-log entries so ROM can attribute them to the right workspace.
+let currentWsId = null;
+
+// Let the embedded module append to ROMIO's activity log (audit trail): who
+// created/updated/deleted an app, a record, the workspace, etc.
+window.__ROM_LOG__ = async (entry = {}) => {
+  const me = auth.currentUser;
+  if (!me) return;
+  try {
+    await addDoc(collection(db, 'activityLog'), {
+      actorId: me.uid,
+      actorName: me.displayName || me.email || 'User',
+      actorEmail: me.email || '',
+      action: String(entry.action || 'workspace.activity').slice(0, 60),
+      text: String(entry.text || '').slice(0, 400),
+      workspaceId: currentWsId || '',
+      workspaceName: String(entry.workspaceName || window.__ROM_WS_NAME__ || '').slice(0, 120),
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) { /* audit writes are best-effort */ }
+};
 
 // Let the embedded module raise a ROMIO notification (e.g. a workspace @mention)
 // into the recipient's ROMIO bell. actorId must equal the caller's uid to satisfy
@@ -323,6 +346,7 @@ async function boot() {
       const pdata = profile.exists() ? profile.data() : {};
       if (pdata.displayName) window.__ROM_USER_NAME__ = pdata.displayName;
       wsId = profile.exists() ? profile.data().currentWorkspaceId : null;
+      currentWsId = wsId; // stamped onto audit-log entries
       if (wsId) {
         const ws = await getDoc(doc(db, 'workspaces', wsId));
         if (ws.exists()) {

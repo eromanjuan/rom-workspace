@@ -202,3 +202,6 @@
 .wb-calc-key.op { color: var(--orange); }
 .wb-calc-key.eq { background: var(--orange); border-color: var(--orange); color: #fff; }
 .wb-calc-key.zero { grid-column: span 2; }
+
+/* 10) Activity feed: who performed the action. */
+.wb-act-by { color: var(--orange); font-weight: 600; }

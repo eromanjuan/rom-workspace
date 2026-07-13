@@ -12,6 +12,7 @@ import {
   isUsernameAvailable, usernameFormatError, changeUsername, normalizeUsername,
   listAllUsers, adminSetUser, adminDeleteUser,
   submitReport, listenReports, setReportStatus, deleteReport, adminSearchMessages,
+  listenActivity,
 } from '../workspaces/data.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
@@ -19,6 +20,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   // Deep-linked sub-section (e.g. /settings/workspace) opens that accordion.
   const openIf = (key) => ({ open: section === key });
   const wsSection = collapsible(buildWorkspaceSection(user, onOpenWorkspace), openIf('workspace'));
+  const activitySection = buildActivitySection(user);
   const controlSection = isMaster(user) ? buildControlPanelSection(user) : null;
   host.append(
     el('div', { class: 'settings' }, [
@@ -30,6 +32,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
       collapsible(buildThemeSection(), openIf('theme')),
       collapsible(buildReportSection(user), openIf('report')),
       wsSection,
+      collapsible(activitySection, openIf('activity')),
       controlSection ? collapsible(controlSection, openIf('control')) : null,
     ]),
   );
@@ -41,7 +44,11 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   // Refresh the workspace list instantly when a workspace is added/removed.
   const onWsChange = () => { try { wsSection._reloadWorkspaces && wsSection._reloadWorkspaces(); } catch { /* ignore */ } };
   window.addEventListener('rom-workspaces-changed', onWsChange);
-  return () => { window.removeEventListener('rom-workspaces-changed', onWsChange); try { controlSection?._cleanup?.(); } catch { /* ignore */ } };
+  return () => {
+    window.removeEventListener('rom-workspaces-changed', onWsChange);
+    try { controlSection?._cleanup?.(); } catch { /* ignore */ }
+    try { activitySection?._cleanup?.(); } catch { /* ignore */ }
+  };
 }
 
 // Turn a settings-card <section> (first child = h3.settings-title) into a
@@ -65,6 +72,70 @@ function collapsible(section, { open = false } = {}) {
   };
   setOpen(open);
   header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
+  return section;
+}
+
+/* ---------- activity log (audit trail) ---------- */
+
+// The master sees every action across ROMIO; everyone else sees their own.
+function buildActivitySection(user) {
+  const master = isMaster(user);
+  const search = el('input', { class: 'input', type: 'search', placeholder: 'Search by user, action, workspace…' });
+  const countEl = el('span', { class: 'muted admin-count' });
+  const list = el('div', { class: 'activity-log' }, el('p', { class: 'muted' }, 'Loading activity…'));
+  let rows = [];
+
+  const fmt = (ts) => { try { const d = ts?.toDate ? ts.toDate() : null; return d ? d.toLocaleString() : ''; } catch { return ''; } };
+  const ICONS = {
+    'workspace.create': ['plus', '#16a34a'], 'workspace.delete': ['trash', '#e5484d'],
+    'workspace.update': ['pencil', '#5b8cff'], 'member.add': ['user-plus', '#16a34a'],
+    'member.remove': ['user-minus', '#e5484d'], 'member.role': ['shield-lock', '#f0b429'],
+    'invite.create': ['mail', '#5b8cff'], 'join.decline': ['x', '#e5484d'],
+  };
+  const iconFor = (a) => ICONS[a] || (/(delete|remove)/i.test(a) ? ['trash', '#e5484d']
+    : /(create|add|install)/i.test(a) ? ['plus', '#16a34a']
+    : /(update|edit)/i.test(a) ? ['pencil', '#5b8cff'] : ['activity', '#8a8f98']);
+
+  function draw() {
+    const q = search.value.trim().toLowerCase();
+    const shown = rows.filter((r) => !q
+      || (r.actorName || '').toLowerCase().includes(q)
+      || (r.actorEmail || '').toLowerCase().includes(q)
+      || (r.text || '').toLowerCase().includes(q)
+      || (r.action || '').toLowerCase().includes(q)
+      || (r.workspaceName || '').toLowerCase().includes(q));
+    clear(list);
+    if (!shown.length) { list.append(el('p', { class: 'muted' }, rows.length ? 'No activity matches.' : 'No activity recorded yet.')); }
+    else for (const r of shown) {
+      const [ic, color] = iconFor(r.action || '');
+      list.append(el('div', { class: 'activity-row' }, [
+        el('span', { class: 'activity-ic', style: `background:${color}` }, icon(ic)),
+        el('div', { class: 'activity-main' }, [
+          el('div', { class: 'activity-text' }, [
+            el('b', {}, r.actorName || 'Someone'), ' ', r.text || r.action || 'did something',
+          ]),
+          el('div', { class: 'muted activity-meta' }, [
+            r.workspaceName ? `${r.workspaceName} · ` : '', fmt(r.createdAt),
+          ].join('')),
+        ]),
+        el('span', { class: 'activity-action muted' }, r.action || ''),
+      ]));
+    }
+    countEl.textContent = `${shown.length} of ${rows.length}`;
+  }
+  search.addEventListener('input', draw);
+  const unsub = listenActivity((list2) => { rows = list2; draw(); }, { all: master, uid: user.uid });
+
+  const section = el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('history'), ' Activity log']),
+    el('p', { class: 'muted' }, master
+      ? 'Every action across ROMIO — who created, updated or deleted a workspace, app, record, member or invite.'
+      : 'Everything you have done in ROMIO — workspaces, apps, records, members and invites.'),
+    el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, master ? 'All activity' : 'Your activity'), countEl]),
+    search,
+    list,
+  ]);
+  section._cleanup = () => { try { unsub(); } catch { /* ignore */ } };
   return section;
 }
 

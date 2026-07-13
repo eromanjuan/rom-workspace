@@ -82,6 +82,16 @@ service cloud.firestore {
                     && (!('body' in request.resource.data)  || request.resource.data.body.size()  <= 500);
     }
 
+    // --- activity log (audit trail) ---
+    // Anyone signed in records their OWN actions (self-stamped actor). The master
+    // reads the whole trail; everyone else can only read their own entries.
+    // Entries are immutable — only the master may clear them.
+    match /activityLog/{id} {
+      allow create: if signedIn() && request.resource.data.actorId == request.auth.uid;
+      allow read: if isMaster() || (signedIn() && resource.data.actorId == request.auth.uid);
+      allow update, delete: if isMaster();
+    }
+
     // --- bug reports / feedback ---
     // Any signed-in user may file a report (stamped with themselves as sender);
     // only the master can read the inbox, mark reports resolved, or delete them.

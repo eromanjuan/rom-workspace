@@ -989,6 +989,16 @@ select.input { cursor: pointer; }
 .admin-count { font-size: 12px; }
 .admin-table-wrap { margin-top: 8px; max-height: 440px; overflow: auto; border: 1px solid var(--border, #232a34); border-radius: 12px; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* Activity log (audit trail) */
+.activity-log { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; max-height: 520px; overflow: auto; }
+.activity-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid var(--border); }
+.activity-row:last-child { border-bottom: 0; }
+.activity-ic { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 14px; }
+.activity-main { min-width: 0; flex: 1 1 auto; }
+.activity-text { font-size: 13.5px; line-height: 1.45; }
+.activity-meta { font-size: 12px; margin-top: 2px; }
+.activity-action { flex: 0 0 auto; font-size: 11px; font-family: ui-monospace, monospace; white-space: nowrap; }
+@media (max-width: 640px) { .activity-action { display: none; } }
 /* Report inbox */
 .report-inbox { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; max-height: 460px; overflow: auto; }
 .report-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); }

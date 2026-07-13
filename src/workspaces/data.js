@@ -43,6 +43,7 @@ export async function createWorkspace(user, opts) {
   });
   // Auto-create the workspace group chat (owner is the first member).
   await ensureWorkspaceConversation(wsRef.id, { uid: user.uid, name: user.displayName || user.email }, o.name);
+  logActivity({ action: 'workspace.create', text: `Created workspace "${o.name}"`, workspaceId: wsRef.id, workspaceName: o.name });
   workspacesChanged();
   return wsRef.id;
 }
@@ -82,6 +83,8 @@ export async function renameWorkspace(wsId, name) {
 export async function updateWorkspace(wsId, patch) {
   await updateDoc(doc(db, 'workspaces', wsId), patch);
   if (patch && patch.name) await renameWorkspaceConversation(wsId, patch.name);
+  const fields = Object.keys(patch || {}).join(', ');
+  logActivity({ action: 'workspace.update', text: `Updated workspace settings (${fields})`, workspaceId: wsId, workspaceName: patch?.name || (await workspaceName(wsId)) });
   workspacesChanged();
 }
 
@@ -93,6 +96,7 @@ export async function setMemberRole(wsId, memberUid, role, perms) {
   if (role === 'custom' && perms) { patch.perms = perms; patch.writer = hasWritePerm(perms); }
   else { patch.writer = role === 'owner' || role === 'editor'; }
   await updateDoc(doc(db, 'workspaces', wsId, 'members', memberUid), patch);
+  logActivity({ action: 'member.role', text: `Changed a member's role to ${role}`, workspaceId: wsId, workspaceName: await workspaceName(wsId) });
 }
 
 // Delete a workspace. Remove other members first (so the owner keeps delete
@@ -100,12 +104,14 @@ export async function setMemberRole(wsId, memberUid, role, perms) {
 // (Feed/tiles/apps subcollections are left orphaned but become unreadable; a
 // recursive cleanup would be a Cloud Function follow-up.)
 export async function deleteWorkspace(wsId, ownerUid) {
+  const name = await workspaceName(wsId);
   const members = await getDocs(collection(db, 'workspaces', wsId, 'members'));
   for (const m of members.docs) {
     if (m.id !== ownerUid) await deleteDoc(m.ref);
   }
   await deleteDoc(doc(db, 'workspaces', wsId));
   await deleteDoc(doc(db, 'workspaces', wsId, 'members', ownerUid));
+  logActivity({ action: 'workspace.delete', text: `Deleted workspace "${name}"`, workspaceId: wsId, workspaceName: name });
   workspacesChanged();
 }
 
@@ -147,6 +153,44 @@ export async function listWorkspaceApps(wsId) {
     }
     return apps.sort((a, b) => a.name.localeCompare(b.name));
   } catch { return []; }
+}
+
+// --- activity log (audit trail) ---
+// Every meaningful action (workspace/app/record create-update-delete, members,
+// roles, invites) is recorded here with WHO did it. Written from ROM and, via the
+// bridge helper, from the embedded workspace module too.
+export async function logActivity(entry = {}) {
+  const u = auth.currentUser;
+  if (!u) return;
+  try {
+    await addDoc(collection(db, 'activityLog'), {
+      actorId: u.uid,
+      actorName: u.displayName || u.email || 'User',
+      actorEmail: u.email || '',
+      action: String(entry.action || 'activity').slice(0, 60),
+      text: String(entry.text || '').slice(0, 400),
+      workspaceId: entry.workspaceId || '',
+      workspaceName: String(entry.workspaceName || '').slice(0, 120),
+      createdAt: serverTimestamp(),
+    });
+  } catch { /* audit writes are best-effort — never block the action */ }
+}
+// Live activity feed. The master sees everything; anyone else sees their own.
+// (The "mine" query avoids orderBy so it needs no composite index — sorted client-side.)
+export function listenActivity(cb, { all = false, uid = null, max = 300 } = {}) {
+  const base = collection(db, 'activityLog');
+  const q = all
+    ? query(base, orderBy('createdAt', 'desc'), limit(max))
+    : query(base, where('actorId', '==', uid || '__none__'), limit(max));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!all) rows.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      cb(rows);
+    },
+    () => cb([]),
+  );
 }
 
 // --- bug reports / feedback ---
@@ -271,6 +315,11 @@ export async function addMemberDirect(wsId, targetUser, role = 'viewer', opts = 
   });
   // Add them to the workspace group chat too.
   await addWorkspaceConversationMember(wsId, targetUser.uid, targetUser.displayName || targetUser.email || 'Member');
+  logActivity({
+    action: 'member.add',
+    text: `Added ${targetUser.displayName || targetUser.email || 'a user'} as ${role}`,
+    workspaceId: wsId, workspaceName: await workspaceName(wsId),
+  });
   if (opts.notify) {
     await notify(targetUser.uid, {
       type: 'memberAdded',
@@ -379,6 +428,7 @@ export async function approveJoinRequest(wsId, req, role = 'viewer') {
 }
 export async function declineJoinRequest(wsId, reqUid) {
   await deleteDoc(doc(db, 'workspaces', wsId, 'joinRequests', reqUid));
+  logActivity({ action: 'join.decline', text: 'Declined a join request', workspaceId: wsId, workspaceName: await workspaceName(wsId) });
   await notify(reqUid, {
     type: 'joinDeclined',
     title: `Your request to join ${await workspaceName(wsId)} was declined`,
@@ -512,6 +562,7 @@ export async function changeMemberRole(wsId, memberUid, role) {
 export async function removeMember(wsId, memberUid) {
   await deleteDoc(doc(db, 'workspaces', wsId, 'members', memberUid));
   await removeWorkspaceConversationMember(wsId, memberUid);
+  logActivity({ action: 'member.remove', text: 'Removed a member from the workspace', workspaceId: wsId, workspaceName: await workspaceName(wsId) });
 }
 
 // --- invites ---
@@ -525,6 +576,7 @@ export async function createInvite(wsId, email, role, invitedBy) {
     invitedBy,
     createdAt: serverTimestamp(),
   });
+  logActivity({ action: 'invite.create', text: `Invited ${email.toLowerCase().trim()} as ${role}`, workspaceId: wsId, workspaceName: await workspaceName(wsId) });
   return ref.id;
 }
 

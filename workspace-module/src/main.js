@@ -10342,8 +10342,21 @@ function wbFind(companyId, workspaceId, appId = '') {
 }
 function wbLogActivity(workspace, entry) {
   workspace.activity = workspace.activity || [];
-  workspace.activity.unshift({ id: wbUid(), ts: new Date().toISOString(), ...entry });
+  // Record WHO performed the action, so the workspace activity feed can show it.
+  const actor = actorName();
+  workspace.activity.unshift({ id: wbUid(), ts: new Date().toISOString(), actor, ...entry });
   if (workspace.activity.length > 60) workspace.activity.length = 60;
+  // Mirror into ROMIO's global activity log (audit trail). Strip the inline
+  // markup so the log stores plain text.
+  try {
+    if (typeof window.__ROM_LOG__ === 'function') {
+      window.__ROM_LOG__({
+        action: entry.action || 'workspace.activity',
+        text: String(entry.text || '').replace(/<[^>]+>/g, ''),
+        workspaceName: workspace.name || '',
+      });
+    }
+  } catch { /* non-fatal */ }
 }
 function wbTimeAgo(ts) {
   const seconds = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -10478,7 +10491,8 @@ function wbFeedStream(companyId, workspace) {
 }
 
 function wbActivityRow(ev) {
-  return `<div class="wb-act-item"><span class="wb-act-ic" style="background:${h(ev.color || '#6b7280')}"><i class="ti ${h(ev.icon || 'ti-point')}"></i></span><div><div class="wb-act-text">${ev.text}</div><div class="wb-act-time">${wbTimeAgo(ev.ts)}</div></div></div>`;
+  const by = ev.actor ? ` · <span class="wb-act-by">by ${h(ev.actor)}</span>` : '';
+  return `<div class="wb-act-item"><span class="wb-act-ic" style="background:${h(ev.color || '#6b7280')}"><i class="ti ${h(ev.icon || 'ti-point')}"></i></span><div><div class="wb-act-text">${ev.text}</div><div class="wb-act-time">${wbTimeAgo(ev.ts)}${by}</div></div></div>`;
 }
 
 // Turn free text into safe HTML: escape, highlight @mentions of known members,
