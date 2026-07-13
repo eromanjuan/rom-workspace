@@ -6,10 +6,12 @@ import { el, clear, icon, toast, openModal } from '../ui/dom.js';
 import { signUp, logIn, sendPasswordReset, setAuthPersistence, signInWithGoogle, signInWithFacebook } from './auth.js';
 import { checkPassword, passwordStrength } from './passwordPolicy.js';
 import { isUsernameAvailable, usernameFormatError } from '../workspaces/data.js';
+import { playAuthSuccess } from '../ui/authAnim.js';
 
-export function renderAuth(root) {
+export function renderAuth(root, opts = {}) {
   clear(root);
-  let mode = 'login'; // 'login' | 'signup'
+  const navigate = opts.navigate || null; // (path) => void, updates the URL
+  let mode = opts.mode === 'signup' ? 'signup' : 'login'; // 'login' | 'signup'
 
   const shell = el('div', { class: 'auth' });
 
@@ -174,10 +176,13 @@ export function renderAuth(root) {
           await setAuthPersistence(remember.checked);
           if (isSignup) {
             await signUp({ firstName: firstName.value.trim(), lastName: lastName.value.trim(), username: username.value.trim(), email: email.value.trim(), password: pass.value });
+            playAuthSuccess('signup');
           } else {
             await logIn({ email: email.value.trim(), password: pass.value });
+            playAuthSuccess('signin');
           }
-          // onAuthStateChanged in main.js takes over from here.
+          // The success overlay plays while onAuthStateChanged in main.js renders
+          // the app underneath.
         } catch (err) {
           toast(friendly(err), 'error');
           submit.disabled = false;
@@ -211,10 +216,11 @@ export function renderAuth(root) {
     ]);
 
     const card = el('div', { class: 'auth__card' }, [
+      navigate ? el('button', { class: 'auth__home', type: 'button', onclick: () => navigate('/') }, [icon('arrow-left'), ' Back to home']) : null,
       form,
       el('p', { class: 'auth__switch-line' }, [
         isSignup ? 'Already have an account? ' : "Don't have an account? ",
-        el('button', { class: 'auth__switch', type: 'button', onclick: () => { mode = isSignup ? 'login' : 'signup'; draw(); } }, isSignup ? 'Log in' : 'Create one'),
+        el('button', { class: 'auth__switch', type: 'button', onclick: () => { if (navigate) navigate(isSignup ? '/login' : '/signup'); else { mode = isSignup ? 'login' : 'signup'; draw(); } } }, isSignup ? 'Log in' : 'Create one'),
       ]),
     ]);
 

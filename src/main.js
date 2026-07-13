@@ -3,6 +3,7 @@ import { configReady } from './firebase.js';
 import { initTheme, applyThemeBundle, getThemeBundle } from './ui/theme.js';
 import { watchAuth } from './auth/auth.js';
 import { renderAuth } from './auth/authView.js';
+import { renderLanding } from './landing/landingView.js';
 import { renderVerify } from './auth/verifyView.js';
 import { renderFeed } from './feed/feed.js';
 import { renderProfile } from './profile/profileView.js';
@@ -46,6 +47,23 @@ if (window.top !== window.self) {
     let viewUnsub = null;
     let notifCleanup = null;
     let wsAppsOff = null; // removes the previous shell's workspace-apps listener
+    let authed = false;        // is a user currently signed in?
+    let unauthCleanup = null;  // teardown for the landing page (observers/listeners)
+
+    // --- signed-out routing: / = landing, /login, /signup ---
+    function renderUnauthed() {
+        if (unauthCleanup) { unauthCleanup(); unauthCleanup = null; }
+        clear(app);
+        const path = location.pathname;
+        if (path === '/login') renderAuth(app, { mode: 'login', navigate: goUnauth });
+        else if (path === '/signup') renderAuth(app, { mode: 'signup', navigate: goUnauth });
+        else unauthCleanup = renderLanding(app, { onLogin: () => goUnauth('/login'), onSignup: () => goUnauth('/signup') });
+    }
+    function goUnauth(path) {
+        if (location.pathname !== path) history.pushState(null, '', path);
+        window.scrollTo(0, 0);
+        renderUnauthed();
+    }
     const VIEW_KEY = 'rom-view';
     const savedView = localStorage.getItem(VIEW_KEY);
     const validViews = ['feed', 'messages', 'profile', 'workspace', 'files', 'settings', 'calendar', 'checklist', 'notes'];
@@ -83,7 +101,10 @@ if (window.top !== window.self) {
         return { view: seg0, arg };
     }
     let routeTo = null;
-    window.addEventListener('popstate', () => { const r = parsePath(); if (routeTo) routeTo(r.view, r.arg, { fromPop: true }); });
+    window.addEventListener('popstate', () => {
+        if (!authed) { renderUnauthed(); return; }
+        const r = parsePath(); if (routeTo) routeTo(r.view, r.arg, { fromPop: true });
+    });
 
     // Keep the shell avatars (topbar + sidebar) in sync with the saved photo.
     let setShellAvatar = null;
@@ -106,9 +127,12 @@ if (window.top !== window.self) {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
         if (!user) {
-            renderAuth(app);
+            authed = false;
+            renderUnauthed();
             return;
         }
+        authed = true;
+        if (unauthCleanup) { unauthCleanup(); unauthCleanup = null; }
         // Require a verified email before entering the app (the master account is exempt).
         if (!user.emailVerified && !isMaster(user)) {
             renderVerify(app, user, () => proceed(user));

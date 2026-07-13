@@ -32,6 +32,28 @@
 }
 
 * { box-sizing: border-box; }
+
+/* ---- Auth success animation overlay (sign-in / account-created) ---- */
+.auth-anim { position: fixed; inset: 0; z-index: 4000; display: grid; place-items: center; background: radial-gradient(ellipse at center, #0f131b, #070a0f); animation: aa-in .3s ease both; }
+.auth-anim.out { animation: aa-out .5s ease both; }
+@keyframes aa-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes aa-out { to { opacity: 0; } }
+.auth-anim-inner { text-align: center; }
+.auth-anim-badge { width: 116px; height: 116px; margin: 0 auto 22px; border-radius: 50%; display: grid; place-items: center; position: relative; background: linear-gradient(135deg, #5b8cff, #8a5bff); color: #fff; box-shadow: 0 20px 60px -12px #5b8cff; animation: aa-pop .6s cubic-bezier(.2,1.3,.4,1) both; }
+@keyframes aa-pop { 0% { transform: scale(.3); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+.auth-anim-badge svg { width: 58px; height: 58px; }
+.auth-anim-check { fill: none; stroke: #fff; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 48; stroke-dashoffset: 48; animation: aa-draw .5s .28s cubic-bezier(.6,0,.3,1) forwards; }
+@keyframes aa-draw { to { stroke-dashoffset: 0; } }
+.auth-anim-ring { position: absolute; inset: -8px; border-radius: 50%; border: 3px solid #8a5bff; opacity: 0; animation: aa-ring 1s .3s ease-out forwards; }
+.auth-anim-ring.r2 { border-color: #21d0c3; animation-delay: .45s; }
+@keyframes aa-ring { 0% { transform: scale(.7); opacity: .8; } 100% { transform: scale(1.7); opacity: 0; } }
+.auth-anim-title { font-size: 26px; font-weight: 800; color: #eef1f7; letter-spacing: -.02em; animation: aa-rise .5s .35s both; }
+.auth-anim-sub { color: #98a1b4; margin-top: 8px; font-size: 15px; animation: aa-rise .5s .45s both; }
+@keyframes aa-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.auth-confetti { position: absolute; top: 0; width: 9px; height: 14px; border-radius: 2px; will-change: transform, opacity; animation: aa-fall 1.5s ease-in forwards; }
+@keyframes aa-fall { 0% { transform: translateY(-20px) rotate(0); opacity: 1; } 100% { transform: translateY(60vh) rotate(540deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .auth-anim-check { animation: none; stroke-dashoffset: 0; } .auth-confetti, .auth-anim-ring { display: none; } }
+
 /* Hide scrollbars app-wide for a cleaner look — scrolling still works (wheel,
    touch, trackpad, keyboard); only the visible bar is removed. */
 * { scrollbar-width: none; -ms-overflow-style: none; }
@@ -109,6 +131,8 @@ select.input { cursor: pointer; }
 .auth__subtitle { margin: -0.4rem 0 0.4rem; color: var(--muted); font-size: 0.92rem; }
 .auth__submit { margin-top: 0.4rem; min-height: 46px; font-size: 0.98rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
 .auth__row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: -0.1rem; }
+.auth__home { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0 0 12px; }
+.auth__home:hover { color: var(--primary); }
 .auth__remember { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--text); cursor: pointer; user-select: none; }
 .auth__remember input { width: 1rem; height: 1rem; accent-color: var(--primary); cursor: pointer; }
 /* Terms agreement (sign-up) */
