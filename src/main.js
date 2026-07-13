@@ -312,7 +312,13 @@ if (window.top !== window.self) {
             if (wsId && (role === 'owner' || master)) {
                 gear.style.display = '';
                 gear.onclick = () => openWorkspaceSettings(wsId, user, () => {
-                    try { frame.contentWindow.location.reload(); } catch { frame.src = frame.src; }
+                    // Reload by re-pointing the iframe at the module URL — NOT
+                    // contentWindow.reload(), which reloads whatever path the
+                    // module's router last pushed (a /workspaces/… path that
+                    // resolves to the ROMIO SPA, tripping the recursion guard).
+                    const src = frame.getAttribute('src') || '/workspace-module/index.html';
+                    frame.src = 'about:blank';
+                    setTimeout(() => { frame.src = src; }, 0);
                 });
             }
         }
