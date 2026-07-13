@@ -1,13 +1,16 @@
 // The Profile page: user/owner details, previous posts, and personal widgets.
-import { el, clear, icon, escapeHtml, timeAgo, toast } from '../ui/dom.js';
+import { el, clear, icon, toast } from '../ui/dom.js';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase.js';
 import { displayNameOf } from '../auth/auth.js';
 import { isMaster, roleLabel } from '../workspaces/roles.js';
-import { getUserProfile, listMyPosts, listMyWorkspaces, setCurrentWorkspace } from '../workspaces/data.js';
+import { getUserProfile, listMyWorkspaces, setCurrentWorkspace } from '../workspaces/data.js';
+import { postCard } from '../feed/feed.js';
 import { renderWidgetsPanel } from '../feed/widgets.js';
 import { avatarNode, applyAvatar, pickAndEditAvatar, removeAvatar } from './avatar.js';
 
 // Returns an unsubscribe function (for the live widgets listener).
-export function renderProfile(host, user, { onOpenWorkspace } = {}) {
+export function renderProfile(host, user, { onOpenWorkspace, onOpenUser } = {}) {
   clear(host);
   const name = displayNameOf(user);
 
@@ -110,20 +113,32 @@ export function renderProfile(host, user, { onOpenWorkspace } = {}) {
     if (p?.website && /^https?:\/\//i.test(p.website)) { siteEl.href = p.website; siteEl.querySelector('span').textContent = p.website.replace(/^https?:\/\//, ''); siteEl.style.display = ''; }
   }).catch(() => {});
 
-  // load previous posts
-  listMyPosts(user.uid).then((list) => {
+  // Previous posts — rendered with the same card as the Feed (media, likes, comments).
+  // Live listener so a like/comment made here (or in the Feed) shows up straight away.
+  const expanded = new Set();   // comment threads left open across repaints
+  const drafts = new Map();     // half-typed comments survive a repaint
+  let lastDocs = [];
+  const paintPosts = () => {
     clear(posts);
+    const list = lastDocs.slice().sort(
+      (a, b) => (b.data().createdAt?.toMillis?.() || 0) - (a.data().createdAt?.toMillis?.() || 0),
+    );
     if (!list.length) { posts.append(el('p', { class: 'muted' }, 'You have not posted anything yet.')); return; }
-    for (const p of list) {
-      const when = p.createdAt?.toDate ? timeAgo(p.createdAt.toDate()) : '';
-      posts.append(el('div', { class: 'profile-post card' }, [
-        el('div', { class: 'profile-post-body', html: escapeHtml(p.text).replace(/\n/g, '<br>') }),
-        el('div', { class: 'profile-post-time muted' }, when),
-      ]));
+    for (const d of list) {
+      posts.append(postCard(d, user, { expanded, drafts, paint: paintPosts, onOpenUser }));
     }
-  }).catch((err) => { clear(posts); posts.append(el('p', { class: 'error-text' }, err.message)); });
+  };
+  const unsubPosts = onSnapshot(
+    query(collection(db, 'posts'), where('authorId', '==', user.uid)),
+    (snap) => { lastDocs = snap.docs; paintPosts(); },
+    (err) => { clear(posts); posts.append(el('p', { class: 'error-text' }, err.message)); },
+  );
 
   // Mount the personal widgets panel (shared with the Feed).
   const widgetsCleanup = renderWidgetsPanel(widgetHost, user);
-  return () => { widgetsCleanup(); window.removeEventListener('rom-workspaces-changed', onWsChange); };
+  return () => {
+    widgetsCleanup();
+    unsubPosts();
+    window.removeEventListener('rom-workspaces-changed', onWsChange);
+  };
 }

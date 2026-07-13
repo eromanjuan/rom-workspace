@@ -382,7 +382,7 @@ if (window.top !== window.self) {
             } else if (view === 'messages') {
                 viewUnsub = renderMessages(content, user, { initialConvId: arg, onOpenUser: openUserProfile });
             } else if (view === 'profile') {
-                viewUnsub = renderProfile(content, user, { onOpenWorkspace: () => go('workspace') });
+                viewUnsub = renderProfile(content, user, { onOpenWorkspace: () => go('workspace'), onOpenUser: openUserProfile });
             } else if (view === 'search') {
                 viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace'), onMessage: openDirectMessage });
             } else if (view === 'user') {
