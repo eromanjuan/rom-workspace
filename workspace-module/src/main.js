@@ -10231,7 +10231,7 @@ const WB_FIELD_TYPES = {
   text: { label: 'Text', icon: 'ti-letter-case', color: '#2563eb', desc: 'Single line of text' },
   textarea: { label: 'Text Area', icon: 'ti-align-left', color: '#2563eb', desc: 'Long multi-line text' },
   number: { label: 'Number', icon: 'ti-number-9', color: '#0d9488', desc: 'Numeric value' },
-  date: { label: 'Date', icon: 'ti-calendar', color: '#7c3aed', desc: 'Date picker' },
+  date: { label: 'Date', icon: 'ti-calendar', color: '#7c3aed', desc: 'Date, optionally with time' },
   category: { label: 'Category / Dropdown', icon: 'ti-list', color: '#d97706', desc: 'Choose from options' },
   status: { label: 'Status', icon: 'ti-flag', color: '#16a34a', desc: 'Colored workflow state' },
   relationship: { label: 'Relationship', icon: 'ti-link', color: '#0891b2', desc: 'Link to items in another app' },
@@ -11904,7 +11904,14 @@ function wbFmtVal(ctx, field, value) {
     case 'email': return `<a href="mailto:${h(value)}" style="color:var(--info,#2563eb)">${h(value)}</a>`;
     case 'url': { const href = wbUrlHref(value); return `<a class="wb-url-cell" href="${h(href)}" target="_blank" rel="noopener noreferrer" title="${h(href)}"><i class="ti ti-world-www"></i><span class="wb-url-cell-txt">${h(wbUrlLabel(value))}</span></a>`; }
     case 'phone': return h(formatPhoneNumber(value));
-    case 'date': return value ? new Date(`${value}T00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '<span class="wb-cell-empty">—</span>';
+    case 'date': {
+      if (!value) return '<span class="wb-cell-empty">—</span>';
+      const hasTime = String(value).includes('T');
+      const d = hasTime ? new Date(value) : new Date(`${value}T00:00`);
+      if (Number.isNaN(d.getTime())) return '<span class="wb-cell-empty">—</span>';
+      const datePart = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return hasTime ? `${datePart}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : datePart;
+    }
     case 'file': { const fv = wbFileValue(value); if (!fv) return '<span class="wb-cell-empty">—</span>'; const kind = fileTypeKind({ file_name: fv.name }); return fv.url ? `<button type="button" class="wb-file-icon-btn" data-wb-view-file data-file-url="${h(fv.url)}" data-file-name="${h(fv.name)}" title="${h(fv.name)}" aria-label="Open ${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></button>` : `<span class="wb-file-icon-btn muted" title="${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></span>`; }
     case 'relationship': { const ta = ctx.workspace.apps.find((x) => x.id === field.config.targetApp); if (!ta) return h(value); const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return `<span class="wb-tag wb-rel">${h(it ? wbRelLabel(ta, it, field.config.displayField) : '?')}</span>`; }).join(' '); }
     case 'location': return `<a class="wb-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(value))}" target="_blank" rel="noreferrer" title="Open in Google Maps"><i class="ti ti-map-pin"></i>${h(value)}</a>`;
@@ -13455,6 +13462,7 @@ function wbFieldConfigUI(fd, app) {
     return `<div class="wb-field"><label>Formula</label><input class="wb-input" id="wbCalcFormula" value="${h(fd.config.formula || '')}" placeholder="e.g. {Quantity} * {Unit Price}"><div class="wb-sub">Reference number, money, progress, or checklist fields by name in {curly braces} — a checklist contributes its % complete. Operators: + - * / ( )</div>${numFields.length ? `<div class="wb-calc-chips">${numFields.map((f) => `<button class="wb-tag wb-calc-chip" data-wb-insert="{${h(f.label)}}">${h(f.label)}</button>`).join('')}</div>` : '<div class="wb-sub" style="color:var(--warning,#d97706)">Add Number or Money fields first to reference them.</div>'}</div>`;
   }
   if (t === 'money') return `<div class="wb-field"><label>Currency symbol</label><input class="wb-input" id="wbCurSym" value="${h(fd.config.currency || '$')}" maxlength="3" style="max-width:120px"></div>`;
+  if (t === 'date') return `<div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateTime" ${fd.config.time ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Include time</b><div class="wb-sub">Pick a date and a time of day (uses a date &amp; time picker).</div></div></div>`;
   if (t === 'number') {
     const c = fd.config || {};
     const decSel = (v) => String(c.decimals) === String(v) ? 'selected' : '';
@@ -13609,7 +13617,7 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
       break;
     }
     case 'money': input = `<div class="wb-inline"><span class="wb-cur">${h(f.config.currency || '$')}</span><input type="number" step="0.01" class="wb-input" data-f="${h(f.id)}" value="${h(val ?? '')}" style="max-width:220px"></div>`; break;
-    case 'date': input = `<input type="date" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" style="max-width:220px">`; break;
+    case 'date': input = `<input type="${f.config && f.config.time ? 'datetime-local' : 'date'}" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" style="max-width:240px">`; break;
     case 'checkbox': input = `<label class="wb-switch"><input type="checkbox" data-f="${h(f.id)}" ${val ? 'checked' : ''}><span class="wb-slider"></span></label>`; break;
     case 'category': case 'status': input = `<select class="wb-input" data-f="${h(f.id)}"><option value="">— Select —</option>${(f.config.options || []).map((o) => `<option value="${h(o.id)}" ${val === o.id ? 'selected' : ''}>${h(o.label)}</option>`).join('')}</select>`; break;
     case 'user': {
@@ -14102,6 +14110,7 @@ function wbCollectModalDraft() {
     }
     if (t === 'calculation') m.draft.config.formula = (val('wbCalcFormula') || '').trim();
     if (t === 'money') m.draft.config.currency = (val('wbCurSym') || '').trim() || '$';
+    if (t === 'date') m.draft.config.time = !!checked('wbDateTime');
     if (t === 'number') {
       m.draft.config.unit = (val('wbNumUnit') || '').trim();
       const rawMin = val('wbNumMin'); const rawMax = val('wbNumMax'); const rawDec = val('wbNumDecimals');
