@@ -13462,7 +13462,8 @@ function wbFieldConfigUI(fd, app) {
     return `<div class="wb-field"><label>Formula</label><input class="wb-input" id="wbCalcFormula" value="${h(fd.config.formula || '')}" placeholder="e.g. {Quantity} * {Unit Price}"><div class="wb-sub">Reference number, money, progress, or checklist fields by name in {curly braces} — a checklist contributes its % complete. Operators: + - * / ( )</div>${numFields.length ? `<div class="wb-calc-chips">${numFields.map((f) => `<button class="wb-tag wb-calc-chip" data-wb-insert="{${h(f.label)}}">${h(f.label)}</button>`).join('')}</div>` : '<div class="wb-sub" style="color:var(--warning,#d97706)">Add Number or Money fields first to reference them.</div>'}</div>`;
   }
   if (t === 'money') return `<div class="wb-field"><label>Currency symbol</label><input class="wb-input" id="wbCurSym" value="${h(fd.config.currency || '$')}" maxlength="3" style="max-width:120px"></div>`;
-  if (t === 'date') return `<div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateTime" ${fd.config.time ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Include time</b><div class="wb-sub">Pick a date and a time of day (uses a date &amp; time picker).</div></div></div>`;
+  if (t === 'date') return `<div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateTime" ${fd.config.time ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Include time</b><div class="wb-sub">Pick a date and a time of day (uses a date &amp; time picker).</div></div></div>
+      <div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateAuto" ${fd.config.auto ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Auto timestamp</b><div class="wb-sub">Fill in automatically when an item is created — no manual picking.</div></div></div>`;
   if (t === 'number') {
     const c = fd.config || {};
     const decSel = (v) => String(c.decimals) === String(v) ? 'selected' : '';
@@ -13617,7 +13618,18 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
       break;
     }
     case 'money': input = `<div class="wb-inline"><span class="wb-cur">${h(f.config.currency || '$')}</span><input type="number" step="0.01" class="wb-input" data-f="${h(f.id)}" value="${h(val ?? '')}" style="max-width:220px"></div>`; break;
-    case 'date': input = `<input type="${f.config && f.config.time ? 'datetime-local' : 'date'}" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" style="max-width:240px">`; break;
+    case 'date': {
+      const withTime = f.config && f.config.time;
+      const inputType = withTime ? 'datetime-local' : 'date';
+      if (f.config && f.config.auto) {
+        // Auto-stamp: keep an existing value (created stamp), else fill with now.
+        const v = val || nowStampValue(withTime);
+        input = `<div class="wb-inline"><input type="${inputType}" class="wb-input" data-f="${h(f.id)}" value="${h(v)}" disabled style="max-width:240px"><span class="wb-sub"><i class="ti ti-clock-hour-4"></i> Set automatically</span></div>`;
+      } else {
+        input = `<input type="${inputType}" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" style="max-width:240px">`;
+      }
+      break;
+    }
     case 'checkbox': input = `<label class="wb-switch"><input type="checkbox" data-f="${h(f.id)}" ${val ? 'checked' : ''}><span class="wb-slider"></span></label>`; break;
     case 'category': case 'status': input = `<select class="wb-input" data-f="${h(f.id)}"><option value="">— Select —</option>${(f.config.options || []).map((o) => `<option value="${h(o.id)}" ${val === o.id ? 'selected' : ''}>${h(o.label)}</option>`).join('')}</select>`; break;
     case 'user': {
@@ -14110,7 +14122,7 @@ function wbCollectModalDraft() {
     }
     if (t === 'calculation') m.draft.config.formula = (val('wbCalcFormula') || '').trim();
     if (t === 'money') m.draft.config.currency = (val('wbCurSym') || '').trim() || '$';
-    if (t === 'date') m.draft.config.time = !!checked('wbDateTime');
+    if (t === 'date') { m.draft.config.time = !!checked('wbDateTime'); m.draft.config.auto = !!checked('wbDateAuto'); }
     if (t === 'number') {
       m.draft.config.unit = (val('wbNumUnit') || '').trim();
       const rawMin = val('wbNumMin'); const rawMax = val('wbNumMax'); const rawDec = val('wbNumDecimals');
@@ -35105,6 +35117,15 @@ function titleCase(value) {
 function isoDate(offsetDays = 0) {
   const date = new Date(Date.now() + offsetDays * 86400000);
   return date.toISOString().slice(0, 10);
+}
+
+// Current local date (or date + time) as an <input>-ready string, for auto-stamp
+// Date fields. `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm`.
+function nowStampValue(withTime) {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return withTime ? `${date}T${p(d.getHours())}:${p(d.getMinutes())}` : date;
 }
 
 function formatDate(value) {
