@@ -22,7 +22,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase.js';
 import { checkPassword } from './passwordPolicy.js';
-import { reserveUsername } from '../workspaces/data.js';
+import { reserveUsername, usernameFormatError, emailForLogin } from '../workspaces/data.js';
 
 export function watchAuth(callback) {
   return onAuthStateChanged(auth, callback);
@@ -38,17 +38,24 @@ export async function signUp({ firstName, lastName, username, email, password })
   }
   const first = (firstName || '').trim();
   const last = (lastName || '').trim();
-  const displayName = [first, last].filter(Boolean).join(' ') || (username || '').trim() || email.split('@')[0];
+  // A username is required for every account.
+  const handle = (username || '').trim();
+  const fmt = usernameFormatError(handle);
+  if (fmt) { const e = new Error(`Username: ${fmt.toLowerCase()}.`); e.code = 'auth/invalid-username'; throw e; }
+  const displayName = [first, last].filter(Boolean).join(' ') || handle || email.split('@')[0];
 
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
 
-  // Reserve the handle (now that we're authenticated). If it was taken in a
-  // race, keep the account but leave the handle empty — settable in Settings.
-  let handle = (username || '').trim();
-  if (handle) {
-    try { await reserveUsername(cred.user.uid, handle); }
-    catch { handle = ''; }
+  // Reserve the handle now that we're authenticated. If it was taken in a race,
+  // roll the account back so we never create a user without a username.
+  try {
+    await reserveUsername(cred.user.uid, handle, email);
+  } catch {
+    try { await cred.user.delete(); } catch { /* ignore */ }
+    const e = new Error('That username was just taken — please choose another.');
+    e.code = 'auth/username-taken';
+    throw e;
   }
 
   // Send the verification email; the app gates access until it's confirmed.
@@ -71,8 +78,11 @@ export async function refreshUser() {
   return null;
 }
 
-export async function logIn({ email, password }) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+// Log in with either an email address or a username (both + password).
+export async function logIn({ identifier, email, password }) {
+  const addr = await emailForLogin(identifier || email);
+  if (!addr) { const e = new Error('No account found for that username.'); e.code = 'auth/user-not-found'; throw e; }
+  const cred = await signInWithEmailAndPassword(auth, addr, password);
   await ensureProfile(cred.user);
   return cred.user;
 }

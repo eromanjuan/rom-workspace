@@ -1761,6 +1761,9 @@ button { cursor: pointer; }
 .avatar.large { width: 72px; height: 72px; font-size: 24px; }
 .avatar.small { width: 32px; height: 32px; font-size: 11px; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* Workspace badge in the topbar (current workspace icon/image) — rounded square. */
+.wb-ws-badge { border-radius: 11px; }
+.wb-ws-badge .ti { font-size: 20px; line-height: 1; }
 
 .account-popover {
   position: absolute;
@@ -20460,7 +20463,69 @@ button.wb-minical-cell:hover { background: var(--surface-2, #f6efe4); }
 .wb-search-box:focus-within { border-color: var(--orange, #e0552d); box-shadow: 0 0 0 3px var(--ring, color-mix(in srgb, var(--orange, #5b8cff) 22%, transparent)); }
 .wb-search-box > i { color: var(--text-muted, #72695d); flex: none; }
 .wb-search-input { flex: 1; border: 0; background: transparent; padding: 9px 0; font-size: .9rem; color: inherit; outline: none; }
+/* The container's :focus-within glow is the ring — suppress the global input:focus
+   ring so it doesn't draw a second, offset ring around just the inner input. */
+.wb-search-input:focus, .wb-search-box input:focus { box-shadow: none; border-color: transparent; }
 .wb-filter-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+
+/* Record modal: prev/next navigation (kept on the left of the footer). */
+.wb-item-nav-group { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
+.wb-item-nav { width: 36px; padding: 0; display: inline-grid; place-items: center; }
+.wb-item-nav[disabled] { opacity: .4; cursor: default; }
+.wb-item-nav-count { font-size: .8rem; color: var(--text-muted, #72695d); min-width: 44px; text-align: center; }
+
+/* ===== Unified search layout — one consistent look for every search box ===== */
+.wb-search-box,
+.crm-search,
+.global-search,
+.contact-list-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border, #e2d5bf);
+  border-radius: 10px;
+  background: var(--surface, #fffaf0);
+  box-shadow: none;
+}
+.wb-search-box:focus-within,
+.crm-search:focus-within,
+.global-search:focus-within,
+.contact-list-search:focus-within {
+  border-color: var(--orange, #e0552d);
+  background: var(--surface, #fffaf0);
+  box-shadow: 0 0 0 3px var(--ring, color-mix(in srgb, var(--orange, #5b8cff) 22%, transparent));
+}
+.wb-search-box > i, .wb-search-box > .ti,
+.crm-search > i, .crm-search > .ti,
+.global-search > i, .global-search > .ti,
+.contact-list-search > i, .contact-list-search > .ti {
+  color: var(--text-muted, #72695d);
+  flex: none;
+  font-size: 16px;
+}
+.wb-search-box input,
+.crm-search input,
+.global-search input,
+.contact-list-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 9px 0;
+  font-size: .9rem;
+  font-weight: 500;
+  color: inherit;
+  outline: none;
+}
+.wb-search-box input:focus,
+.crm-search input:focus,
+.global-search input:focus,
+.contact-list-search input:focus {
+  box-shadow: none;
+  border-color: transparent;
+}
 .wb-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wb-filter-row .wb-filter-field { max-width: 190px; }
 .wb-filter-row .wb-filter-op { max-width: 150px; }

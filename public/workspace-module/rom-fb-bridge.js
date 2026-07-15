@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=28';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=34';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=28';
+const MODULE_PAGE = '/workspace-module/index.html?v=34';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -336,6 +336,36 @@ async function boot() {
     }, () => {});
     onSnapshot(collection(db, 'users', user.uid, 'notes'), (snap) => {
       window.__ROM_WS_NOTES__ = snap.docs.map((dd) => ({ id: dd.id, ...dd.data() }));
+      notify();
+    }, () => {});
+
+    // --- Romio App Market (cross-user shared app definitions) ---
+    // The module publishes an app's definition here when shared, and reads the
+    // full cross-user feed to populate its App Market. Records are never shared.
+    window.__ROM_PUBLISH_APP__ = async (payload = {}) => {
+      const me = auth.currentUser;
+      if (!me || !payload.app) return null;
+      try {
+        const docRef = await addDoc(collection(db, 'appMarket'), {
+          app: payload.app,
+          workspaceName: String(payload.workspaceName || '').slice(0, 120),
+          publishedBy: me.uid,
+          publisherName: me.displayName || me.email || 'Romio user',
+          publishedAt: serverTimestamp(),
+        });
+        return docRef.id;
+      } catch (e) { console.warn('[ROM] publish app failed', e); return null; }
+    };
+    window.__ROM_UNPUBLISH_APP__ = async (id) => {
+      if (!id) return;
+      try { await deleteDoc(doc(db, 'appMarket', id)); } catch (e) { console.warn('[ROM] unpublish app failed', e); }
+    };
+    window.__ROM_APP_MARKET__ = window.__ROM_APP_MARKET__ || [];
+    onSnapshot(collection(db, 'appMarket'), (snap) => {
+      window.__ROM_APP_MARKET__ = snap.docs.map((dd) => {
+        const x = dd.data() || {};
+        return { id: dd.id, companyId: x.publishedBy || '', companyLabel: x.publisherName || 'Romio user', workspaceName: x.workspaceName || 'Workspace', app: x.app || null };
+      }).filter((e) => e.app && Array.isArray(e.app.fields));
       notify();
     }, () => {});
 

@@ -11900,7 +11900,7 @@ function wbFmtVal(ctx, field, value) {
     case 'category': { const o = (field.config.options || []).find((x) => x.id === value); return o ? `<span class="wb-tag" style="background:${o.color || '#6b7280'}1f;color:${o.color || '#6b7280'}">${h(o.label)}</span>` : h(value); }
     case 'user': { const m = wbMemberById(ctx.companyId, value); return `<span class="wb-chip">${wbAvatar(m, 22)}${h(m.name)}</span>`; }
     case 'money': return `<b>${h(field.config.currency || '$')}${Number(value).toLocaleString()}</b>`;
-    case 'number': return `${Number(value).toLocaleString()}${field.config.unit ? ` ${h(field.config.unit)}` : ''}`;
+    case 'number': { const c = field.config || {}; const dec = (c.decimals !== '' && c.decimals != null) ? Number(c.decimals) : null; const shown = dec != null ? Number(value).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) : Number(value).toLocaleString(); return `${shown}${c.unit ? ` ${h(c.unit)}` : ''}`; }
     case 'email': return `<a href="mailto:${h(value)}" style="color:var(--info,#2563eb)">${h(value)}</a>`;
     case 'url': { const href = wbUrlHref(value); return `<a class="wb-url-cell" href="${h(href)}" target="_blank" rel="noopener noreferrer" title="${h(href)}"><i class="ti ti-world-www"></i><span class="wb-url-cell-txt">${h(wbUrlLabel(value))}</span></a>`; }
     case 'phone': return h(formatPhoneNumber(value));
@@ -12495,8 +12495,8 @@ function wbViewAppSettings(companyId, workspace, app) {
       <div class="wb-sub">Download this app as a <code>.rom.json</code> file — including all fields, ${app.items.length} record${app.items.length === 1 ? '' : 's'} and ${app.automations.length} automation${app.automations.length === 1 ? '' : 's'} — to back it up or install it into another workspace.</div>
       <div class="wb-settings-actions" style="margin-top:10px"><button class="btn" data-wb-download-app><i class="ti ti-download"></i>Download app</button></div>
     </div>
-    <div class="wb-field"><label>ROM App Market</label>
-      <div class="wb-sub">${app.shared ? 'This app is <b>shared</b> — anyone on ROM can install its fields &amp; automations from the ROM App Market. Your records are never shared.' : 'Share this app so anyone on ROM can install its fields &amp; automations from the ROM App Market. Your records are never shared.'}</div>
+    <div class="wb-field"><label>Romio App Market</label>
+      <div class="wb-sub">${app.shared ? 'This app is <b>shared</b> — anyone on Romio can install its fields &amp; automations from the Romio App Market. Your records are never shared.' : 'Share this app so anyone on Romio can install its fields &amp; automations from the Romio App Market. Your records are never shared.'}</div>
       ${canManage ? `<div class="wb-settings-actions" style="margin-top:10px"><button class="btn ${app.shared ? 'wb-shared-on' : ''}" data-wb-share-app><i class="ti ti-${app.shared ? 'circle-check' : 'share'}"></i>${app.shared ? 'App shared' : 'Share this app'}</button></div>` : ''}
     </div>
     ${canManage ? `<div class="wb-settings-actions"><button class="btn btn-primary" data-save-app><i class="ti ti-device-floppy"></i>Save changes</button><button class="btn danger" data-del-app><i class="ti ti-trash"></i>Delete app</button></div>` : ''}
@@ -12814,6 +12814,14 @@ function wbAllSystemApps() {
 async function wbLoadAppLibrary() {
   state.wbAppLibraryLoading = true;
   try {
+    // ROMIO/Firebase: the host bridge injects the cross-user app market (every
+    // account's shared apps) as window.__ROM_APP_MARKET__.
+    if (Array.isArray(window.__ROM_APP_MARKET__)) {
+      state.wbAppLibrary = window.__ROM_APP_MARKET__.filter((e) => e && e.app && Array.isArray(e.app.fields));
+      state.wbAppLibraryLoading = false;
+      if (state.builderModal?.kind === 'app-chooser') render();
+      return;
+    }
     const client = createSupabaseClient();
     if (isLiveSupabaseSession() && client) {
       const { data, error } = await client.rpc('list_workspace_app_library');
@@ -13217,6 +13225,11 @@ function renderWorkspaceBuilderModal() {
       }
     }
     if (m.step === 'library') {
+      // Keep the market live: reflect the latest bridge-injected feed each render
+      // (a 'rom-ws-data' event fires when another user shares/unshares an app).
+      if (Array.isArray(window.__ROM_APP_MARKET__) && !state.wbAppLibraryLoading) {
+        state.wbAppLibrary = window.__ROM_APP_MARKET__.filter((e) => e && e.app && Array.isArray(e.app.fields));
+      }
       const loading = state.wbAppLibrary === undefined || state.wbAppLibraryLoading;
       const q = (m.q || '').trim().toLowerCase();
       const all = state.wbAppLibrary || [];
@@ -13233,9 +13246,9 @@ function renderWorkspaceBuilderModal() {
             </div>
             <div class="wb-lib-actions"><button class="btn btn-sm" type="button" data-wb-lib-info data-app-id="${h(e.app.id)}"><i class="ti ti-info-circle"></i>More info</button><button class="btn btn-sm btn-primary" type="button" data-wb-lib-install data-app-id="${h(e.app.id)}"><i class="ti ti-download"></i>Install</button></div>
           </div>`;
-        }).join('') || `<div class="wb-empty wb-empty-inline"><i class="ti ti-package"></i><h3>No apps yet</h3><p>${q ? 'No shared apps match your search.' : 'No apps have been shared to the market yet. Share one from an app\'s Settings.'}</p></div>`);
-      return wbModalShell('Add app', 'wb-modal-wide', `<div class="wb-modal-ic" style="background:#0891b2"><i class="ti ti-building-store"></i></div><h3>ROM App Market</h3>`,
-        `<div class="wb-sub" style="margin-bottom:12px">Install apps shared by anyone on ROM. Installing copies its <b>fields and automations</b> into this workspace — records are not copied.</div>
+        }).join('') || `<div class="wb-empty wb-empty-inline"><i class="ti ti-package"></i><h3>No apps yet</h3><p>${q ? 'No shared apps match your search.' : 'No apps have been shared to the market yet. Share one from an app\'s Settings to see it here.'}</p></div>`);
+      return wbModalShell('Add app', 'wb-modal-wide', `<div class="wb-modal-ic" style="background:#0891b2"><i class="ti ti-building-store"></i></div><h3>Romio App Market</h3>`,
+        `<div class="wb-sub" style="margin-bottom:12px">Install apps shared by anyone on Romio. Installing copies its <b>fields and automations</b> into this workspace — records are not copied.</div>
          <div class="wb-search-box" style="max-width:none;margin-bottom:14px"><i class="ti ti-search"></i><input type="text" class="wb-search-input" data-wb-lib-search value="${h(m.q || '')}" placeholder="Search the app market…"></div>
          <div class="wb-lib-grid" id="wbLibGrid">${cards}</div>`,
         `<button class="btn" type="button" data-wb-chooser-back><i class="ti ti-arrow-left"></i>Back</button><button class="btn" data-action="wb-modal-close">Close</button>`);
@@ -13245,7 +13258,7 @@ function renderWorkspaceBuilderModal() {
       `<div class="wb-chooser">
         ${opt('create', 'ti-pencil-plus', '#e0552d', 'Create your own app', 'Start from a blank canvas and design fields, reports and automations.')}
         ${opt('file', 'ti-file-import', '#16a34a', 'Install from a file', 'Upload a .rom.json you downloaded to recreate that app here.')}
-        ${opt('library', 'ti-building-store', '#0891b2', 'ROM App Market', 'Browse apps shared by anyone on ROM and copy one into this workspace.')}
+        ${opt('library', 'ti-building-store', '#0891b2', 'Romio App Market', 'Browse apps shared by anyone on Romio and copy one into this workspace.')}
       </div>`,
       `<button class="btn" data-action="wb-modal-close">Cancel</button>`);
   }
@@ -13277,6 +13290,12 @@ function renderWorkspaceBuilderModal() {
     const cCount = (item?.comments || []).length;
     const meta = item ? `<div class="wb-item-meta">${item.createdAt ? `Created ${h(formatDate(item.createdAt))}` : ''}${item.updatedAt && item.updatedAt !== item.createdAt ? ` · edited ${h(wbTimeAgo(item.updatedAt))}` : ''}${cCount ? ` · ${cCount} comment${cCount === 1 ? '' : 's'}` : ''}</div>` : '';
     const comments = item ? wbItemCommentsHtml(m.companyId, item) : '';
+    // Prev/next record navigation (only for saved records). "Next" saves the
+    // current edits (if any) and moves to the neighbouring record — the modal
+    // stays open so you can page through records.
+    const navIds = app.items.map((i) => i.id);
+    const navIdx = m.editId ? navIds.indexOf(m.editId) : -1;
+    const navGroup = m.editId ? `<span class="wb-item-nav-group"><button class="btn wb-item-nav" data-wb-item-nav="prev" title="Previous record" ${navIdx > 0 ? '' : 'disabled'}><i class="ti ti-chevron-left"></i></button><span class="wb-item-nav-count">${navIdx + 1} / ${navIds.length}</span><button class="btn wb-item-nav" data-wb-item-nav="next" title="Save & next record" ${navIdx > -1 && navIdx < navIds.length - 1 ? '' : 'disabled'}><i class="ti ti-chevron-right"></i></button></span>` : '';
     const header = `<div class="wb-modal-ic" style="background:${h(app.color)}"><i class="ti ${h(app.icon)}"></i></div><h3>${m.editId ? (h(wbItemTitle(app, item)) || 'Item') : `New ${h(app.name.replace(/s$/, ''))}`}</h3>`;
     // View mode: read-only field list + comment thread. Edit only on request.
     if (m.mode === 'view' && item) {
@@ -13284,12 +13303,12 @@ function renderWorkspaceBuilderModal() {
       const rows = app.fields.length ? app.fields.map((f) => `<div class="wb-view-row"><span class="wb-view-label">${h(f.label)}</span><span class="wb-view-val">${f.type === 'url' ? wbUrlControl(item.values[f.id]) : wbFmtVal(ctx, f, item.values[f.id])}</span></div>`).join('') : '<div class="wb-sub">This app has no fields yet.</div>';
       return wbModalShell('Item', 'wb-modal-wide', header,
         `<div class="wb-view-fields">${rows}</div>${meta}${comments}`,
-        `<button class="btn" data-action="wb-modal-close">Close</button>${canManage ? '<button class="btn btn-primary" data-wb-item-edit><i class="ti ti-pencil"></i>Edit</button>' : ''}`);
+        `${navGroup}<button class="btn" data-action="wb-modal-close">Close</button>${canManage ? '<button class="btn btn-primary" data-wb-item-edit><i class="ti ti-pencil"></i>Edit</button>' : ''}`);
     }
     const body = app.fields.map((f) => wbRenderFieldInput(m.companyId, m.workspaceId, f, m.draft.values[f.id])).join('') || '<div class="wb-sub">This app has no fields yet.</div>';
     return wbModalShell('Item', 'wb-modal-wide', header,
       `<div class="wb-field-hint">Every field below is editable — change anything and press Save.</div><div id="wbItemForm">${body}</div>${meta}${comments}`,
-      `<button class="btn" ${m.editId ? 'data-wb-item-view' : 'data-action="wb-modal-close"'}>Cancel</button><button class="btn btn-primary" data-wb-submit><i class="ti ti-check"></i>${m.editId ? 'Save' : 'Add item'}</button>`);
+      `${navGroup}<button class="btn" ${m.editId ? 'data-wb-item-view' : 'data-action="wb-modal-close"'}>Cancel</button><button class="btn btn-primary" data-wb-submit><i class="ti ti-check"></i>${m.editId ? 'Save' : 'Add item'}</button>`);
   }
   if (m.kind === 'automation') {
     const { app } = wbFind(m.companyId, m.workspaceId, m.appId);
@@ -13436,7 +13455,31 @@ function wbFieldConfigUI(fd, app) {
     return `<div class="wb-field"><label>Formula</label><input class="wb-input" id="wbCalcFormula" value="${h(fd.config.formula || '')}" placeholder="e.g. {Quantity} * {Unit Price}"><div class="wb-sub">Reference number, money, progress, or checklist fields by name in {curly braces} — a checklist contributes its % complete. Operators: + - * / ( )</div>${numFields.length ? `<div class="wb-calc-chips">${numFields.map((f) => `<button class="wb-tag wb-calc-chip" data-wb-insert="{${h(f.label)}}">${h(f.label)}</button>`).join('')}</div>` : '<div class="wb-sub" style="color:var(--warning,#d97706)">Add Number or Money fields first to reference them.</div>'}</div>`;
   }
   if (t === 'money') return `<div class="wb-field"><label>Currency symbol</label><input class="wb-input" id="wbCurSym" value="${h(fd.config.currency || '$')}" maxlength="3" style="max-width:120px"></div>`;
-  if (t === 'number') return `<div class="wb-field"><label>Unit / suffix <span class="wb-opt">(optional)</span></label><input class="wb-input" id="wbNumUnit" value="${h(fd.config.unit || '')}" placeholder="e.g. sq ft, hrs" style="max-width:200px"></div>`;
+  if (t === 'number') {
+    const c = fd.config || {};
+    const decSel = (v) => String(c.decimals) === String(v) ? 'selected' : '';
+    const anySel = (c.decimals === '' || c.decimals == null) ? 'selected' : '';
+    return `<div class="wb-field"><label>Unit / suffix <span class="wb-opt">(optional)</span></label><input class="wb-input" id="wbNumUnit" value="${h(c.unit || '')}" placeholder="e.g. sq ft, hrs" style="max-width:200px"></div>
+      <div class="wb-field"><label>Allowed range <span class="wb-opt">(optional)</span></label>
+        <div class="wb-inline">
+          <input class="wb-input" id="wbNumMin" type="number" step="any" value="${h(String(c.min ?? ''))}" placeholder="Min" style="max-width:120px">
+          <span class="wb-sub">to</span>
+          <input class="wb-input" id="wbNumMax" type="number" step="any" value="${h(String(c.max ?? ''))}" placeholder="Max" style="max-width:120px">
+        </div>
+        <div class="wb-sub">Leave blank for no limit — e.g. 1 to 100.</div>
+      </div>
+      <div class="wb-field"><label>Decimal places</label>
+        <select class="wb-input" id="wbNumDecimals" style="max-width:220px">
+          <option value="" ${anySel}>Any</option>
+          <option value="0" ${decSel(0)}>Whole numbers only</option>
+          <option value="1" ${decSel(1)}>1 (e.g. 2.5)</option>
+          <option value="2" ${decSel(2)}>2 (e.g. 2.75)</option>
+          <option value="3" ${decSel(3)}>3 (e.g. 2.750)</option>
+          <option value="4" ${decSel(4)}>4</option>
+        </select>
+        <div class="wb-sub">How many digits after the decimal point are allowed.</div>
+      </div>`;
+  }
   if (t === 'text' || t === 'textarea' || t === 'url') return `<div class="wb-field"><label>Placeholder <span class="wb-opt">(optional)</span></label><input class="wb-input" id="wbPhText" value="${h(fd.config.placeholder || '')}" placeholder="${t === 'url' ? 'https://…' : 'Hint shown in the input'}"></div>`;
   if (t === 'checklist') { const steps = Array.isArray(fd.config.steps) ? fd.config.steps.join('\n') : (fd.config.steps || ''); return `<div class="wb-field"><label>Default steps <span class="wb-opt">(optional, one per line)</span></label><textarea class="wb-input" id="wbClSteps" placeholder="Site inspection&#10;Material order&#10;Install&#10;Final walkthrough">${h(steps)}</textarea><div class="wb-sub">Every new item starts with these steps (all unchecked). Users can add or remove steps per item. Link its % complete into a Progress or Calculation field by referencing <code>{${h(fd.label || 'Checklist')}}</code>.</div></div>`; }
   if (t === 'progress') {
@@ -13548,7 +13591,23 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
     case 'email': input = `<input type="email" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" placeholder="name@email.com">`; break;
     case 'url': input = `<input type="url" inputmode="url" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" placeholder="${h(f.config.placeholder || 'https://…')}">`; break;
     case 'phone': input = `<input type="tel" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" placeholder="555 123 4567" inputmode="tel" autocomplete="tel" data-phone-format>`; break;
-    case 'number': input = `<div class="wb-inline"><input type="text" inputmode="numeric" class="wb-input" data-f="${h(f.id)}" data-digits-only value="${h(val ?? '')}" style="max-width:200px">${f.config.unit ? `<span class="wb-sub">${h(f.config.unit)}</span>` : ''}</div>`; break;
+    case 'number': {
+      const c = f.config || {};
+      const hasDec = c.decimals === '' || c.decimals == null || Number(c.decimals) > 0;
+      const im = hasDec ? 'decimal' : 'numeric';
+      const decAttr = (c.decimals === '' || c.decimals == null) ? '' : h(String(c.decimals));
+      const minAttr = (c.min !== '' && c.min != null) ? ` data-min="${h(String(c.min))}"` : '';
+      const maxAttr = (c.max !== '' && c.max != null) ? ` data-max="${h(String(c.max))}"` : '';
+      // A friendly hint of the active rules (range / decimals).
+      const rule = [];
+      if (c.min !== '' && c.min != null && c.max !== '' && c.max != null) rule.push(`${c.min}–${c.max}`);
+      else if (c.min !== '' && c.min != null) rule.push(`min ${c.min}`);
+      else if (c.max !== '' && c.max != null) rule.push(`max ${c.max}`);
+      if (String(c.decimals) === '0') rule.push('whole numbers');
+      else if (c.decimals) rule.push(`up to ${c.decimals} dp`);
+      input = `<div class="wb-inline"><input type="text" inputmode="${im}" class="wb-input" data-f="${h(f.id)}" data-number-input data-decimals="${decAttr}"${minAttr}${maxAttr} value="${h(String(val ?? ''))}" style="max-width:200px">${c.unit ? `<span class="wb-sub">${h(c.unit)}</span>` : ''}</div>${rule.length ? `<div class="wb-sub">${h(rule.join(' · '))}</div>` : ''}`;
+      break;
+    }
     case 'money': input = `<div class="wb-inline"><span class="wb-cur">${h(f.config.currency || '$')}</span><input type="number" step="0.01" class="wb-input" data-f="${h(f.id)}" value="${h(val ?? '')}" style="max-width:220px"></div>`; break;
     case 'date': input = `<input type="date" class="wb-input" data-f="${h(f.id)}" value="${h(val || '')}" style="max-width:220px">`; break;
     case 'checkbox': input = `<label class="wb-switch"><input type="checkbox" data-f="${h(f.id)}" ${val ? 'checked' : ''}><span class="wb-slider"></span></label>`; break;
@@ -14043,7 +14102,13 @@ function wbCollectModalDraft() {
     }
     if (t === 'calculation') m.draft.config.formula = (val('wbCalcFormula') || '').trim();
     if (t === 'money') m.draft.config.currency = (val('wbCurSym') || '').trim() || '$';
-    if (t === 'number') m.draft.config.unit = (val('wbNumUnit') || '').trim();
+    if (t === 'number') {
+      m.draft.config.unit = (val('wbNumUnit') || '').trim();
+      const rawMin = val('wbNumMin'); const rawMax = val('wbNumMax'); const rawDec = val('wbNumDecimals');
+      m.draft.config.min = (rawMin === '' || rawMin == null || Number.isNaN(Number(rawMin))) ? '' : Number(rawMin);
+      m.draft.config.max = (rawMax === '' || rawMax == null || Number.isNaN(Number(rawMax))) ? '' : Number(rawMax);
+      m.draft.config.decimals = (rawDec === '' || rawDec == null) ? '' : Math.max(0, Math.min(6, parseInt(rawDec, 10) || 0));
+    }
     if (t === 'text' || t === 'textarea' || t === 'url') m.draft.config.placeholder = (val('wbPhText') || '').trim();
     if (t === 'checklist') m.draft.config.steps = (val('wbClSteps') || '').split('\n').map((s) => s.trim()).filter(Boolean);
     if (t === 'progress') {
@@ -14081,6 +14146,72 @@ function wbFocusInvalidField(fieldId) {
     setTimeout(() => wrap.classList.remove('wb-field-invalid'), 2200);
   });
 }
+// Validate + persist the open item form. Returns the saved item, or null if the
+// form is invalid (a toast + focus is shown). Does NOT change the modal state —
+// the caller decides what to do next (close, view, or navigate to a neighbour).
+function wbCommitItemForm(m) {
+  const companyId = m.companyId;
+  const { workspace, app } = wbFind(companyId, m.workspaceId, m.appId);
+  const values = {}; let missing = null;
+  app.fields.forEach((f) => { const v = wbReadFieldInput(f); values[f.id] = v; if (f.required && (v === '' || v == null || (Array.isArray(v) && !v.length))) missing = missing || f; });
+  if (missing) { m.draft.values = values; showToast(`"${missing.label}" is required.`, 'local', 'Workspaces'); wbFocusInvalidField(missing.id); return null; }
+  let badEmail = null;
+  app.fields.forEach((f) => { if (f.type === 'email') { const v = String(values[f.id] || '').trim(); if (v && !isValidEmail(v)) badEmail = badEmail || f; } });
+  if (badEmail) { m.draft.values = values; showToast(`"${badEmail.label}" must be a valid email address, e.g. name@company.com.`, 'local', 'Workspaces'); wbFocusInvalidField(badEmail.id); return null; }
+  let badNum = null; let badNumMsg = '';
+  app.fields.forEach((f) => {
+    if (badNum || f.type !== 'number') return;
+    const raw = values[f.id];
+    if (raw === '' || raw == null) return;
+    const num = Number(raw);
+    const c = f.config || {};
+    if (!Number.isFinite(num)) { badNum = f; badNumMsg = 'must be a number'; return; }
+    if (c.min !== '' && c.min != null && num < Number(c.min)) { badNum = f; badNumMsg = `must be at least ${c.min}`; return; }
+    if (c.max !== '' && c.max != null && num > Number(c.max)) { badNum = f; badNumMsg = `must be at most ${c.max}`; return; }
+    if (c.decimals !== '' && c.decimals != null) {
+      const places = (String(raw).split('.')[1] || '').length;
+      if (places > Number(c.decimals)) { badNum = f; badNumMsg = Number(c.decimals) === 0 ? 'must be a whole number' : `allows at most ${c.decimals} decimal place${Number(c.decimals) === 1 ? '' : 's'}`; return; }
+    }
+  });
+  if (badNum) { m.draft.values = values; showToast(`"${badNum.label}" ${badNumMsg}.`, 'local', 'Workspaces'); wbFocusInvalidField(badNum.id); return null; }
+  const nowStamp = new Date().toISOString();
+  let saved;
+  if (m.editId) {
+    const item = app.items.find((i) => i.id === m.editId); if (!item) return null;
+    const prev = { ...item.values }; item.values = values;
+    item.updatedAt = nowStamp; item.lastActivityAt = nowStamp;
+    wbLogActivity(workspace, { icon: app.icon, color: app.color, text: `Updated <b>${h(wbItemTitle(app, item))}</b> in ${h(app.name)}` });
+    wbNotifyItem(companyId, workspace, app, item, `Updated: ${wbItemTitle(app, item)}`, `${actorName()} updated ${wbItemTitle(app, item)} in ${app.name}`);
+    wbRunAutomations(companyId, workspace, app, item, 'updated', prev);
+    saved = item;
+  } else {
+    const item = { id: wbUid(), values, createdAt: nowStamp, createdBy: activeSession().profile?.id || '', updatedAt: nowStamp, lastActivityAt: nowStamp }; app.items.unshift(item);
+    wbLogActivity(workspace, { icon: app.icon, color: app.color, text: `Added <b>${h(wbItemTitle(app, item))}</b> to ${h(app.name)}` });
+    wbNotifyItem(companyId, workspace, app, item, `New ${app.name.replace(/s$/, '')}: ${wbItemTitle(app, item)}`, `${actorName()} added ${wbItemTitle(app, item)} to ${app.name}`);
+    wbRunAutomations(companyId, workspace, app, item, 'created', null);
+    saved = item;
+  }
+  wbSave(companyId);
+  return saved;
+}
+
+// Save the current record (if editing) and open the previous/next record in the
+// same modal, so the user can page through records without closing it.
+function wbItemNav(dir) {
+  const m = state.builderModal;
+  if (!m || m.kind !== 'item' || !m.editId) return;
+  const { app } = wbFind(m.companyId, m.workspaceId, m.appId);
+  const idx = app.items.findIndex((i) => i.id === m.editId);
+  if (idx === -1) return;
+  const targetIdx = idx + (dir === 'next' ? 1 : -1);
+  if (targetIdx < 0 || targetIdx >= app.items.length) return;
+  // If we're editing (not the read-only view), save first; abort if invalid.
+  if (m.mode !== 'view') { wbCollectModalDraft(); if (!wbCommitItemForm(m)) return; }
+  const target = app.items[targetIdx];
+  state.builderModal = { kind: 'item', companyId: m.companyId, workspaceId: m.workspaceId, appId: m.appId, editId: target.id, mode: 'edit', draft: { values: { ...target.values } } };
+  render();
+}
+
 function wbSubmitModal() {
   const m = state.builderModal;
   if (!m) return;
@@ -14120,32 +14251,13 @@ function wbSubmitModal() {
     return;
   }
   if (m.kind === 'item') {
-    const { workspace, app } = wbFind(companyId, m.workspaceId, m.appId);
-    const values = {}; let missing = null;
-    app.fields.forEach((f) => { const v = wbReadFieldInput(f); values[f.id] = v; if (f.required && (v === '' || v == null || (Array.isArray(v) && !v.length))) missing = missing || f; });
-    // Keep the user's input on any validation error (render() from showToast would
-    // otherwise repaint the form from an empty draft and clear the fields).
-    if (missing) { m.draft.values = values; showToast(`"${missing.label}" is required.`, 'local', 'Workspaces'); wbFocusInvalidField(missing.id); return; }
-    let badEmail = null;
-    app.fields.forEach((f) => { if (f.type === 'email') { const v = String(values[f.id] || '').trim(); if (v && !isValidEmail(v)) badEmail = badEmail || f; } });
-    if (badEmail) { m.draft.values = values; showToast(`"${badEmail.label}" must be a valid email address, e.g. name@company.com.`, 'local', 'Workspaces'); wbFocusInvalidField(badEmail.id); return; }
-    const nowStamp = new Date().toISOString();
-    if (m.editId) {
-      const item = app.items.find((i) => i.id === m.editId); const prev = { ...item.values }; item.values = values;
-      item.updatedAt = nowStamp; item.lastActivityAt = nowStamp;
-      wbLogActivity(workspace, { icon: app.icon, color: app.color, text: `Updated <b>${h(wbItemTitle(app, item))}</b> in ${h(app.name)}` });
-      wbNotifyItem(companyId, workspace, app, item, `Updated: ${wbItemTitle(app, item)}`, `${actorName()} updated ${wbItemTitle(app, item)} in ${app.name}`);
-      wbRunAutomations(companyId, workspace, app, item, 'updated', prev);
-      // Return to the read-only view instead of closing, so the record stays open.
-      state.builderModal = { ...m, mode: 'view', draft: { values: { ...values } } };
-    } else {
-      const item = { id: wbUid(), values, createdAt: nowStamp, createdBy: activeSession().profile?.id || '', updatedAt: nowStamp, lastActivityAt: nowStamp }; app.items.unshift(item);
-      wbLogActivity(workspace, { icon: app.icon, color: app.color, text: `Added <b>${h(wbItemTitle(app, item))}</b> to ${h(app.name)}` });
-      wbNotifyItem(companyId, workspace, app, item, `New ${app.name.replace(/s$/, '')}: ${wbItemTitle(app, item)}`, `${actorName()} added ${wbItemTitle(app, item)} to ${app.name}`);
-      wbRunAutomations(companyId, workspace, app, item, 'created', null);
-      state.builderModal = null;
-    }
-    wbSave(companyId); showToast(m.editId ? 'Item saved.' : 'Item added.', 'local', 'Workspaces'); render();
+    const saved = wbCommitItemForm(m);
+    if (!saved) return;   // validation failed (toast already shown)
+    // Editing keeps the record open (read-only view); a new item closes.
+    if (m.editId) state.builderModal = { ...m, mode: 'view', draft: { values: { ...saved.values } } };
+    else state.builderModal = null;
+    showToast(m.editId ? 'Item saved.' : 'Item added.', 'local', 'Workspaces');
+    render();
     return;
   }
   if (m.kind === 'automation') {
@@ -14335,7 +14447,30 @@ function mountWorkspaceBuilder() {
     bind('[data-wb-cal-nav]', (el) => { const c = wbCalCursor(); const d = new Date(c.year, c.month + Number(el.dataset.wbCalNav), 1); state.wbCalMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; render(); });
     bind('[data-wb-install-app]', () => wbInstallAppPrompt(companyId, workspaceId));
     bind('[data-wb-download-app]', () => wbDownloadApp(companyId, workspaceId, appId));
-    bind('[data-wb-share-app]', () => { if (!wbGuard()) return; const { app } = wbFind(companyId, workspaceId, appId); if (!app) return; app.shared = !app.shared; wbSave(companyId); showToast(app.shared ? `"${app.name}" is now shared to the ROM App Market.` : `"${app.name}" removed from the ROM App Market.`, 'local', 'Workspaces'); renderKeepScroll(); });
+    bind('[data-wb-share-app]', async () => {
+      if (!wbGuard()) return;
+      const { workspace, app } = wbFind(companyId, workspaceId, appId);
+      if (!app) return;
+      if (!app.shared) {
+        // Publish this app's definition (fields + automations, no records) to the
+        // cross-user Romio App Market via the host bridge.
+        app.shared = true;
+        const def = { id: app.id, name: app.name, description: app.description || '', icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], automations: app.automations || [] };
+        if (typeof window.__ROM_PUBLISH_APP__ === 'function') {
+          try { const id = await window.__ROM_PUBLISH_APP__({ app: def, workspaceName: (workspace && workspace.name) || window.__ROM_WS_NAME__ || 'Workspace' }); if (id) app.marketId = id; } catch (e) { /* keep shared flag */ }
+        }
+        showToast(`"${app.name}" is now shared to the Romio App Market.`, 'local', 'Workspaces');
+      } else {
+        app.shared = false;
+        if (app.marketId && typeof window.__ROM_UNPUBLISH_APP__ === 'function') {
+          try { await window.__ROM_UNPUBLISH_APP__(app.marketId); } catch (e) { /* best effort */ }
+        }
+        delete app.marketId;
+        showToast(`"${app.name}" removed from the Romio App Market.`, 'local', 'Workspaces');
+      }
+      wbSave(companyId);
+      renderKeepScroll();
+    });
     bind('[data-wb-delete-workspace]', () => { const ws = wbCompanyWorkspace(companyId); if (ws) openWbDeleteWorkspace(companyId, ws); });
     bind('[data-tab]', (el) => nav({ app_id: appId, tab: el.dataset.tab }));
     bind('[data-add-field]', () => nav({ app_id: appId, tab: 'fields' }));
@@ -14499,6 +14634,7 @@ function wbMountModal() {
   overlay.querySelectorAll('[data-wb-acdel]').forEach((b) => { b.onclick = () => { wbCollectModalDraft(); m.draft.actions.splice(+b.dataset.wbAcdel, 1); render(); }; });
   const addAct = overlay.querySelector('[data-wb-auto-add-action]'); if (addAct) addAct.onclick = () => { wbCollectModalDraft(); m.draft.actions.push({ type: 'notify', message: '' }); render(); };
   const submit = overlay.querySelector('[data-wb-submit]'); if (submit) submit.onclick = () => wbSubmitModal();
+  overlay.querySelectorAll('[data-wb-item-nav]').forEach((b) => { b.onclick = () => wbItemNav(b.dataset.wbItemNav); });
   // Sidebar tile modals: pick a type, configure, save, and edit link rows.
   overlay.querySelectorAll('[data-wb-tile-pick]').forEach((b) => { b.onclick = () => wbAddTile(m.companyId, b.dataset.wbTilePick); });
   const tileSave = overlay.querySelector('[data-wb-tile-save]'); if (tileSave) tileSave.onclick = () => wbSaveTileConfig(m.companyId);
@@ -24831,6 +24967,28 @@ function onDocumentInput(event) {
     if (cleaned !== event.target.value) event.target.value = cleaned;
     return;
   }
+  if (event.target.matches('[data-number-input]')) {
+    // Number field: allow a leading '-', digits, and (when the field permits
+    // decimals) a single '.', capped to the configured number of decimal places.
+    const dec = event.target.getAttribute('data-decimals');
+    const allowDot = dec === '' || dec == null || Number(dec) > 0;
+    let v = event.target.value;
+    v = allowDot ? v.replace(/[^0-9.\-]/g, '') : v.replace(/[^0-9\-]/g, '');
+    v = v.replace(/(?!^)-/g, '');          // '-' only at the very start
+    if (allowDot) {
+      const dot = v.indexOf('.');
+      if (dot !== -1) {
+        v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '');   // one '.' only
+        const n = Number(dec);
+        if (dec !== '' && dec != null && n > 0) {                        // cap decimal places
+          const [ip, dp] = v.split('.');
+          v = ip + '.' + (dp || '').slice(0, n);
+        }
+      }
+    }
+    if (v !== event.target.value) event.target.value = v;
+    return;
+  }
   if (event.target.matches('[data-cp-color-input]')) {
     updateClientPortalAnnotateColor(event.target.value || CP_PALETTE[0]);
     return;
@@ -32492,6 +32650,18 @@ function renderAvatar(profile, className, attrs = {}) {
   if (profile.avatar_url) return `<span class="${h(`${className} has-image`)}" ${attrText}><img src="${h(profile.avatar_url)}" alt="" /></span>`;
   const initials = String(profile.full_name || profile.email || 'QB').trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'QB';
   return `<span class="${h(className)}" ${attrText}>${h(initials)}</span>`;
+}
+
+// The current workspace's icon/image, shown in the topbar (in place of the user's
+// avatar). Falls back to a coloured glyph, then to the ROMIO mark. Fed by the ROM
+// host bridge (window.__ROM_WS_IMAGE__ / __ROM_WS_ICON__ / __ROM_WS_COLOR__).
+function renderWorkspaceBadge() {
+  const img = window.__ROM_WS_IMAGE__ || '';
+  const color = window.__ROM_WS_COLOR__ || '#e0552d';
+  const wico = window.__ROM_WS_ICON__ || 'layout-grid-add';
+  const name = window.__ROM_WS_NAME__ || 'Workspace';
+  if (img) return `<span class="avatar wb-ws-badge has-image" title="${h(name)}"><img src="${h(img)}" alt="" /></span>`;
+  return `<span class="avatar wb-ws-badge" title="${h(name)}" style="background:${h(color)};color:#fff"><i class="ti ti-${h(wico)}"></i></span>`;
 }
 
 function calendarAssigneeOptions(companyId = activeCompanyId()) {

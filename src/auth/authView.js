@@ -39,9 +39,11 @@ export function renderAuth(root, opts = {}) {
     // ---------- fields ----------
     const firstName = input({ id: 'su-first', type: 'text', placeholder: 'Juan', autocomplete: 'given-name' });
     const lastName = input({ id: 'su-last', type: 'text', placeholder: 'Dela Cruz', autocomplete: 'family-name' });
-    const email = input({ id: 'au-email', type: 'email', placeholder: 'you@example.com', autocomplete: 'email' });
+    const email = input(isSignup
+      ? { id: 'au-email', type: 'email', placeholder: 'you@example.com', autocomplete: 'email' }
+      : { id: 'au-email', type: 'text', placeholder: 'Username or email', autocomplete: 'username' });
     const username = input({ id: 'su-username', type: 'text', placeholder: 'juandc', autocomplete: 'username' });
-    const pass = input({ id: 'au-pass', type: 'password', placeholder: isSignup ? 'Create a strong password' : 'Your password', autocomplete: isSignup ? 'new-password' : 'current-password' });
+    const pass = input({ id: 'au-pass', type: 'password', placeholder: isSignup ? 'Create a strong password' : 'Password', autocomplete: isSignup ? 'new-password' : 'current-password' });
     const confirm = input({ id: 'su-confirm', type: 'password', placeholder: 'Re-enter password', autocomplete: 'new-password' });
 
     // ---------- username availability (debounced) ----------
@@ -136,10 +138,10 @@ export function renderAuth(root, opts = {}) {
       gBtn, fBtn,
     ]);
 
-    // ---------- submit ----------
+    // ---------- submit (Create account on step 3 / Log in) ----------
     const submit = el('button', { class: 'btn btn--primary auth__submit', type: 'submit' }, isSignup ? 'Create account' : 'Log in');
 
-    // ---------- terms agreement (sign-up only): gates the Create button ----------
+    // ---------- terms agreement (sign-up step 3): gates the Create button ----------
     const terms = el('input', { type: 'checkbox', class: 'auth__terms-cb' });
     const termsRow = el('label', { class: 'auth__terms' }, [
       terms,
@@ -154,23 +156,102 @@ export function renderAuth(root, opts = {}) {
       terms.addEventListener('change', () => { submit.disabled = !terms.checked; });
     }
 
+    // ---------- sign-up wizard: 3 cards ----------
+    const STEP_SUBTITLES = {
+      1: 'Step 1 of 3 — your details',
+      2: 'Step 2 of 3 — username & password',
+      3: 'Step 3 of 3 — review & agree',
+    };
+    let step = 1;
+    let lastRenderedStep = 1;   // drives the slide direction between cards
+    const subtitleEl = el('p', { class: 'auth__subtitle' }, isSignup ? STEP_SUBTITLES[1] : 'Log in to your feed and workspaces.');
+    const stepHost = el('div', { class: 'auth__steps' });
+
+    const validEmail = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+    function validateStep1() {
+      if (!firstName.value.trim()) { failFocus(firstName, 'Enter your first name.'); return false; }
+      if (!lastName.value.trim()) { failFocus(lastName, 'Enter your surname.'); return false; }
+      if (!validEmail(email.value.trim())) { failFocus(email, 'Enter a valid email address.'); return false; }
+      return true;
+    }
+    function validateStep2() {
+      const fmt = usernameFormatError(username.value.trim());
+      if (fmt) { failFocus(username, `Username: ${fmt.toLowerCase()}.`); return false; }
+      if (usernameState === 'taken') { failFocus(username, 'That username is taken — pick another.'); return false; }
+      const { valid, firstError } = checkPassword(pass.value);
+      if (!valid) { failFocus(pass, `Password needs: ${firstError}.`); return false; }
+      if (confirm.value !== pass.value) { failFocus(confirm, 'Passwords do not match.'); return false; }
+      return true;
+    }
+    const goStep = (n) => { step = n; renderStep(); };
+    const advance = () => {
+      if (step === 1 && validateStep1()) goStep(2);
+      else if (step === 2 && validateStep2()) goStep(3);
+    };
+    const stepDots = () => el('div', { class: 'auth__stepbar' }, [1, 2, 3].map((i) =>
+      el('span', { class: `auth__stepdot ${i === step ? 'is-active' : ''} ${i < step ? 'is-done' : ''}` })));
+    const backBtn = (to) => el('button', { class: 'btn btn--ghost auth__navbtn', type: 'button', onclick: () => goStep(to) }, [icon('arrow-left'), ' Back']);
+    const nextBtn = () => el('button', { class: 'btn btn--primary auth__navbtn', type: 'button', onclick: advance }, ['Continue ', icon('arrow-right')]);
+
+    function renderStep() {
+      const dir = step >= lastRenderedStep ? 'fwd' : 'back';
+      lastRenderedStep = step;
+      clear(stepHost);
+      subtitleEl.textContent = STEP_SUBTITLES[step];
+      const stepEl = el('div', { class: `auth__step auth__step--${dir}` });
+      if (step === 1) {
+        stepEl.append(
+          stepDots(),
+          el('div', { class: 'field-row' }, [field('First name', 'su-first', firstName), field('Surname', 'su-last', lastName)]),
+          field('Email', 'au-email', email, null, 'mail'),
+          el('div', { class: 'auth__nav' }, [nextBtn()]),
+          social,
+        );
+        setTimeout(() => firstName.focus(), 0);
+      } else if (step === 2) {
+        stepEl.append(
+          stepDots(),
+          field('Username', 'su-username', usernameControl(username), userHint),
+          field('Password', 'au-pass', passwordControl(pass), null),
+          meterRow,
+          reqList,
+          field('Confirm password', 'su-confirm', passwordControl(confirm), confirmHint),
+          el('div', { class: 'auth__nav' }, [backBtn(1), nextBtn()]),
+          social,
+        );
+        setTimeout(() => username.focus(), 0);
+      } else {
+        stepEl.append(
+          stepDots(),
+          reviewCard(),
+          termsRow,
+          el('div', { class: 'auth__nav' }, [backBtn(2), submit]),
+          social,
+        );
+      }
+      stepHost.append(stepEl);
+    }
+    // A short read-only summary of what they entered, shown on the last card.
+    function reviewCard() {
+      const row = (label, val) => el('div', { class: 'auth__review-row' }, [el('span', { class: 'muted' }, label), el('span', {}, val || '—')]);
+      return el('div', { class: 'auth__review' }, [
+        row('Name', [firstName.value.trim(), lastName.value.trim()].filter(Boolean).join(' ')),
+        row('Email', email.value.trim()),
+        row('Username', username.value.trim() ? `@${username.value.trim()}` : ''),
+      ]);
+    }
+
     const form = el('form', {
       class: 'auth__form', novalidate: 'novalidate',
       onsubmit: async (e) => {
         e.preventDefault();
         if (isSignup) {
-          if (!firstName.value.trim()) return failFocus(firstName, 'Enter your first name.');
-          if (!lastName.value.trim()) return failFocus(lastName, 'Enter your surname.');
-          if (!email.value.trim()) return failFocus(email, 'Enter your email.');
-          const fmt = usernameFormatError(username.value.trim());
-          if (fmt) return failFocus(username, `Username: ${fmt.toLowerCase()}.`);
-          if (usernameState === 'taken') return failFocus(username, 'That username is taken — pick another.');
-          const { valid, firstError } = checkPassword(pass.value);
-          if (!valid) return failFocus(pass, `Password needs: ${firstError}.`);
-          if (confirm.value !== pass.value) return failFocus(confirm, 'Passwords do not match.');
+          if (step < 3) { advance(); return; }         // Enter advances instead of submitting
+          if (!validateStep1()) { goStep(1); return; }
+          if (!validateStep2()) { goStep(2); return; }
           if (!terms.checked) return toast('Please agree to the Terms of Service to create an account.', 'error');
         } else if (!email.value.trim() || !pass.value) {
-          return toast('Enter your email and password.', 'error');
+          return toast('Enter your email or username and password.', 'error');
         }
         submit.disabled = true;
         submit.innerHTML = '';
@@ -181,14 +262,14 @@ export function renderAuth(root, opts = {}) {
             await signUp({ firstName: firstName.value.trim(), lastName: lastName.value.trim(), username: username.value.trim(), email: email.value.trim(), password: pass.value });
             playAuthSuccess('signup');
           } else {
-            await logIn({ email: email.value.trim(), password: pass.value });
+            await logIn({ identifier: email.value.trim(), password: pass.value });
             playAuthSuccess('signin');
           }
           // The success overlay plays while onAuthStateChanged in main.js renders
           // the app underneath.
         } catch (err) {
           toast(friendly(err), 'error');
-          submit.disabled = false;
+          submit.disabled = isSignup ? !terms.checked : false;
           submit.textContent = isSignup ? 'Create account' : 'Log in';
         }
       },
@@ -198,28 +279,18 @@ export function renderAuth(root, opts = {}) {
         el('span', { class: 'brand-word', role: 'img', 'aria-label': 'ROMIO' }),
       ]),
       el('h1', { class: 'auth__title' }, isSignup ? 'Create your account' : 'Welcome back'),
-      el('p', { class: 'auth__subtitle' }, isSignup ? 'Join ROMIO — it only takes a minute.' : 'Log in to your feed and workspaces.'),
+      subtitleEl,
 
-      isSignup ? el('div', { class: 'field-row' }, [
-        field('First name', 'su-first', firstName),
-        field('Surname', 'su-last', lastName),
-      ]) : null,
-
-      field('Email', 'au-email', email, null, 'mail'),
-
-      isSignup ? field('Username', 'su-username', usernameControl(username), userHint) : null,
-
-      field('Password', 'au-pass', passwordControl(pass), null),
-      isSignup ? meterRow : null,
-      isSignup ? reqList : null,
-
-      isSignup ? field('Confirm password', 'su-confirm', passwordControl(confirm), confirmHint) : null,
-
-      isSignup ? null : rememberRow,
-      isSignup ? termsRow : null,
-      submit,
-      social,
+      // Sign-up: the step host drives everything. Login: the classic single form.
+      isSignup ? stepHost : el('div', { class: 'auth__loginbody' }, [
+        field('Username or email', 'au-email', email, null, 'user'),
+        field('Password', 'au-pass', passwordControl(pass), null),
+        rememberRow,
+        submit,
+        social,
+      ]),
     ]);
+    if (isSignup) renderStep();
 
     const card = el('div', { class: 'auth__card' }, [
       navigate ? el('button', { class: 'auth__home', type: 'button', onclick: () => navigate('/') }, [icon('arrow-left'), ' Back to home']) : null,
@@ -297,6 +368,7 @@ function friendly(err) {
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'Wrong email or password.';
   if (code.includes('email-already-in-use')) return 'That email already has an account. Try logging in.';
   if (code === 'auth/weak-password-policy') return err.message;
+  if (code === 'auth/username-taken' || code === 'auth/invalid-username') return err.message;
   if (code.includes('weak-password')) return 'Password must be at least 8 characters.';
   if (code.includes('invalid-email')) return 'That email address looks invalid.';
   if (code.includes('too-many-requests')) return 'Too many attempts — please wait a moment and try again.';

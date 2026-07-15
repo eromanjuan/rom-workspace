@@ -4,48 +4,90 @@
 import { el, clear, icon, toast } from '../ui/dom.js';
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebase.js';
-import { getUserProfile, listMyWorkspaces, setCurrentWorkspace, requestToJoin, getMyJoinRequest, cancelJoinRequest } from '../workspaces/data.js';
-import { roleLabel } from '../workspaces/roles.js';
+import { getUserProfile, listMyWorkspaces, setCurrentWorkspace, requestToJoin, getMyJoinRequest, cancelJoinRequest, listenUser } from '../workspaces/data.js';
+import { roleLabel, isMaster } from '../workspaces/roles.js';
 import { postCard } from '../feed/feed.js';
 import { avatarNode } from './avatar.js';
+import { profileLinksNode } from './links.js';
+import { bioNode } from './bio.js';
+import { applyFrame } from './frames.js';
+import { isOnline, presenceText, presenceExact } from '../auth/presence.js';
+import { getThemeBundle, previewThemeBundle } from '../ui/theme.js';
 
-const VISIBILITY_DEFAULTS = { posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false };
+// Defaults must match settingsView.js VISIBILITY_DEFAULTS. A field missing from a
+// user's saved visibility falls back here, so bio/links default to shown.
+const VISIBILITY_DEFAULTS = { bio: true, links: true, posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false, phone: false };
 
 export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpenUser, onMessage, onOpenWorkspace }) {
   clear(host);
 
-  const head = el('div', { class: 'profile-head card' }, el('p', { class: 'muted' }, 'Loading profile…'));
+  const isSelf = targetUid && currentUser && targetUid === currentUser.uid;
+  const head = el('div', { class: 'profile-head profile-head--visit card' }, el('p', { class: 'muted' }, 'Loading profile…'));
   const sections = el('div', { class: 'profile-sections' });
 
+  // When previewing your own profile, show a clear banner + an exit action.
+  const previewBanner = isSelf ? el('div', { class: 'profile-preview-banner' }, [
+    el('span', { class: 'profile-preview-tag' }, [icon('eye'), ' Visitor preview']),
+    el('span', { class: 'muted' }, "This is how your profile looks to others."),
+    el('button', { class: 'btn btn--primary btn--sm', onclick: onBack }, [icon('arrow-left'), ' Back to my profile']),
+  ]) : null;
+
   host.append(el('div', { class: 'profile' }, [
-    el('button', { class: 'btn btn--ghost btn--sm search-back', onclick: onBack }, [icon('arrow-left'), ' Back']),
-    el('h2', { class: 'section__title' }, 'Profile'),
+    previewBanner,
+    isSelf ? null : el('button', { class: 'btn btn--ghost btn--sm search-back', onclick: onBack }, [icon('arrow-left'), ' Back']),
+    isSelf ? null : el('h2', { class: 'section__title' }, 'Profile'),
     head,
     sections,
   ]));
 
   let unsub = null;
+  let presenceUnsub = null;
+  let presenceTick = null;
+  // Remember the visitor's own theme so we can restore it when leaving; while on
+  // this page we preview the profile owner's theme (if they've set one).
+  const ownThemeBundle = getThemeBundle();
+  let themedToOther = false;
 
   getUserProfile(targetUid).then((p) => {
+    if (p?.theme) { previewThemeBundle(p.theme); themedToOther = true; }
     const vis = { ...VISIBILITY_DEFAULTS, ...(p?.visibility || {}) };
     const name = p?.displayName || 'User';
     const since = p?.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : null;
 
     const notSelf = targetUid && currentUser && targetUid !== currentUser.uid;
+    // Live online/offline + last-active line (only when viewing someone else).
+    const presenceEl = notSelf ? el('div', { class: 'profile-presence muted' }) : null;
+    let lastProf = p;
+    const paintPresence = () => {
+      if (!presenceEl) return;
+      const online = isOnline(lastProf);
+      clear(presenceEl);
+      presenceEl.classList.toggle('is-online', online);
+      presenceEl.title = presenceExact(lastProf);
+      presenceEl.append(el('span', { class: `msg-presence-dot ${online ? 'is-online' : ''}` }), presenceText(lastProf));
+    };
+    if (presenceEl) {
+      paintPresence();
+      presenceUnsub = listenUser(targetUid, (prof) => { if (prof) { lastProf = prof; paintPresence(); } });
+      // Re-evaluate on a timer so "online" ages into "Last seen…" without a write.
+      presenceTick = setInterval(paintPresence, 30000);
+    }
     const msgBtn = (notSelf && onMessage)
       ? el('button', { class: 'btn btn--primary btn--sm profile-msg-btn', onclick: () => onMessage(targetUid, name) }, [icon('message'), ' Message'])
       : null;
+    const avWrap = el('div', { class: 'profile-avatar-wrap' }, avatarNode(name, p?.photoURL, 'profile-avatar profile-avatar--lg'));
+    applyFrame(avWrap, { frame: p?.avatarFrame, custom: p?.avatarFrameCustom, thickness: p?.avatarFrameThickness });
     clear(head).append(
-      avatarNode(name, p?.photoURL, 'profile-avatar'),
+      avWrap,
       el('div', { class: 'profile-head-main' }, [
         el('div', { class: 'profile-name' }, name),
         p?.username ? el('div', { class: 'muted profile-username' }, `@${p.username}`) : null,
+        presenceEl,
         vis.email && p?.email ? el('div', { class: 'muted profile-email' }, p.email) : null,
+        vis.phone && p?.phone ? el('div', { class: 'muted profile-phone' }, [icon('phone'), el('span', {}, p.phone)]) : null,
         vis.verified && p?.emailVerified ? el('span', { class: 'pill pill--editor profile-verified' }, [icon('circle-check'), ' Verified']) : null,
-        p?.bio ? el('p', { class: 'profile-bio' }, p.bio) : null,
-        (p?.website && /^https?:\/\//i.test(p.website))
-          ? el('a', { class: 'profile-website', href: p.website, target: '_blank', rel: 'noopener noreferrer' }, [icon('link'), el('span', {}, p.website.replace(/^https?:\/\//, ''))])
-          : null,
+        vis.bio && p?.bio ? bioNode(p.bio) : null,
+        vis.links ? profileLinksNode(p) : null,
         vis.memberSince && since ? el('div', { class: 'muted profile-since' }, `Member since ${since}`) : null,
         msgBtn,
       ]),
@@ -55,7 +97,7 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
 
     // Owned workspaces (workspace docs are readable; memberships are private).
     if (vis.ownedWorkspaces) {
-      const wsBox = el('div', { class: 'profile-ws-list' }, el('p', { class: 'muted' }, 'Loading…'));
+      const wsBox = el('div', { class: 'profile-ws-grid' }, el('p', { class: 'muted' }, 'Loading…'));
       sections.append(el('section', {}, [
         el('h3', { class: 'profile-subtitle' }, [icon('layout-dashboard'), ' Workspaces']),
         wsBox,
@@ -69,29 +111,34 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
         clear(wsBox);
         if (snap.empty) { wsBox.append(el('p', { class: 'muted' }, 'No public workspaces.')); return; }
         const myRoleFor = new Map((myWs || []).map((w) => [w.id, w.myRole]));
+        // Small workspace icon (image or coloured glyph) — matches My Profile.
+        const wsAvatar = (w) => w.imageUrl
+          ? el('div', { class: 'ws-avatar ws-avatar--img' }, el('img', { src: w.imageUrl, alt: w.name || '' }))
+          : el('div', { class: 'ws-avatar', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard'));
         snap.docs.forEach((d) => {
           const w = d.data();
           const wsId = d.id;
-          const action = el('div', { class: 'profile-ws-action' });
-          wsBox.append(el('div', { class: 'profile-ws-item card' }, [
-            el('div', { class: 'profile-ws-ic', style: `background:${w.color || '#5b8cff'}` }, icon(w.icon || 'layout-dashboard')),
-            el('div', { class: 'profile-ws-item-main' }, [el('div', { class: 'profile-ws-name' }, w.name || 'Workspace'), w.description ? el('div', { class: 'muted' }, w.description) : null]),
-            action,
-          ]));
-
           const myRole = myRoleFor.get(wsId);
-          if (myRole) {
-            // Already a member — open it directly.
-            const open = el('button', { class: 'btn btn--ghost btn--sm', title: `Open ${w.name || 'workspace'}` }, [icon('arrow-up-right'), ' Open']);
-            open.addEventListener('click', async () => {
-              open.disabled = true;
+          // Members (and the master) open directly — a clickable compact tile.
+          if (myRole || isMaster(currentUser)) {
+            const card = el('button', { class: 'profile-ws-card card profile-ws-card--btn', title: `Open ${w.name || 'workspace'}` }, [
+              wsAvatar(w),
+              el('div', { class: 'profile-ws-meta' }, [
+                el('div', { class: 'profile-ws-name' }, w.name || 'Workspace'),
+                el('div', { class: 'muted' }, myRole ? roleLabel(myRole) : 'Master'),
+              ]),
+              el('span', { class: 'profile-ws-open muted' }, icon('arrow-up-right')),
+            ]);
+            card.addEventListener('click', async () => {
+              card.disabled = true;
               try { await setCurrentWorkspace(currentUser.uid, wsId); (onOpenWorkspace || (() => {}))(); }
-              catch (e) { toast(e.message, 'error'); open.disabled = false; }
+              catch (e) { toast(e.message, 'error'); card.disabled = false; }
             });
-            action.append(el('span', { class: 'pill pill--editor' }, roleLabel(myRole)), open);
+            wsBox.append(card);
           } else {
-            // Not a member — let them request access.
-            const joinBtn = el('button', { class: 'btn btn--primary btn--sm' }, [icon('user-plus'), ' Request access']);
+            // Not a member — a compact tile with a Request-access action.
+            const action = el('div', { class: 'profile-ws-req' });
+            const joinBtn = el('button', { class: 'btn btn--primary btn--sm', type: 'button' }, [icon('user-plus'), ' Request access']);
             const setRequested = () => clear(action).append(
               el('span', { class: 'pill pill--viewer' }, 'Requested'),
               el('button', { class: 'link-danger', title: 'Cancel request', onclick: async () => { try { await cancelJoinRequest(wsId, currentUser.uid); clear(action).append(joinBtn); } catch (e) { toast(e.message, 'error'); } } }, icon('x')),
@@ -103,6 +150,13 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
             });
             action.append(joinBtn);
             getMyJoinRequest(wsId, currentUser.uid).then((r) => { if (r) setRequested(); }).catch(() => {});
+            wsBox.append(el('div', { class: 'profile-ws-card card' }, [
+              wsAvatar(w),
+              el('div', { class: 'profile-ws-meta' }, [
+                el('div', { class: 'profile-ws-name' }, w.name || 'Workspace'),
+                action,
+              ]),
+            ]));
           }
         });
       }).catch(() => { clear(wsBox).append(el('p', { class: 'muted' }, 'Could not load workspaces.')); });
@@ -134,5 +188,11 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
     }
   }).catch(() => { clear(head).append(el('p', { class: 'error-text' }, 'Could not load this profile.')); });
 
-  return () => { if (unsub) unsub(); };
+  return () => {
+    if (unsub) unsub();
+    if (presenceUnsub) presenceUnsub();
+    if (presenceTick) clearInterval(presenceTick);
+    // Restore the visitor's own theme on the way out.
+    if (themedToOther) previewThemeBundle(ownThemeBundle);
+  };
 }

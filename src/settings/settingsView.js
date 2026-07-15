@@ -13,66 +13,145 @@ import {
   listAllUsers, adminSetUser, adminDeleteUser,
   submitReport, listenReports, setReportStatus, deleteReport, adminSearchMessages,
   listenActivity,
+  listTrashedFiles, restoreFile, permanentlyDeleteFile, purgeExpiredTrash, TRASH_TTL_MS,
 } from '../workspaces/data.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
-  // Deep-linked sub-section (e.g. /settings/workspace) opens that accordion.
-  const openIf = (key) => ({ open: section === key });
-  const wsSection = collapsible(buildWorkspaceSection(user, onOpenWorkspace), openIf('workspace'));
-  const activitySection = buildActivitySection(user);
-  const controlSection = isMaster(user) ? buildControlPanelSection(user) : null;
-  host.append(
-    el('div', { class: 'settings' }, [
-      el('h2', { class: 'section__title' }, 'Settings'),
-      collapsible(buildProfileSection(user), openIf('profile')),
-      collapsible(buildVisibilitySection(user), openIf('visibility')),
-      collapsible(buildEmailSection(user), openIf('email')),
-      collapsible(buildPasswordSection(user), openIf('password')),
-      collapsible(buildThemeSection(), openIf('theme')),
-      collapsible(buildReportSection(user), openIf('report')),
-      wsSection,
-      collapsible(activitySection, openIf('activity')),
-      controlSection ? collapsible(controlSection, openIf('control')) : null,
-    ]),
-  );
-  // Bring a deep-linked section into view.
-  if (section) {
-    const opened = host.querySelector('.settings-collapsible.is-open');
-    if (opened) setTimeout(() => opened.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
-  }
-  // Refresh the workspace list instantly when a workspace is added/removed.
-  const onWsChange = () => { try { wsSection._reloadWorkspaces && wsSection._reloadWorkspaces(); } catch { /* ignore */ } };
-  window.addEventListener('rom-workspaces-changed', onWsChange);
-  return () => {
-    window.removeEventListener('rom-workspaces-changed', onWsChange);
-    try { controlSection?._cleanup?.(); } catch { /* ignore */ }
-    try { activitySection?._cleanup?.(); } catch { /* ignore */ }
-  };
-}
 
-// Turn a settings-card <section> (first child = h3.settings-title) into a
-// collapsed accordion: the header stays visible; the body opens only when the
-// edit/header is clicked. Prevents accidental edits.
-function collapsible(section, { open = false } = {}) {
-  const kids = [...section.children];
-  const title = kids[0];
-  const body = el('div', { class: 'settings-body' });
-  kids.slice(1).forEach((c) => body.append(c));
-  const toggle = el('button', { class: 'settings-toggle', type: 'button', 'aria-label': 'Edit' }, icon('pencil'));
-  const header = el('div', { class: 'settings-head' }, [title, toggle]);
-  clear(section).append(header, body);
-  section.classList.add('settings-collapsible');
-  const setOpen = (o) => {
-    section.classList.toggle('is-open', o);
-    body.style.display = o ? '' : 'none';
-    toggle.replaceChildren(icon(o ? 'chevron-up' : 'pencil'));
-    toggle.setAttribute('aria-label', o ? 'Close' : 'Edit');
-    toggle.setAttribute('aria-expanded', String(o));
+  // Each setting is a gallery entry; its content is built lazily and shown in a
+  // modal when opened (so heavy sections only load, and clean up, on demand).
+  const ENTRIES = [
+    { key: 'profile', title: 'Profile', icon: 'user', desc: 'Name, username, phone, bio & links', build: () => buildProfileSection(user) },
+    { key: 'visibility', title: 'Public profile', icon: 'eye', desc: 'Choose what visitors can see', build: () => buildVisibilitySection(user) },
+    { key: 'email', title: 'Email', icon: 'mail', desc: 'Change your login email', build: () => buildEmailSection(user) },
+    { key: 'password', title: 'Password', icon: 'lock', desc: 'Update your password', build: () => buildPasswordSection(user) },
+    { key: 'theme', title: 'Theme', icon: 'palette', desc: 'Colours, background & dark mode', build: () => buildThemeSection() },
+    { key: 'trash', title: 'Trash', icon: 'trash', desc: 'Restore or permanently delete files', build: () => buildTrashSection(user) },
+    { key: 'report', title: 'Report a problem', icon: 'flag', desc: 'Send feedback or report a bug', build: () => buildReportSection(user) },
+    { key: 'workspace', title: 'Workspaces', icon: 'layout-dashboard', desc: 'Create & manage your workspaces', build: () => buildWorkspaceSection(user, onOpenWorkspace) },
+    { key: 'activity', title: 'Activity log', icon: 'history', desc: 'Your recent actions', build: () => buildActivitySection(user) },
+  ];
+  if (isMaster(user)) {
+    ENTRIES.push({ key: 'reports', title: 'Report inbox', icon: 'inbox', desc: 'User reports & message search', build: () => buildReportInboxSection(user) });
+    ENTRIES.push({ key: 'control', title: 'Control panel', icon: 'shield-lock', desc: 'Manage users & invites', build: () => buildControlPanelSection(user) });
+  }
+
+  // Layout: tiles (default) | cards | list — remembered across sessions.
+  const VIEW_KEY = 'rom-settings-view';
+  const VIEWS = [['tiles', 'layout-grid', 'Tiles'], ['cards', 'layout-list', 'Cards'], ['list', 'list', 'List']];
+  let view = localStorage.getItem(VIEW_KEY) || 'tiles';
+  if (!VIEWS.some(([v]) => v === view)) view = 'tiles';
+
+  const gallery = el('div', { class: `settings-gallery settings-gallery--${view}` });
+
+  // Open a setting in a modal; its cleanup (if any) runs when the modal closes.
+  let openSectionEl = null;
+  let closeModal = null;
+  function openEntry(entry) {
+    const sectionEl = entry.build();
+    sectionEl.classList.add('settings-in-modal');
+    const h3 = sectionEl.querySelector(':scope > .settings-title');
+    if (h3) h3.remove();   // the modal header shows the title instead
+    openSectionEl = sectionEl;
+    const m = openModal({
+      title: entry.title, iconName: entry.icon, wide: true,
+      onClose: () => { try { sectionEl._cleanup?.(); } catch { /* ignore */ } openSectionEl = null; closeModal = null; },
+    });
+    m.body.append(sectionEl);
+    closeModal = m.close;
+  }
+
+  // Custom drag-to-reorder order, remembered per browser. Unknown/new keys go last.
+  const ORDER_KEY = 'rom-settings-order';
+  let savedOrder = [];
+  try { savedOrder = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]'); } catch { savedOrder = []; }
+  const orderedEntries = () => {
+    const byKey = new Map(ENTRIES.map((e) => [e.key, e]));
+    const out = [];
+    for (const k of savedOrder) if (byKey.has(k)) { out.push(byKey.get(k)); byKey.delete(k); }
+    for (const e of byKey.values()) out.push(e);
+    return out;
   };
-  setOpen(open);
-  header.addEventListener('click', () => setOpen(!section.classList.contains('is-open')));
-  return section;
+  const persistOrder = () => {
+    const keys = [...gallery.querySelectorAll('.settings-tile')].map((t) => t.dataset.key).filter(Boolean);
+    savedOrder = keys;
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(keys)); } catch { /* ignore */ }
+  };
+
+  function drawGallery() {
+    gallery.className = `settings-gallery settings-gallery--${view}`;
+    clear(gallery);
+    for (const entry of orderedEntries()) {
+      const tile = el('button', { class: 'settings-tile', type: 'button', draggable: 'true', title: 'Drag to reorder', onclick: () => { if (!tile.dataset.dragged) openEntry(entry); } }, [
+        el('span', { class: 'settings-tile-ic' }, icon(entry.icon)),
+        el('span', { class: 'settings-tile-txt' }, [
+          el('span', { class: 'settings-tile-title' }, entry.title),
+          el('span', { class: 'settings-tile-desc muted' }, entry.desc),
+        ]),
+        el('span', { class: 'settings-tile-arrow muted' }, icon('chevron-right')),
+      ]);
+      tile.dataset.key = entry.key;
+      tile.addEventListener('dragstart', (e) => {
+        tile.classList.add('is-dragging');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', entry.key); } catch { /* ignore */ }
+      });
+      tile.addEventListener('dragend', () => {
+        tile.classList.remove('is-dragging');
+        persistOrder();
+        // Guard the click that fires right after a drag so it doesn't open a modal.
+        tile.dataset.dragged = '1';
+        setTimeout(() => { delete tile.dataset.dragged; }, 0);
+      });
+      gallery.append(tile);
+    }
+  }
+
+  // Live reposition the dragged tile (works for the grid + the list view).
+  const dragAfter = (x, y) => {
+    let best = null; let bestDist = Infinity;
+    for (const t of gallery.querySelectorAll('.settings-tile:not(.is-dragging)')) {
+      const b = t.getBoundingClientRect();
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      const isAfter = (y < cy - 1) || (Math.abs(y - cy) <= b.height / 2 && x < cx);
+      if (!isAfter) continue;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < bestDist) { bestDist = d; best = t; }
+    }
+    return best;
+  };
+  gallery.addEventListener('dragover', (e) => {
+    const dragging = gallery.querySelector('.settings-tile.is-dragging');
+    if (!dragging) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch { /* ignore */ }
+    const after = dragAfter(e.clientX, e.clientY);
+    if (after == null) gallery.appendChild(dragging);
+    else if (after !== dragging) gallery.insertBefore(dragging, after);
+  });
+
+  const viewToggle = el('div', { class: 'settings-viewtoggle' });
+  for (const [v, ic, label] of VIEWS) {
+    const b = el('button', { class: `settings-viewbtn ${v === view ? 'is-active' : ''}`, type: 'button', title: `${label} view`, 'aria-label': `${label} view` }, icon(ic));
+    b.addEventListener('click', () => {
+      view = v; localStorage.setItem(VIEW_KEY, v);
+      for (const c of viewToggle.children) c.classList.toggle('is-active', c === b);
+      drawGallery();
+    });
+    viewToggle.append(b);
+  }
+
+  host.append(el('div', { class: 'settings' }, [
+    el('div', { class: 'settings-topbar' }, [el('h2', { class: 'section__title' }, 'Settings'), viewToggle]),
+    gallery,
+  ]));
+  drawGallery();
+
+  // Deep-link (e.g. /settings/theme) opens that section's modal.
+  const deep = section && ENTRIES.find((e) => e.key === section);
+  if (deep) setTimeout(() => openEntry(deep), 0);
+
+  return () => { if (closeModal) { try { closeModal(); } catch { /* ignore */ } } else { try { openSectionEl?._cleanup?.(); } catch { /* ignore */ } } };
 }
 
 /* ---------- activity log (audit trail) ---------- */
@@ -253,7 +332,24 @@ function buildControlPanelSection(user) {
   }
   load();
 
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('shield-lock'), ' Control panel']),
+    el('p', { class: 'muted' }, 'Master admin — manage every user and invite new people.'),
+    el('label', { class: 'settings-label' }, 'Invite by email'),
+    el('div', { class: 'admin-invite' }, [inviteInput, inviteBtn]),
+    el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
+    search,
+    wrap,
+  ]);
+}
+
+/* ---------- Report inbox (master): user reports + message search ---------- */
+
+function buildReportInboxSection(user) {
   const fmtTime = (ts) => { try { const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null); return d ? d.toLocaleString() : ''; } catch { return ''; } };
+  // Loaded for resolving sender names in the message search.
+  let allUsers = [];
+  listAllUsers().then((list) => { allUsers = list; }).catch(() => {});
 
   // --- report inbox (live) ---
   const reportSearch = el('input', { class: 'input', type: 'search', placeholder: 'Search reports by text or sender…' });
@@ -325,14 +421,9 @@ function buildControlPanelSection(user) {
   msgSearch.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runMsgSearch(); } });
 
   const section = el('section', { class: 'settings-card card' }, [
-    el('h3', { class: 'settings-title' }, [icon('shield-lock'), ' Control panel']),
-    el('p', { class: 'muted' }, 'Master admin — manage every user and invite new people.'),
-    el('label', { class: 'settings-label' }, 'Invite by email'),
-    el('div', { class: 'admin-invite' }, [inviteInput, inviteBtn]),
-    el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
-    search,
-    wrap,
-    el('div', { class: 'admin-users-head', style: 'margin-top:1.25rem' }, [el('label', { class: 'settings-label' }, [icon('inbox'), ' Report inbox']), reportCount]),
+    el('h3', { class: 'settings-title' }, [icon('inbox'), ' Report inbox']),
+    el('p', { class: 'muted' }, 'User-submitted reports, plus a tool to search everyone\'s messages.'),
+    el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, [icon('inbox'), ' Reports']), reportCount]),
     reportSearch,
     reportList,
     el('label', { class: 'settings-label', style: 'margin-top:1.25rem' }, [icon('message'), ' Search messages']),
@@ -343,33 +434,155 @@ function buildControlPanelSection(user) {
   return section;
 }
 
-/* ---------- profile visibility: what visitors can see ---------- */
+/* ---------- Trash: deleted files (restore / permanent delete / 30-day purge) ---------- */
 
-// The visible-to-visitors fields and their defaults. Keep in sync with the
-// public profile (userProfile.js) which reads users/{uid}.visibility.
+const TRASH_TYPE_ICON = (type = '') => {
+  if (type.startsWith('image/')) return 'photo';
+  if (type.startsWith('video/')) return 'video';
+  if (type.startsWith('audio/')) return 'music';
+  if (type === 'application/pdf') return 'file-type-pdf';
+  if (type.includes('zip') || type.includes('compressed')) return 'file-zip';
+  if (type.startsWith('text/') || type.includes('word') || type.includes('document')) return 'file-text';
+  return 'file';
+};
+function trashFmtSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  const u = ['B', 'KB', 'MB', 'GB']; let i = 0, n = bytes;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i += 1; }
+  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
+}
+
+function buildTrashSection(user) {
+  const list = el('div', { class: 'trash-list' }, el('p', { class: 'muted' }, 'Loading…'));
+  const selectAll = el('input', { type: 'checkbox', class: 'vis-check' });
+  const restoreBtn = el('button', { class: 'btn btn--sm' }, [icon('refresh'), ' Restore']);
+  const deleteBtn = el('button', { class: 'btn btn--danger btn--sm' }, [icon('trash'), ' Delete permanently']);
+  const status = el('span', { class: 'muted settings-status' });
+  const countEl = el('span', { class: 'trash-count', style: 'display:none' });
+  const selected = new Set();
+  let items = [];
+  const syncCount = () => { if (items.length) { countEl.textContent = String(items.length); countEl.style.display = ''; } else { countEl.style.display = 'none'; } };
+
+  const daysLeft = (f) => {
+    const t = f.deletedAt?.toMillis?.() || 0;
+    if (!t) return 30;
+    return Math.max(0, Math.ceil((TRASH_TTL_MS - (Date.now() - t)) / 86400000));
+  };
+  const syncActions = () => {
+    restoreBtn.disabled = !selected.size;
+    deleteBtn.disabled = !selected.size;
+    selectAll.checked = items.length > 0 && selected.size === items.length;
+    selectAll.indeterminate = selected.size > 0 && selected.size < items.length;
+  };
+
+  function draw() {
+    syncCount();
+    clear(list);
+    if (!items.length) { list.append(el('p', { class: 'muted' }, 'Trash is empty.')); syncActions(); return; }
+    for (const f of items) {
+      const cb = el('input', { type: 'checkbox', class: 'vis-check' });
+      cb.checked = selected.has(f.id);
+      cb.addEventListener('change', () => { if (cb.checked) selected.add(f.id); else selected.delete(f.id); syncActions(); });
+      const when = f.deletedAt?.toDate ? f.deletedAt.toDate().toLocaleDateString() : '';
+      const left = daysLeft(f);
+      list.append(el('label', { class: 'trash-row' }, [
+        cb,
+        el('span', { class: 'trash-ic' }, icon(TRASH_TYPE_ICON(f.type))),
+        el('div', { class: 'trash-main' }, [
+          el('div', { class: 'trash-name', title: f.name }, f.name || 'File'),
+          el('div', { class: 'muted trash-sub' }, `${trashFmtSize(f.size)}${when ? ' · deleted ' + when : ''}${isMaster(user) && f.ownerName ? ' · ' + f.ownerName : ''} · ${left} day${left === 1 ? '' : 's'} left`),
+        ]),
+        f.url ? el('a', { class: 'btn btn--ghost btn--sm', href: f.url, target: '_blank', rel: 'noopener', title: 'Preview' }, icon('external-link')) : null,
+      ]));
+    }
+    syncActions();
+  }
+
+  async function load() {
+    try {
+      await purgeExpiredTrash(user.uid).catch(() => {});
+      items = await listTrashedFiles(user.uid);
+      selected.clear();
+      draw();
+    } catch (e) { clear(list); list.append(el('p', { class: 'error-text' }, e.message || 'Could not load Trash.')); }
+  }
+
+  selectAll.addEventListener('change', () => {
+    selected.clear();
+    if (selectAll.checked) items.forEach((f) => selected.add(f.id));
+    draw();
+  });
+  restoreBtn.addEventListener('click', async () => {
+    const picked = items.filter((f) => selected.has(f.id));
+    if (!picked.length) return;
+    restoreBtn.disabled = true;
+    let ok = 0;
+    for (const f of picked) { try { await restoreFile(f); ok += 1; } catch { /* keep going */ } }
+    status.textContent = `Restored ${ok} file${ok === 1 ? '' : 's'}.`;
+    setTimeout(() => { status.textContent = ''; }, 2500);
+    await load();
+  });
+  deleteBtn.addEventListener('click', async () => {
+    const picked = items.filter((f) => selected.has(f.id));
+    if (!picked.length) return;
+    if (!(await confirmModal({ title: 'Delete permanently?', message: `${picked.length} file${picked.length === 1 ? '' : 's'} will be permanently deleted. This cannot be undone.`, confirmLabel: 'Delete permanently', danger: true }))) return;
+    deleteBtn.disabled = true;
+    let ok = 0;
+    for (const f of picked) { try { await permanentlyDeleteFile(f); ok += 1; } catch { /* keep going */ } }
+    status.textContent = `Permanently deleted ${ok} file${ok === 1 ? '' : 's'}.`;
+    setTimeout(() => { status.textContent = ''; }, 2500);
+    await load();
+  });
+
+  load();
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('trash'), ' Trash', countEl]),
+    el('p', { class: 'muted' }, 'Deleted files are kept here for 30 days, then permanently removed automatically. Select files to restore or delete them now.'),
+    el('div', { class: 'trash-toolbar' }, [
+      el('label', { class: 'trash-selall' }, [selectAll, el('span', {}, 'Select all')]),
+      el('div', { style: 'flex:1' }),
+      restoreBtn, deleteBtn,
+    ]),
+    list,
+    el('div', { class: 'settings-actions' }, [status]),
+  ]);
+}
+
+/* ---------- public profile: what visitors can see ---------- */
+
+// Each field a visitor may or may not see, with its default. Keep in sync with
+// the public profile (userProfile.js) which reads users/{uid}.visibility.
+// `always` fields (name, username, avatar) are core identity and can't be hidden.
 export const VISIBILITY_FIELDS = [
-  ['posts', 'Posts', 'Show your posts on your public profile'],
-  ['ownedWorkspaces', 'Workspaces you own', 'List the workspaces you own'],
-  ['memberSince', 'Member since', 'Show the date you joined'],
-  ['verified', 'Verified badge', 'Show the verified badge when your email is verified'],
-  ['email', 'Email address', 'Show your email address to visitors'],
+  ['bio', 'About / Bio', 'Your short bio text'],
+  ['links', 'Links', 'The links on your profile'],
+  ['posts', 'Posts', 'Your posts feed on your profile'],
+  ['ownedWorkspaces', 'Workspaces you own', 'The list of workspaces you own'],
+  ['memberSince', 'Member since', 'The date you joined'],
+  ['verified', 'Verified badge', 'The verified badge (when your email is verified)'],
+  ['email', 'Email address', 'Your email address'],
+  ['phone', 'Phone number', 'Your phone number'],
 ];
-export const VISIBILITY_DEFAULTS = { posts: true, ownedWorkspaces: true, memberSince: true, verified: true, email: false };
+export const VISIBILITY_DEFAULTS = {
+  bio: true, links: true, posts: true, ownedWorkspaces: true,
+  memberSince: true, verified: true, email: false, phone: false,
+};
 
 function buildVisibilitySection(user) {
   const inputs = {};
+  // A row per field: label + description on the left, an on/off switch on the right.
   const rows = VISIBILITY_FIELDS.map(([key, label, desc]) => {
-    const cb = el('input', { type: 'checkbox', class: 'vis-check' });
+    const cb = el('input', { type: 'checkbox', class: 'switch-input' });
     inputs[key] = cb;
-    return el('label', { class: 'vis-row' }, [
-      cb,
+    return el('label', { class: 'vis-item' }, [
       el('div', { class: 'vis-text' }, [
         el('div', { class: 'vis-label' }, label),
         el('div', { class: 'muted vis-desc' }, desc),
       ]),
+      el('span', { class: 'switch' }, [cb, el('span', { class: 'switch-track' }, el('span', { class: 'switch-thumb' }))]),
     ]);
   });
-  const save = el('button', { class: 'btn btn--primary' }, 'Save visibility');
+  const save = el('button', { class: 'btn btn--primary' }, 'Save changes');
   const status = el('span', { class: 'muted settings-status' });
   getUserProfile(user.uid).then((p) => {
     const vis = { ...VISIBILITY_DEFAULTS, ...(p?.visibility || {}) };
@@ -384,9 +597,9 @@ function buildVisibilitySection(user) {
     finally { save.disabled = false; setTimeout(() => { status.textContent = ''; }, 2500); }
   });
   return el('section', { class: 'settings-card card' }, [
-    el('h3', { class: 'settings-title' }, [icon('eye'), ' Profile visibility']),
-    el('p', { class: 'muted' }, 'Choose what other people can see when they view your profile.'),
-    ...rows,
+    el('h3', { class: 'settings-title' }, [icon('eye'), ' Public profile']),
+    el('p', { class: 'muted' }, 'Choose what other people can see on your profile. Your name, @username and photo are always shown; switch anything else off to hide it.'),
+    el('div', { class: 'vis-list' }, rows),
     el('div', { class: 'settings-actions' }, [save, status]),
   ]);
 }
@@ -399,7 +612,24 @@ function buildProfileSection(user) {
   const userInput = el('input', { class: 'input', placeholder: 'username' });
   const phoneInput = el('input', { class: 'input', type: 'tel', placeholder: 'e.g. +63 917 000 0000' });
   const bioInput = el('textarea', { class: 'input', rows: '3', maxlength: '400', placeholder: 'A short bio about you…' });
-  const siteInput = el('input', { class: 'input', type: 'url', placeholder: 'https://your-website.com' });
+
+  // Dynamic links editor: add/remove any number of labelled links.
+  const MAX_LINKS = 10;
+  const linksBox = el('div', { class: 'links-editor' });
+  const addLinkBtn = el('button', { class: 'btn btn--ghost btn--sm links-add', type: 'button' }, [icon('plus'), ' Add link']);
+  const addLinkRow = (label = '', url = '') => {
+    if (linksBox.children.length >= MAX_LINKS) { toast(`You can add up to ${MAX_LINKS} links.`, 'info'); return; }
+    const labelInput = el('input', { class: 'input links-label', placeholder: 'Label (optional)', maxlength: '40', value: label });
+    const urlInput = el('input', { class: 'input links-url', type: 'url', placeholder: 'https://example.com', value: url });
+    const remove = el('button', { class: 'btn btn--ghost btn--sm links-remove', type: 'button', title: 'Remove link' }, icon('x'));
+    const row = el('div', { class: 'links-row' }, [labelInput, urlInput, remove]);
+    remove.addEventListener('click', () => { row.remove(); if (!linksBox.children.length) addLinkRow(); });
+    linksBox.append(row);
+    return row;
+  };
+  addLinkBtn.addEventListener('click', () => addLinkRow());
+  addLinkRow();   // start with one empty row; replaced on load
+
   const saveName = el('button', { class: 'btn btn--primary' }, 'Save');
   const saveUser = el('button', { class: 'btn btn--primary' }, 'Save');
   const savePhone = el('button', { class: 'btn btn--primary' }, 'Save');
@@ -416,7 +646,13 @@ function buildProfileSection(user) {
     userInput.value = originalUsername;
     if (p?.phone) phoneInput.value = p.phone;
     if (p?.bio) bioInput.value = p.bio;
-    if (p?.website) siteInput.value = p.website;
+    // Prefer the new links array; fall back to the legacy single website field.
+    const links = Array.isArray(p?.links) && p.links.length
+      ? p.links
+      : (p?.website ? [{ label: '', url: p.website }] : []);
+    clear(linksBox);
+    if (links.length) links.forEach((l) => addLinkRow(l?.label || '', l?.url || ''));
+    else addLinkRow();
   }).catch(() => {});
 
   // Live availability while editing the username.
@@ -452,7 +688,7 @@ function buildProfileSection(user) {
     if (!userOk) return toast('That username is taken — pick another.', 'error');
     saveUser.disabled = true;
     try {
-      await changeUsername(user.uid, originalUsername, val);
+      await changeUsername(user.uid, originalUsername, val, user.email);
       await updateUserProfile(user.uid, { username: val.trim() });
       originalUsername = val.trim(); setHint('is-ok', 'Username saved.');
       toast('Username updated.', 'success');
@@ -466,17 +702,25 @@ function buildProfileSection(user) {
     finally { savePhone.disabled = false; }
   });
   saveAbout.addEventListener('click', async () => {
-    // Normalise the website: add https:// if missing, and only accept http(s).
-    let site = siteInput.value.trim();
-    if (site) {
-      if (!/^[a-z][a-z0-9+.-]*:/i.test(site)) site = `https://${site}`;
-      try { const u = new URL(site); if (!['http:', 'https:'].includes(u.protocol)) throw 0; site = u.href; }
-      catch { return toast('Enter a valid website URL (e.g. https://example.com).', 'error'); }
+    // Collect + normalise each link: add https:// if missing, accept only http(s).
+    const links = [];
+    for (const row of linksBox.querySelectorAll('.links-row')) {
+      let url = row.querySelector('.links-url').value.trim();
+      const label = row.querySelector('.links-label').value.trim().slice(0, 40);
+      if (!url) continue;   // skip blank rows
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = `https://${url}`;
+      try { const u = new URL(url); if (!['http:', 'https:'].includes(u.protocol)) throw 0; url = u.href; }
+      catch { return toast('Enter a valid URL (e.g. https://example.com).', 'error'); }
+      links.push(label ? { label, url } : { url });
     }
     saveAbout.disabled = true;
     try {
-      await updateUserProfile(user.uid, { bio: bioInput.value.trim().slice(0, 400), website: site });
-      siteInput.value = site;
+      // Keep `website` in sync with the first link for anything still reading it.
+      await updateUserProfile(user.uid, { bio: bioInput.value.trim().slice(0, 400), links, website: links[0]?.url || '' });
+      // Repaint rows with the normalised URLs.
+      clear(linksBox);
+      if (links.length) links.forEach((l) => addLinkRow(l.label || '', l.url || ''));
+      else addLinkRow();
       toast('About you saved.', 'success');
     } catch (err) { toast(err.message, 'error'); }
     finally { saveAbout.disabled = false; }
@@ -494,8 +738,9 @@ function buildProfileSection(user) {
     el('div', { class: 'row' }, [phoneInput, savePhone]),
     el('label', { class: 'settings-label' }, 'About you'),
     bioInput,
-    el('label', { class: 'settings-label' }, 'Website'),
-    siteInput,
+    el('label', { class: 'settings-label' }, 'Links'),
+    linksBox,
+    el('div', { class: 'links-add-row' }, addLinkBtn),
     el('div', { class: 'row', style: 'margin-top:.5rem' }, [el('div', { style: 'flex:1' }), saveAbout]),
   ]);
 }

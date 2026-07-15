@@ -102,8 +102,12 @@ function clearAppBg(root) {
   root.style.removeProperty('--app-bg-size');
   root.style.removeProperty('--app-bg-repeat');
 }
-export function applyAppearance() {
-  const a = getAppearance();
+export function applyAppearance() { applyAppearanceObject(getAppearance()); }
+
+// Apply an appearance object (cards + background) to <html>. Used both for the
+// stored appearance and for previewing another user's theme.
+function applyAppearanceObject(a) {
+  a = a || {};
   const root = document.documentElement;
   // Cards: solid (default) or frosted glass with a blur level + opacity.
   if (a.cardStyle === 'glass') {
@@ -151,6 +155,20 @@ export function applyThemeBundle(bundle) {
     applyPalette();
     applyAppearance();
   } finally { suppress = false; }
+}
+
+// Apply a theme bundle to the page WITHOUT persisting it (no localStorage write,
+// no change event). Used to show a visited user's theme on their profile; call
+// previewThemeBundle(getThemeBundle()) captured beforehand to restore the viewer's.
+export function previewThemeBundle(bundle) {
+  if (!bundle || typeof bundle !== 'object') return;
+  const root = document.documentElement;
+  root.setAttribute('data-theme', bundle.mode === 'light' ? 'light' : 'dark');
+  const pal = bundle.palette || {};
+  for (const { var: v } of PALETTE_VARS) {
+    if (pal[v]) root.style.setProperty(v, pal[v]); else root.style.removeProperty(v);
+  }
+  applyAppearanceObject(bundle.appearance || {});
 }
 
 export function initTheme() {

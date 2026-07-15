@@ -8,7 +8,7 @@ import {
   listAllUsers, listAllWorkspaces, listMyWorkspaces,
   requestToJoin, getMyJoinRequest, cancelJoinRequest, setCurrentWorkspace,
 } from '../workspaces/data.js';
-import { roleLabel } from '../workspaces/roles.js';
+import { roleLabel, isMaster } from '../workspaces/roles.js';
 import { postCard } from '../feed/feed.js';
 
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
@@ -85,10 +85,11 @@ export function renderSearch(host, user, initialTerm, { onOpenUser, onOpenWorksp
     ]);
 
     const myRole = myWs.get(w.id);
-    if (myRole) {
+    // Members can open their workspace; the master can open ANY workspace.
+    if (myRole || isMaster(user)) {
       const open = el('button', { class: 'btn btn--ghost btn--sm' }, [icon('arrow-up-right'), ' Open']);
       open.addEventListener('click', async () => { try { await setCurrentWorkspace(user.uid, w.id); onOpenWorkspace(); } catch (e) { toast(e.message, 'error'); } });
-      action.append(el('span', { class: 'pill pill--editor' }, roleLabel(myRole)), open);
+      action.append(el('span', { class: `pill ${myRole ? 'pill--editor' : 'pill--owner'}` }, myRole ? roleLabel(myRole) : 'Master'), open);
     } else {
       const joinBtn = el('button', { class: 'btn btn--primary btn--sm' }, [icon('user-plus'), ' Ask to join']);
       const setRequested = () => { clear(action).append(el('span', { class: 'pill pill--viewer' }, 'Requested'), el('button', { class: 'link-danger', title: 'Cancel request', onclick: async () => { try { await cancelJoinRequest(w.id, user.uid); clear(action).append(joinBtn); } catch (e) { toast(e.message, 'error'); } } }, icon('x'))); };

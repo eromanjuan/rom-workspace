@@ -79,15 +79,25 @@ export function listenMessages(convId, cb, max = 300) {
     () => cb([]),
   );
 }
-export async function sendMessage(convId, user, text) {
+// Firebase Storage isn't enabled on this project, so a chat attachment is stored
+// inline as a data URL on the message doc (like the feed composer). Firestore
+// caps a doc at 1 MB, so the picked file is size-capped before it gets here.
+export const MAX_ATTACHMENT_BYTES = 800 * 1024; // ~800 KB, leaves headroom under 1 MB
+
+// `enc`, when present, is { algo, cipher } for an end-to-end encrypted message.
+// The plaintext is never stored — only the ciphertext and the algorithm id.
+export async function sendMessage(convId, user, text, { attachment = null, enc = null } = {}) {
   const t = (text || '').trim();
-  if (!t) return;
+  if (!t && !attachment && !enc) return;
   const name = user.displayName || user.email || 'You';
-  await addDoc(collection(db, 'conversations', convId, 'messages'), {
-    senderId: user.uid, senderName: name, text: t, createdAt: serverTimestamp(),
-  });
+  const msg = { senderId: user.uid, senderName: name, text: enc ? '' : t, createdAt: serverTimestamp() };
+  if (attachment) msg.attachment = attachment;
+  if (enc) { msg.encrypted = true; msg.encAlgo = enc.algo; msg.cipher = enc.cipher; }
+  await addDoc(collection(db, 'conversations', convId, 'messages'), msg);
+  // Never leak plaintext into the conversation-list preview.
+  const preview = enc ? 'Encrypted message' : (t || (attachment ? `Attachment: ${attachment.name}` : ''));
   await updateDoc(doc(db, 'conversations', convId), {
     updatedAt: serverTimestamp(),
-    lastMessage: { text: t.slice(0, 140), senderId: user.uid, senderName: name },
+    lastMessage: { text: preview.slice(0, 140), senderId: user.uid, senderName: name },
   }).catch(() => {});
 }

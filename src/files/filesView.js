@@ -1,7 +1,7 @@
 // The Files section: upload files and view everything you've uploaded.
 import { el, clear, icon, toast, confirmModal } from '../ui/dom.js';
 import { isMaster } from '../workspaces/roles.js';
-import { uploadFile, listFiles, deleteFile } from '../workspaces/data.js';
+import { uploadFile, listFiles, deleteFile, purgeExpiredTrash } from '../workspaces/data.js';
 
 function fmtSize(bytes) {
   if (!bytes && bytes !== 0) return '';
@@ -58,6 +58,9 @@ export function renderFiles(host, user) {
     grid,
   ]));
 
+  // Best-effort: clear out any files that have sat in Trash past 30 days.
+  purgeExpiredTrash(user.uid).catch(() => {});
+
   async function load() {
     try {
       const files = await listFiles(user.uid);
@@ -95,10 +98,10 @@ function renderFileCard(f, user) {
     el('div', { class: 'file-actions' }, [
       el('a', { class: 'btn btn--ghost btn--sm', href: f.url, target: '_blank', rel: 'noopener' }, [icon('external-link'), ' Open']),
       el('button', {
-        class: 'btn btn--danger btn--sm', onclick: async (e) => {
+        class: 'btn btn--danger btn--sm', title: 'Move to Trash', onclick: async (e) => {
           const card = e.currentTarget.closest('.file-card');
-          if (!(await confirmModal({ title: 'Delete file?', message: `"${f.name}" will be permanently deleted.`, confirmLabel: 'Delete', danger: true }))) return;
-          try { await deleteFile(f); card.remove(); toast('File deleted', 'success'); }
+          if (!(await confirmModal({ title: 'Move to Trash?', message: `"${f.name}" will be moved to Trash and permanently deleted after 30 days. You can restore it from Settings → Trash.`, confirmLabel: 'Move to Trash', danger: true }))) return;
+          try { await deleteFile(f); card.remove(); toast('Moved to Trash', 'success'); }
           catch (err) { toast(err.message, 'error'); }
         },
       }, icon('trash')),

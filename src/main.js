@@ -2,9 +2,11 @@ import './styles.css';
 import { configReady } from './firebase.js';
 import { initTheme, applyThemeBundle, getThemeBundle } from './ui/theme.js';
 import { watchAuth } from './auth/auth.js';
+import { startPresence } from './auth/presence.js';
 import { renderAuth } from './auth/authView.js';
 import { renderLanding } from './landing/landingView.js';
 import { renderVerify } from './auth/verifyView.js';
+import { renderChooseUsername } from './auth/chooseUsername.js';
 import { renderFeed } from './feed/feed.js';
 import { renderProfile } from './profile/profileView.js';
 import { renderUserProfile } from './profile/userProfile.js';
@@ -16,7 +18,7 @@ import { renderFiles } from './files/filesView.js';
 import { renderCalendar } from './tools/calendar.js';
 import { renderChecklist } from './tools/checklist.js';
 import { renderNotes } from './tools/notes.js';
-import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, updateUserProfile, listWorkspaceApps } from './workspaces/data.js';
+import { getInvite, acceptInvite, getUserProfile, getMyRole, getWorkspace, setCurrentWorkspace, listMyWorkspaces, listAllWorkspaces, updateUserProfile, listWorkspaceApps, findMyUsername } from './workspaces/data.js';
 import { isMaster } from './workspaces/roles.js';
 import { logOut } from './auth/auth.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
@@ -45,6 +47,7 @@ if (window.top !== window.self) {
     </div>`;
 } else {
     let viewUnsub = null;
+    let presenceStop = null;   // stops the online/offline heartbeat on logout
     let notifCleanup = null;
     let wsAppsOff = null; // removes the previous shell's workspace-apps listener
     let authed = false;        // is a user currently signed in?
@@ -126,6 +129,8 @@ if (window.top !== window.self) {
     watchAuth(async(user) => {
         if (viewUnsub) { viewUnsub();
             viewUnsub = null; }
+        // Stop any prior presence heartbeat (and mark that account offline).
+        if (presenceStop) { presenceStop(); presenceStop = null; }
         // An ANONYMOUS session is never a ROMIO login. The tabulation signs judges
         // in anonymously; if that ever lands in the shared auth persistence, ROMIO
         // must treat it as signed-out rather than a broken half-logged-in user.
@@ -134,6 +139,8 @@ if (window.top !== window.self) {
             renderUnauthed();
             return;
         }
+        // Start the online/offline heartbeat for this signed-in user.
+        presenceStop = startPresence(user.uid);
         authed = true;
         if (unauthCleanup) { unauthCleanup(); unauthCleanup = null; }
         // Require a verified email before entering the app (the master account is exempt).
@@ -160,6 +167,18 @@ if (window.top !== window.self) {
         // Dynamic master flag (promoted users) + suspend/ban enforcement.
         user.isMasterFlag = prof?.isMaster === true;
         if (!isMaster(user) && (prof?.deleted || prof?.suspended)) { renderBlocked(prof?.deleted ? 'deleted' : 'suspended'); return; }
+        // Every account must have a username. If the profile lost the field but a
+        // reservation still exists, restore it silently instead of re-prompting.
+        if (!prof?.username) {
+            const existing = await findMyUsername(user.uid).catch(() => null);
+            if (existing) {
+                await updateUserProfile(user.uid, { username: existing }).catch(() => {});
+                prof = { ...(prof || {}), username: existing };
+            }
+        }
+        // Social sign-ins and older accounts with no reservation: gate them until
+        // they pick a username, then continue.
+        if (!prof?.username) { renderChooseUsername(app, user, () => proceed(user)); return; }
         renderShell(user, prof);
     }
 
@@ -231,10 +250,13 @@ if (window.top !== window.self) {
             postToWorkspace({ type: 'rom-open-app', appId: app.id }); // fires now if already loaded
         };
         const refreshWorkspaceApps = async (wsId) => {
+            let id = wsId;
             try {
-                const id = wsId || (await getUserProfile(user.uid))?.currentWorkspaceId;
+                id = wsId || (await getUserProfile(user.uid))?.currentWorkspaceId;
                 shell.setWorkspaceApps(id ? await listWorkspaceApps(id) : [], openWorkspaceApp);
             } catch { shell.setWorkspaceApps([], openWorkspaceApp); }
+            // Show the current workspace's icon/image in the topbar badge.
+            try { shell.setWorkspaceBadge(id ? await getWorkspace(id) : null); } catch { /* ignore */ }
         };
         refreshWorkspaceApps(profile?.currentWorkspaceId);
         if (wsAppsOff) wsAppsOff();
@@ -259,7 +281,12 @@ if (window.top !== window.self) {
                 if (slug) {
                     try {
                         const mine = await listMyWorkspaces(user.uid);
-                        const match = mine.find((w) => w.id === slug || slugify(w.name) === slug);
+                        let match = mine.find((w) => w.id === slug || slugify(w.name) === slug);
+                        // The master can deep-link into any workspace, not just its own.
+                        if (!match && master) {
+                            const all = await listAllWorkspaces();
+                            match = all.find((w) => w.id === slug || slugify(w.name) === slug);
+                        }
                         if (match && match.id !== wsId) { await setCurrentWorkspace(user.uid, match.id); wsId = match.id; }
                     } catch { /* ignore */ }
                 }
@@ -320,7 +347,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=28', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=34', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 
@@ -382,11 +409,11 @@ if (window.top !== window.self) {
             } else if (view === 'messages') {
                 viewUnsub = renderMessages(content, user, { initialConvId: arg, onOpenUser: openUserProfile });
             } else if (view === 'profile') {
-                viewUnsub = renderProfile(content, user, { onOpenWorkspace: () => go('workspace'), onOpenUser: openUserProfile });
+                viewUnsub = renderProfile(content, user, { onOpenWorkspace: () => go('workspace'), onOpenUser: openUserProfile, onViewAsVisitor: () => go('user', user.uid) });
             } else if (view === 'search') {
                 viewUnsub = renderSearch(content, user, arg || '', { onOpenUser: openUserProfile, onOpenWorkspace: () => go('workspace'), onMessage: openDirectMessage });
             } else if (view === 'user') {
-                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go('feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage, onOpenWorkspace: () => go('workspace') });
+                viewUnsub = renderUserProfile(content, arg, user, { onBack: () => go(arg === user.uid ? 'profile' : 'feed'), onOpenUser: openUserProfile, onMessage: openDirectMessage, onOpenWorkspace: () => go('workspace') });
             } else if (view === 'settings') {
                 viewUnsub = renderSettings(content, user, { onOpenWorkspace: () => go('workspace'), section: arg });
             } else if (view === 'files') {

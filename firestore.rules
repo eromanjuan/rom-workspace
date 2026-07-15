@@ -201,6 +201,10 @@ service cloud.firestore {
     match /files/{fileId} {
       allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      // Update powers Trash (soft-delete / restore). Owner or master only, and the
+      // file's ownerId can never change.
+      allow update: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster())
+                    && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());
     }
 

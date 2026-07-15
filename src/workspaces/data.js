@@ -48,13 +48,12 @@ export async function createWorkspace(user, opts) {
   return wsRef.id;
 }
 
-// Every workspace the user belongs to (via their membership docs across all workspaces).
-// The master account sees every workspace, always as owner.
+// Every workspace the user actually belongs to (via their own membership docs).
+// This applies to the master account too — the master's profile/settings should
+// only list workspaces they own or joined, NOT everyone else's. The master can
+// still open any workspace it doesn't belong to (getMyRole grants 'owner' and the
+// rules allow it) — e.g. from Search — it just isn't shown as "owned by me".
 export async function listMyWorkspaces(uid) {
-  if (isMaster(auth.currentUser)) {
-    const all = await getDocs(collection(db, 'workspaces'));
-    return all.docs.map((d) => ({ id: d.id, ...d.data(), myRole: 'owner' }));
-  }
   const snap = await getDocs(query(collectionGroup(db, 'members'), where('uid', '==', uid)));
   const results = [];
   for (const m of snap.docs) {
@@ -265,19 +264,56 @@ export async function isUsernameAvailable(username) {
 }
 
 // Reserve a handle for a signed-in user. Throws if it's already taken (the
-// create fails because the doc id already exists).
-export async function reserveUsername(uid, username) {
+// create fails because the doc id already exists). The email is stored so login
+// can resolve a username → email (Firebase Auth only signs in by email).
+export async function reserveUsername(uid, username, email) {
   const handle = normalizeUsername(username);
-  await setDoc(doc(db, 'usernames', handle), { uid, username: username.trim(), createdAt: serverTimestamp() });
+  const data = { uid, username: username.trim(), createdAt: serverTimestamp() };
+  if (email) data.email = String(email).trim().toLowerCase();
+  await setDoc(doc(db, 'usernames', handle), data);
 }
 
 // Move a user's handle: reserve the new one, then release the old.
-export async function changeUsername(uid, oldUsername, newUsername) {
-  await reserveUsername(uid, newUsername);
+export async function changeUsername(uid, oldUsername, newUsername, email) {
+  await reserveUsername(uid, newUsername, email);
   const old = normalizeUsername(oldUsername);
   if (old && old !== normalizeUsername(newUsername)) {
     try { await deleteDoc(doc(db, 'usernames', old)); } catch { /* ignore */ }
   }
+}
+
+// The handle this user already owns (if any), by querying the reservations.
+// Used to repair a profile that lost its `username` field but still holds the
+// reservation — so we don't wrongly prompt them to pick a username again.
+export async function findMyUsername(uid) {
+  const snap = await getDocs(query(collection(db, 'usernames'), where('uid', '==', uid)));
+  const d = snap.docs[0];
+  return d ? (d.data().username || d.id) : null;
+}
+
+// Claim a handle for a user, idempotently: succeeds if it's free OR already
+// owned by this user; throws only if someone else holds it.
+export async function claimUsername(uid, username, email) {
+  const handle = normalizeUsername(username);
+  const ref = doc(db, 'usernames', handle);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    if (snap.data().uid !== uid) { const e = new Error('That username is taken.'); e.code = 'auth/username-taken'; throw e; }
+    return; // already ours — nothing to reserve
+  }
+  const data = { uid, username: username.trim(), createdAt: serverTimestamp() };
+  if (email) data.email = String(email).trim().toLowerCase();
+  await setDoc(ref, data);
+}
+
+// Resolve a login identifier to an email address. If it already looks like an
+// email it's returned as-is; otherwise it's treated as a username and looked up.
+export async function emailForLogin(identifier) {
+  const id = (identifier || '').trim();
+  if (!id || id.includes('@')) return id;
+  const snap = await getDoc(doc(db, 'usernames', normalizeUsername(id)));
+  const data = snap.exists() ? snap.data() : null;
+  return data && data.email ? data.email : null;
 }
 
 // --- master control panel (admin) ---
@@ -301,6 +337,15 @@ export async function adminDeleteUser(u) {
 export async function listAllUsers() {
   const snap = await getDocs(collection(db, 'users'));
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// Live single-user profile (used for presence — online/offline — and fresh name/photo).
+export function listenUser(uid, onData, onError) {
+  return onSnapshot(
+    doc(db, 'users', uid),
+    (snap) => onData(snap.exists() ? { uid: snap.id, ...snap.data() } : null),
+    onError || (() => {}),
+  );
 }
 
 // Owner adds a user to the workspace directly (no invite needed). Pass
@@ -458,7 +503,10 @@ export async function uploadFile(user, file) {
   });
 }
 
-// The user's files (master sees all). Sorted client-side (no composite index).
+// Files kept in Trash this long before they're auto-purged.
+export const TRASH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// The user's live (non-trashed) files (master sees all). Sorted client-side.
 export async function listFiles(uid) {
   const q = isMaster(auth.currentUser)
     ? collection(db, 'files')
@@ -466,12 +514,50 @@ export async function listFiles(uid) {
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((f) => !f.deleted)
     .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 }
 
+// Files currently in Trash (owner, or master sees all). Newest-deleted first.
+export async function listTrashedFiles(uid) {
+  const q = isMaster(auth.currentUser)
+    ? collection(db, 'files')
+    : query(collection(db, 'files'), where('ownerId', '==', uid));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((f) => f.deleted)
+    .sort((a, b) => (b.deletedAt?.toMillis?.() || 0) - (a.deletedAt?.toMillis?.() || 0));
+}
+
+// Soft-delete: move a file to Trash (kept 30 days, then auto-purged).
 export async function deleteFile(fileDoc) {
-  try { await deleteObject(ref(storage, fileDoc.path)); } catch { /* blob may already be gone */ }
+  await updateDoc(doc(db, 'files', fileDoc.id), { deleted: true, deletedAt: serverTimestamp() });
+}
+
+// Restore a file out of Trash.
+export async function restoreFile(fileDoc) {
+  await updateDoc(doc(db, 'files', fileDoc.id), { deleted: false, deletedAt: null });
+}
+
+// Permanently delete: remove the Storage blob + the Firestore metadata doc.
+export async function permanentlyDeleteFile(fileDoc) {
+  try { if (fileDoc.path) await deleteObject(ref(storage, fileDoc.path)); } catch { /* blob may already be gone */ }
   await deleteDoc(doc(db, 'files', fileDoc.id));
+}
+
+// Auto-purge trashed files older than the TTL (best-effort, runs client-side
+// when Trash/Files is opened, since there's no server cron).
+export async function purgeExpiredTrash(uid) {
+  const cutoff = Date.now() - TRASH_TTL_MS;
+  let items;
+  try { items = await listTrashedFiles(uid); } catch { return 0; }
+  let purged = 0;
+  for (const f of items) {
+    const t = f.deletedAt?.toMillis?.() || 0;
+    if (t && t < cutoff) { try { await permanentlyDeleteFile(f); purged += 1; } catch { /* ignore */ } }
+  }
+  return purged;
 }
 
 // Upload a workspace icon image (readable by all members). Returns the download URL.

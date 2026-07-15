@@ -128,9 +128,13 @@ export function buildShell(user, { onNavigate, onSearch }) {
   };
 
   const footAvatar = el('div', { class: 'sb-avatar sb-avatar--sm' }, initials(displayNameOf(user)));
-  const foot = el('div', { class: 'sb-foot' }, [
+  // The avatar + name double as a shortcut to your own profile.
+  const footMe = el('button', { class: 'sb-foot-me', type: 'button', title: 'View your profile', onclick: () => { if (onNavigate) onNavigate('profile'); } }, [
     footAvatar,
     el('div', { class: 'sb-foot-name' }, displayNameOf(user)),
+  ]);
+  const foot = el('div', { class: 'sb-foot' }, [
+    footMe,
     el('button', { class: 'sb-logout', title: 'Log out', onclick: () => logOut() }, icon('logout')),
   ]);
 
@@ -140,7 +144,8 @@ export function buildShell(user, { onNavigate, onSearch }) {
   const menuBtn = el('button', { class: 'topbar-menu', title: 'Menu', 'aria-label': 'Open menu' }, icon('menu-2'));
   // Notification bell (badge + panel wired by mountNotifications in main).
   const bell = el('button', { class: 'topbar-icon notif-bell', title: 'Notifications', 'aria-label': 'Notifications' }, icon('bell'));
-  const topAvatar = el('div', { class: 'topbar-avatar', title: displayNameOf(user) }, initials(displayNameOf(user)));
+  // Topbar badge shows the CURRENT workspace's icon/image (set via setWorkspaceBadge).
+  const topAvatar = el('div', { class: 'topbar-avatar topbar-ws-badge', title: 'Workspace' }, icon('layout-dashboard'));
   const topbar = el('header', { class: 'topbar' }, [
     menuBtn,
     (() => {
@@ -188,13 +193,25 @@ export function buildShell(user, { onNavigate, onSearch }) {
     for (const [id, btn] of navButtons) btn.classList.toggle('sb-item--active', id === viewId);
   }
 
-  // Reflect a chosen profile photo in the topbar + sidebar avatars.
+  // Reflect a chosen profile photo in the sidebar avatar (the topbar now shows
+  // the current workspace's icon, not the user's photo).
   const setAvatar = (photoURL) => {
-    applyAvatar(topAvatar, displayNameOf(user), photoURL);
     applyAvatar(footAvatar, displayNameOf(user), photoURL);
   };
 
-  return { root, content, wsHost, setActive, bell, setAvatar, setNavBadge, setWorkspaceApps };
+  // Show the current workspace's icon/image in the topbar badge.
+  const setWorkspaceBadge = (ws) => {
+    clear(topAvatar);
+    topAvatar.classList.remove('has-photo');
+    topAvatar.removeAttribute('style');
+    if (!ws) { topAvatar.title = 'Workspace'; topAvatar.append(icon('layout-dashboard')); return; }
+    topAvatar.title = ws.name || 'Workspace';
+    if (ws.imageUrl) { topAvatar.classList.add('has-photo'); topAvatar.append(el('img', { src: ws.imageUrl, alt: ws.name || '' })); return; }
+    topAvatar.style.background = ws.color || '#5b8cff';
+    topAvatar.append(icon(ws.icon || 'layout-dashboard'));
+  };
+
+  return { root, content, wsHost, setActive, bell, setAvatar, setWorkspaceBadge, setNavBadge, setWorkspaceApps };
 }
 
 // A simple "coming soon" panel for Phase 2 modules.

@@ -117,8 +117,18 @@ export function openAvatarEditor(source, { onSave, output = 400 } = {}) {
   document.body.append(overlay);
 }
 
-// Open a file picker → editor → save to Firestore. Broadcasts rom-avatar-changed
-// so the shell (topbar/sidebar) updates live. onSaved(dataURL) for local UI.
+// Persist a cropped photo to Firestore and broadcast rom-avatar-changed so the
+// shell (topbar/sidebar) updates live. onSaved(dataURL) updates local UI.
+export async function commitAvatar(user, dataURL, onSaved) {
+  try {
+    await updateUserProfile(user.uid, { photoURL: dataURL });
+    window.dispatchEvent(new CustomEvent('rom-avatar-changed', { detail: { photoURL: dataURL } }));
+    if (onSaved) onSaved(dataURL);
+    toast('Profile photo updated', 'success');
+  } catch (e) { toast(e.message || 'Could not save photo', 'error'); }
+}
+
+// Open a file picker → editor → save to Firestore. onSaved(dataURL) for local UI.
 export function pickAndEditAvatar(user, onSaved) {
   const input = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
   document.body.append(input);
@@ -126,16 +136,7 @@ export function pickAndEditAvatar(user, onSaved) {
     const f = input.files && input.files[0];
     input.remove();
     if (!f) return;
-    openAvatarEditor(f, {
-      onSave: async (dataURL) => {
-        try {
-          await updateUserProfile(user.uid, { photoURL: dataURL });
-          window.dispatchEvent(new CustomEvent('rom-avatar-changed', { detail: { photoURL: dataURL } }));
-          if (onSaved) onSaved(dataURL);
-          toast('Profile photo updated', 'success');
-        } catch (e) { toast(e.message || 'Could not save photo', 'error'); }
-      },
-    });
+    openAvatarEditor(f, { onSave: (dataURL) => commitAvatar(user, dataURL, onSaved) });
   });
   input.click();
 }
