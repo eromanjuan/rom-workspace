@@ -4,6 +4,7 @@ import { initTheme, applyThemeBundle, getThemeBundle } from './ui/theme.js';
 import { watchAuth } from './auth/auth.js';
 import { startPresence } from './auth/presence.js';
 import { startReminders } from './tools/reminders.js';
+import { registerPush, unregisterPush } from './push.js';
 import { renderAuth } from './auth/authView.js';
 import { renderLanding } from './landing/landingView.js';
 import { renderVerify } from './auth/verifyView.js';
@@ -139,6 +140,9 @@ if (window.top !== window.self) {
         // in anonymously; if that ever lands in the shared auth persistence, ROMIO
         // must treat it as signed-out rather than a broken half-logged-in user.
         if (!user || user.isAnonymous) {
+            // Drop this browser's push token so the next person to sign in here
+            // doesn't receive the previous user's reminders.
+            if (authed) unregisterPush().catch(() => {});
             authed = false;
             renderUnauthed();
             return;
@@ -173,6 +177,16 @@ if (window.top !== window.self) {
         user.isMasterFlag = prof?.isMaster === true;
         // Pro status gates ads + premium perks. Master accounts are always Pro.
         try { setViewer(user, isMaster(user) || isPro(prof)); } catch { /* ignore */ }
+        // Keep the user's IANA timezone current on their profile. Events are stored
+        // as local wall-clock ("2026-07-20" + "09:00"), so the server needs this to
+        // fire reminders at the right moment. Only writes when it actually changes.
+        try {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz && prof?.tz !== tz) updateUserProfile(user.uid, { tz }).catch(() => {});
+        } catch { /* ignore */ }
+        // Re-register this browser for push if permission was already granted.
+        // Never prompts here — that happens on a click (see the calendar).
+        registerPush().catch(() => {});
         if (!isMaster(user) && (prof?.deleted || prof?.suspended)) { renderBlocked(prof?.deleted ? 'deleted' : 'suspended'); return; }
         // Every account must have a username. If the profile lost the field but a
         // reservation still exists, restore it silently instead of re-prompting.

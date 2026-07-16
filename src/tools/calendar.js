@@ -5,6 +5,7 @@
 import { el, clear, icon, escapeHtml, toast, openModal } from '../ui/dom.js';
 import { addUserDoc, subscribeUserDocs, deleteUserDoc } from '../workspaces/data.js';
 import { requestReminderPermission, primeReminderAudio } from './reminders.js';
+import { registerPush } from '../push.js';
 
 // Reminder lead-times offered per event (days before; 0 = on the day).
 const REMIND_OPTS = [[0, 'On the day'], [1, '1 day before'], [2, '2 days before'], [3, '3 days before'], [7, '1 week before']];
@@ -113,8 +114,9 @@ export function renderCalendar(host, user) {
     save.addEventListener('click', async () => {
       if (!title.value.trim()) return toast('Give the event a title.', 'error');
       const reminders = remindChecks.filter((x) => x.cb.checked).map((x) => x.d);
-      // These need a user gesture — do it here, on the Save click.
-      if (reminders.length) { requestReminderPermission(); primeReminderAudio(); }
+      // These need a user gesture — do it here, on the Save click. registerPush
+      // enrols this browser so the reminder still arrives with ROMIO closed.
+      if (reminders.length) { requestReminderPermission(); primeReminderAudio(); registerPush({ prompt: true }).catch(() => {}); }
       save.disabled = true;
       try { await addUserDoc(user.uid, 'events', { title: title.value.trim(), date: date.value, time: time.value, note: note.value.trim(), reminders }); toast('Event added', 'success'); close(); }
       catch (err) { toast(err.message, 'error'); save.disabled = false; }
