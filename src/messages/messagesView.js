@@ -227,7 +227,7 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
     if (activeOtherUid) { ensurePresence(activeOtherUid); refreshActivePresence(); }
     const head = el('div', { class: 'msg-chat-head' }, [
       back,
-      convAvatarWithPresence(c),
+      convAvatar(c),   // no presence dot here — the status line below already shows Online/Last seen
       el('div', { class: 'msg-chat-titlewrap' }, [titleEl, statusEl]),
       c.type === 'group' ? el('span', { class: 'msg-conv-tag' }, `${(c.members || []).length} members`) : null,
     ]);
