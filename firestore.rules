@@ -58,7 +58,7 @@ service cloud.firestore {
       // Self-branch is checked first so ordinary edits don't pay for a get().
       allow update: if signedIn() && (
         (request.auth.uid == uid
-         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isMaster', 'suspended', 'deleted']))
+         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isMaster', 'suspended', 'deleted', 'pro', 'proUntil']))
         || isMaster()
       );
       allow delete: if isMaster();

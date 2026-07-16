@@ -18,6 +18,7 @@ import { avatarNode, applyAvatar } from '../profile/avatar.js';
 import { renderWidgetsPanel } from './widgets.js';
 import { loadMentionUsers, renderBodyWithMentions, attachMentionAutocomplete, extractMentions } from './feedMentions.js';
 import { renderComposer } from './composer.js';
+import { adSlotNode } from '../monetize.js';
 import { renderPostExtras } from './postMedia.js';
 
 export function renderFeed(root, user, opts = {}) {
@@ -38,6 +39,7 @@ export function renderFeed(root, user, opts = {}) {
       el('div', { class: 'feed' }, [
         el('h2', { class: 'section__title' }, 'Feed'),
         composer,
+        adSlotNode(),   // null unless AdSense is configured and the viewer isn't Pro
         list,
       ]),
       widgetsAside,

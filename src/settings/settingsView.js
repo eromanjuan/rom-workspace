@@ -16,6 +16,7 @@ import {
   listTrashedFiles, restoreFile, permanentlyDeleteFile, purgeExpiredTrash, TRASH_TTL_MS,
 } from '../workspaces/data.js';
 import { SOUND_EVENTS, SOUND_PRESETS, getSoundConfig, setSoundConfig, previewSound, primeAudio, MAX_SOUND_BYTES } from '../ui/sounds.js';
+import { MONETIZE, PRO_PERKS, isPro } from '../monetize.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
@@ -30,6 +31,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
     { key: 'theme', title: 'Theme', icon: 'palette', desc: 'Colours, background & dark mode', build: () => buildThemeSection() },
     { key: 'trash', title: 'Trash', icon: 'trash', desc: 'Restore or permanently delete files', build: () => buildTrashSection(user) },
     { key: 'sounds', title: 'Sounds', icon: 'volume', desc: 'Chat, notification, reminder & alarm sounds', build: () => buildSoundsSection(user) },
+    { key: 'pro', title: 'ROMIO Pro', icon: 'crown', desc: 'Upgrade or support ROMIO', build: () => buildProSection(user) },
     { key: 'report', title: 'Report a problem', icon: 'flag', desc: 'Send feedback or report a bug', build: () => buildReportSection(user) },
     { key: 'workspace', title: 'Workspaces', icon: 'layout-dashboard', desc: 'Create & manage your workspaces', build: () => buildWorkspaceSection(user, onOpenWorkspace) },
     { key: 'activity', title: 'Activity log', icon: 'history', desc: 'Your recent actions', build: () => buildActivitySection(user) },
@@ -286,7 +288,8 @@ function buildControlPanelSection(user) {
       uMaster ? el('span', { class: 'pill pill--owner' }, 'Master') : null,
       u.suspended && !u.deleted ? el('span', { class: 'pill pill--danger' }, 'Suspended') : null,
       u.deleted ? el('span', { class: 'pill pill--danger' }, 'Removed') : null,
-      (!uMaster && !u.suspended && !u.deleted) ? el('span', { class: 'muted' }, 'Active') : null,
+      u.pro && !u.deleted ? el('span', { class: 'pill pill--editor' }, [icon('crown'), ' Pro']) : null,
+      (!uMaster && !u.suspended && !u.deleted && !u.pro) ? el('span', { class: 'muted' }, 'Active') : null,
     ]);
     const acts = el('div', { class: 'admin-acts' });
     if (isSelf || isOriginal) {
@@ -296,12 +299,14 @@ function buildControlPanelSection(user) {
       susBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { suspended: !u.suspended }); toast(u.suspended ? 'Unsuspended' : 'Suspended', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
       const masBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.isMaster ? 'Revoke master' : 'Make master');
       masBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { isMaster: !u.isMaster }); toast('Updated', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+      const proBtn = el('button', { class: `btn btn--sm ${u.pro ? '' : 'btn--ghost'}`, title: u.pro ? 'Remove Pro' : 'Grant Pro (after they pay)' }, [icon('crown'), u.pro ? ' Remove Pro' : ' Make Pro']);
+      proBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { pro: !u.pro }); toast(u.pro ? 'Pro removed' : 'Pro granted', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
       const delBtn = el('button', { class: 'btn btn--danger btn--sm' }, 'Delete');
       delBtn.addEventListener('click', async () => {
         if (!(await confirmModal({ title: 'Delete this account?', message: `${u.displayName || u.email} will be banned and their posts removed. Their sign-in credential can only be fully deleted from the Firebase console.`, confirmLabel: 'Delete', danger: true }))) return;
         try { await adminDeleteUser(u); toast('Account removed', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
       });
-      acts.append(susBtn, masBtn, delBtn);
+      acts.append(susBtn, masBtn, proBtn, delBtn);
     }
     return el('tr', {}, [
       el('td', {}, el('div', { class: 'admin-user' }, [
@@ -342,6 +347,44 @@ function buildControlPanelSection(user) {
     el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
     search,
     wrap,
+  ]);
+}
+
+/* ---------- ROMIO Pro: upgrade / support ---------- */
+
+function buildProSection(user) {
+  const body = el('div', {}, el('p', { class: 'muted' }, 'Loading…'));
+  getUserProfile(user.uid).then((p) => {
+    const pro = isPro(p);
+    clear(body);
+    if (pro) {
+      body.append(el('div', { class: 'pro-status' }, [
+        el('span', { class: 'pill pill--owner' }, [icon('crown'), ' Pro']),
+        el('span', { class: 'muted' }, ' — thanks for supporting ROMIO!'),
+      ]));
+    }
+    body.append(el('ul', { class: 'pro-perks' }, PRO_PERKS.map(([, title, desc]) =>
+      el('li', {}, [icon('circle-check'), el('b', {}, ` ${title}`), el('span', { class: 'muted' }, ` — ${desc}`)]))));
+
+    const actions = el('div', { class: 'pro-actions' });
+    if (!pro && MONETIZE.proCheckoutUrl) {
+      actions.append(el('a', { class: 'btn btn--primary', href: MONETIZE.proCheckoutUrl, target: '_blank', rel: 'noopener' }, [icon('crown'), ` Upgrade to Pro — ${MONETIZE.proPriceLabel}`]));
+    } else if (!pro) {
+      actions.append(el('span', { class: 'muted' }, 'Pro checkout isn\'t configured yet.'));
+    }
+    if (MONETIZE.supportUrl) {
+      actions.append(el('a', { class: 'btn btn--ghost', href: MONETIZE.supportUrl, target: '_blank', rel: 'noopener' }, [icon('heart'), ' Support ROMIO']));
+    }
+    body.append(actions);
+    if (!pro && MONETIZE.proCheckoutUrl) {
+      body.append(el('p', { class: 'muted pro-note' }, 'After paying, a ROMIO admin activates your Pro (automatic activation via webhook comes later).'));
+    }
+  }).catch(() => { clear(body).append(el('p', { class: 'error-text' }, 'Could not load Pro status.')); });
+
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('crown'), ' ROMIO Pro']),
+    el('p', { class: 'muted' }, 'Go ad-free and support ROMIO, or tip to keep it running.'),
+    body,
   ]);
 }
 
