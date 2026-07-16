@@ -14,12 +14,42 @@
 import { el } from './ui/dom.js';
 
 export const MONETIZE = {
-  supportUrl: '',        // e.g. 'https://ko-fi.com/yourname'
-  proCheckoutUrl: '',    // e.g. 'https://your.lemonsqueezy.com/checkout/...'
-  proPriceLabel: '$5 / month',
+  // Which checkout provider proCheckoutUrl / supportUrl point at. This only
+  // controls how the buyer's email + uid are prefilled onto the link:
+  //   'lemonsqueezy' | 'stripe' | 'gumroad' | 'kofi' | 'paypal' | 'generic'
+  provider: 'gumroad',
+  supportUrl: '',        // a tip/donation link (add a "pay what you want" Gumroad product if you want tips)
+  proCheckoutUrl: 'https://eugenio88.gumroad.com/l/parnex',   // "Romio pro" on Gumroad
+  proPriceLabel: '',     // e.g. '$5 / month' — shown on the button; leave blank to hide the price
   adsenseClient: '',     // e.g. 'ca-pub-1234567890123456'
   adsenseSlot: '',       // optional ad-unit slot id
 };
+
+// Build the checkout URL for a user, prefilling email + attaching the ROMIO uid
+// so payments are traceable and a webhook can auto-match the buyer. The query
+// params differ per provider.
+export function proCheckoutUrlFor(user) {
+  const base = MONETIZE.proCheckoutUrl;
+  if (!base || !user) return base;
+  try {
+    const u = new URL(base);
+    const set = (k, v) => { if (v) u.searchParams.set(k, v); };
+    switch (MONETIZE.provider) {
+      case 'lemonsqueezy':
+        set('checkout[email]', user.email); set('checkout[custom][uid]', user.uid); set('checkout[name]', user.displayName);
+        break;
+      case 'stripe': // Stripe Payment Links
+        set('prefilled_email', user.email); set('client_reference_id', user.uid);
+        break;
+      case 'gumroad':
+        set('email', user.email); set('uid', user.uid);
+        break;
+      default: // kofi / paypal / generic — no reliable prefill, use the link as-is
+        break;
+    }
+    return u.toString();
+  } catch { return base; }
+}
 
 // The perks a Pro subscription unlocks (shown on the upgrade page).
 export const PRO_PERKS = [

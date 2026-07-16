@@ -16,7 +16,7 @@ import {
   listTrashedFiles, restoreFile, permanentlyDeleteFile, purgeExpiredTrash, TRASH_TTL_MS,
 } from '../workspaces/data.js';
 import { SOUND_EVENTS, SOUND_PRESETS, getSoundConfig, setSoundConfig, previewSound, primeAudio, MAX_SOUND_BYTES } from '../ui/sounds.js';
-import { MONETIZE, PRO_PERKS, isPro } from '../monetize.js';
+import { MONETIZE, PRO_PERKS, isPro, proCheckoutUrlFor } from '../monetize.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
@@ -368,7 +368,7 @@ function buildProSection(user) {
 
     const actions = el('div', { class: 'pro-actions' });
     if (!pro && MONETIZE.proCheckoutUrl) {
-      actions.append(el('a', { class: 'btn btn--primary', href: MONETIZE.proCheckoutUrl, target: '_blank', rel: 'noopener' }, [icon('crown'), ` Upgrade to Pro — ${MONETIZE.proPriceLabel}`]));
+      actions.append(el('a', { class: 'btn btn--primary', href: proCheckoutUrlFor(user), target: '_blank', rel: 'noopener' }, [icon('crown'), MONETIZE.proPriceLabel ? ` Upgrade to Pro — ${MONETIZE.proPriceLabel}` : ' Upgrade to Pro']));
     } else if (!pro) {
       actions.append(el('span', { class: 'muted' }, 'Pro checkout isn\'t configured yet.'));
     }
