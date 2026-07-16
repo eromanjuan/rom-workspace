@@ -7,7 +7,7 @@ import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, curren
 import { isMaster, roleLabel, MASTER_EMAIL } from '../workspaces/roles.js';
 import { APP_ICONS, APP_COLORS } from '../workspaces/appBuilder.js';
 import {
-  listMyWorkspaces, createWorkspace, deleteWorkspace,
+  listMyWorkspaces, createWorkspace, deleteWorkspace, countOwnedWorkspaces,
   setCurrentWorkspace, getUserProfile, updateUserProfile, uploadWorkspaceImage,
   isUsernameAvailable, usernameFormatError, changeUsername, normalizeUsername,
   listAllUsers, adminSetUser, adminDeleteUser,
@@ -16,7 +16,7 @@ import {
   listTrashedFiles, restoreFile, permanentlyDeleteFile, purgeExpiredTrash, TRASH_TTL_MS,
 } from '../workspaces/data.js';
 import { SOUND_EVENTS, SOUND_PRESETS, getSoundConfig, setSoundConfig, previewSound, primeAudio, MAX_SOUND_BYTES } from '../ui/sounds.js';
-import { MONETIZE, PRO_PERKS, isPro, proCheckoutUrlFor } from '../monetize.js';
+import { MONETIZE, PRO_PERKS, PLAN_MATRIX, isPro, proCheckoutUrlFor, viewerIsPro, proGate } from '../monetize.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
@@ -355,16 +355,24 @@ function buildControlPanelSection(user) {
 function buildProSection(user) {
   const body = el('div', {}, el('p', { class: 'muted' }, 'Loading…'));
   getUserProfile(user.uid).then((p) => {
-    const pro = isPro(p);
+    const master = isMaster(user);
+    const pro = isPro(p) || master;
     clear(body);
     if (pro) {
       body.append(el('div', { class: 'pro-status' }, [
-        el('span', { class: 'pill pill--owner' }, [icon('crown'), ' Pro']),
-        el('span', { class: 'muted' }, ' — thanks for supporting ROMIO!'),
+        el('span', { class: 'pill pill--pro' }, [icon('crown'), ' Pro']),
+        el('span', { class: 'muted' }, master ? ' — master accounts include Pro.' : ' — thanks for supporting ROMIO!'),
       ]));
     }
-    body.append(el('ul', { class: 'pro-perks' }, PRO_PERKS.map(([, title, desc]) =>
-      el('li', {}, [icon('circle-check'), el('b', {}, ` ${title}`), el('span', { class: 'muted' }, ` — ${desc}`)]))));
+    // Free-vs-Pro comparison so users see exactly what upgrading unlocks.
+    body.append(el('div', { class: 'pro-gate-grid', style: 'margin:0.9rem 0' }, [
+      el('div', { class: 'pro-gate-row pro-gate-head' }, [el('span', {}, 'Feature'), el('span', {}, 'Free'), el('span', {}, 'Pro')]),
+      ...PLAN_MATRIX.map(([label, free, proVal]) => el('div', { class: 'pro-gate-row' }, [
+        el('span', { class: 'pro-gate-feat' }, label),
+        el('span', { class: 'pro-gate-free muted' }, free),
+        el('span', { class: 'pro-gate-pro' }, proVal),
+      ])),
+    ]));
 
     const actions = el('div', { class: 'pro-actions' });
     if (!pro && MONETIZE.proCheckoutUrl) {
@@ -985,16 +993,26 @@ function buildThemeSection() {
     const f = bgFile.files && bgFile.files[0];
     bgFile.value = '';
     if (!f) return;
+    if (!viewerIsPro()) { proGate('Photo background'); return; }
     try { const url = await compressBg(f); setAppearance({ bgType: 'image', bgImage: url }); drawBg(); toast('Background updated', 'success'); }
     catch { toast('Could not load that image.', 'error'); }
   });
+  // Free plan: colors & preset patterns are allowed, but a photo background is
+  // ROMIO Pro. Master is always Pro, so this never blocks them.
+  const proBg = viewerIsPro();
   function drawBg() {
     const a = getAppearance();
     const type = a.bgType || 'none';
-    const mk = (val, label, ic) => el('button', {
-      class: `seg ${type === val ? 'seg--active' : ''}`,
-      onclick: () => { if (val === 'none') { setAppearance({ bgType: 'none' }); } else { setAppearance({ bgType: val }); } drawBg(); },
-    }, [icon(ic), ' ' + label]);
+    const mk = (val, label, ic) => {
+      const locked = val === 'image' && !proBg;
+      return el('button', {
+        class: `seg ${type === val ? 'seg--active' : ''} ${locked ? 'is-locked' : ''}`,
+        onclick: () => {
+          if (locked) { proGate('Photo background'); return; }
+          if (val === 'none') { setAppearance({ bgType: 'none' }); } else { setAppearance({ bgType: val }); } drawBg();
+        },
+      }, [icon(ic), ' ' + label, locked ? el('span', { class: 'seg-lock' }, icon('lock')) : null]);
+    };
     clear(bgWrap).append(el('div', { class: 'seg-group' }, [mk('none', 'None', 'ban'), mk('pattern', 'Pattern', 'grid-dots'), mk('image', 'Image', 'photo')]));
     clear(bgDetail);
     if (type === 'pattern') {
@@ -1009,9 +1027,13 @@ function buildThemeSection() {
       }
       bgDetail.append(row);
     } else if (type === 'image') {
-      const pick = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' }, [icon('upload'), a.bgImage ? ' Replace image' : ' Upload image']);
-      pick.addEventListener('click', () => bgFile.click());
-      bgDetail.append(el('div', { class: 'theme-slider-row', style: 'margin-top:10px' }, [pick, a.bgImage ? el('span', { class: 'muted', style: 'font-size:12px' }, 'Image set') : null]));
+      if (!proBg) {
+        bgDetail.append(el('button', { class: 'avatar-frame-upsell', type: 'button', onclick: () => proGate('Photo background') }, [icon('crown'), ' Upload a photo background with ROMIO Pro']));
+      } else {
+        const pick = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' }, [icon('upload'), a.bgImage ? ' Replace image' : ' Upload image']);
+        pick.addEventListener('click', () => bgFile.click());
+        bgDetail.append(el('div', { class: 'theme-slider-row', style: 'margin-top:10px' }, [pick, a.bgImage ? el('span', { class: 'muted', style: 'font-size:12px' }, 'Image set') : null]));
+      }
     }
   }
   drawBg();
@@ -1181,6 +1203,19 @@ function openDeleteWorkspaceModal(user, ws, onDeleted) {
 }
 
 export function openCreateWorkspaceModal(user, onDone) {
+  // Free plan: capped at 1 owned workspace. Show the upgrade gate instead of the
+  // create form once they're at the cap. (Master is always Pro, so it passes.)
+  if (!viewerIsPro()) {
+    countOwnedWorkspaces(user.uid).then((n) => {
+      if (n >= 1) proGate('More than one workspace');
+      else _openCreateWorkspaceModal(user, onDone);
+    }).catch(() => _openCreateWorkspaceModal(user, onDone));
+    return;
+  }
+  _openCreateWorkspaceModal(user, onDone);
+}
+
+function _openCreateWorkspaceModal(user, onDone) {
   const state = { mode: 'icon', icon: APP_ICONS[0], color: APP_COLORS[0], file: null, previewUrl: '' };
   const { body, close, iconEl } = openModal({ title: 'Create workspace', iconName: state.icon, iconColor: state.color });
 

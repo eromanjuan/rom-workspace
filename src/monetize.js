@@ -11,7 +11,7 @@
 // How Pro unlocks (no backend needed to start): a user pays via proCheckoutUrl,
 // then you (a master) flip them to Pro in Settings → Control panel. Later, a
 // Stripe/Lemon Squeezy webhook + Cloud Function can automate that.
-import { el } from './ui/dom.js';
+import { el, icon, openModal } from './ui/dom.js';
 
 export const MONETIZE = {
   // Which checkout provider proCheckoutUrl / supportUrl point at. This only
@@ -68,9 +68,56 @@ export function isPro(profile) {
   return false;
 }
 
-// The signed-in viewer's Pro status (set from main.js) — gates ads.
-let viewerPro = false;
-export function setViewerPro(v) { viewerPro = !!v; }
+// The signed-in viewer (set from main.js) — drives every Pro gate below.
+const viewer = { user: null, pro: false };
+export function setViewer(user, pro) { viewer.user = user || null; viewer.pro = !!pro; }
+// Back-compat: older call sites just set the boolean.
+export function setViewerPro(v) { viewer.pro = !!v; }
+// Is the signed-in viewer Pro? (master accounts are always Pro — set in main.js)
+export function viewerIsPro() { return viewer.pro; }
+
+// The plan matrix, for the Free-vs-Pro comparison shown on the upgrade page.
+export const PLAN_MATRIX = [
+  ['Workspaces', 'Just 1', 'Unlimited'],
+  ['Avatar frame', 'Default blue only', 'All presets + custom color, gradient & thickness'],
+  ['Profile theme', 'Colors & presets', 'Fully custom — incl. photo background'],
+  ['Chat encryption', '—', 'End-to-end encrypted messages'],
+  ['Ads', 'Shown', 'Ad-free'],
+  ['Pro badge', '—', 'On your profile'],
+];
+
+// Gate a Pro-only feature. Returns true if the viewer may use it; otherwise it
+// pops an upgrade modal and returns false. Use as: if (!proGate('Chat encryption')) return;
+export function proGate(feature) {
+  if (viewer.pro) return true;
+  try {
+    const { body, close } = openModal({ title: 'A ROMIO Pro feature', iconName: 'crown', wide: true });
+    const rows = PLAN_MATRIX.map(([label, free, pro]) => el('div', { class: 'pro-gate-row' }, [
+      el('span', { class: 'pro-gate-feat' }, label),
+      el('span', { class: 'pro-gate-free muted' }, free),
+      el('span', { class: 'pro-gate-pro' }, pro),
+    ]));
+    const upgradeUrl = proCheckoutUrlFor(viewer.user) || MONETIZE.proCheckoutUrl;
+    const actions = el('div', { class: 'pro-gate-actions' }, [
+      el('button', { class: 'btn btn--ghost', type: 'button', onclick: close }, 'Maybe later'),
+      upgradeUrl
+        ? el('a', { class: 'btn btn--primary', href: upgradeUrl, target: '_blank', rel: 'noopener', onclick: close }, [icon('crown'), ' Upgrade to Pro'])
+        : el('span', { class: 'muted' }, 'Upgrade coming soon'),
+    ]);
+    body.append(
+      el('p', { class: 'pro-gate-lead' }, [el('b', {}, feature), ' is part of ', el('b', {}, 'ROMIO Pro'), '.']),
+      el('div', { class: 'pro-gate-grid' }, [
+        el('div', { class: 'pro-gate-row pro-gate-head' }, [el('span', {}, ''), el('span', { class: 'muted' }, 'Free'), el('span', {}, 'Pro')]),
+        ...rows,
+      ]),
+      actions,
+    );
+  } catch { /* modal unavailable — fail closed silently */ }
+  return false;
+}
+
+// Which avatar frames a Free user may use (everything else is Pro-gated).
+export const FREE_FRAMES = ['', 'none', 'blue'];
 
 // --- ads (Google AdSense) ---
 let adsLoaded = false;
@@ -87,7 +134,7 @@ function ensureAdsenseLoaded() {
 
 // An ad unit, or null when ads are off (not configured, or the viewer is Pro).
 export function adSlotNode() {
-  if (!MONETIZE.adsenseClient || viewerPro) return null;
+  if (!MONETIZE.adsenseClient || viewer.pro) return null;
   ensureAdsenseLoaded();
   const ins = el('ins', {
     class: 'adsbygoogle', style: 'display:block',

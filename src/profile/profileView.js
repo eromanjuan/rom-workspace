@@ -11,6 +11,7 @@ import { avatarNode, applyAvatar, initials, openAvatarEditor, pickAndEditAvatar,
 import { profileLinksNode } from './links.js';
 import { bioNode } from './bio.js';
 import { AVATAR_FRAMES, cleanFrame, applyFrame, DEFAULT_THICKNESS, DEFAULT_CUSTOM } from './frames.js';
+import { viewerIsPro, proGate, FREE_FRAMES } from '../monetize.js';
 
 // Returns an unsubscribe function (for the live widgets listener).
 export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewAsVisitor } = {}) {
@@ -79,9 +80,15 @@ export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewA
     [modeSel, c1, c2, angle].forEach((inp) => inp.addEventListener('change', saveFrame));
 
     // --- swatches (presets + a Custom swatch) ---
+    // Free plan: only "None" and the default "Blue" frame. Everything else
+    // (other presets, custom color/gradient/thickness) is ROMIO Pro.
+    const pro = viewerIsPro();
+    const isFreeFrame = (id) => FREE_FRAMES.includes(cleanFrame(id));
     let swatches = [];
     const selectFrame = (id) => {
-      currentFrame = cleanFrame(id);
+      const cleaned = cleanFrame(id);
+      if (!pro && !isFreeFrame(cleaned)) { proGate('Custom avatar frames'); return; }
+      currentFrame = cleaned;
       customBox.style.display = currentFrame === 'custom' ? '' : 'none';
       if (currentFrame === 'custom') { readCustom(); syncCustomInputs(); }
       for (const sw of swatches) sw.classList.toggle('is-active', sw.dataset.fid === (currentFrame || ''));
@@ -89,10 +96,13 @@ export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewA
       saveFrame();
     };
     const makeSwatch = (id, label, isCustom) => {
-      const sw = el('button', { class: `avatar-frame-swatch ${id === currentFrame ? 'is-active' : ''}`, type: 'button', title: label, ...(id && !isCustom ? { 'data-frame': id } : {}) },
-        isCustom ? icon('palette') : (id ? '' : el('span', { class: 'avatar-frame-none' }, icon('ban'))));
+      const locked = !pro && (isCustom || !isFreeFrame(id));
+      const sw = el('button', { class: `avatar-frame-swatch ${id === currentFrame ? 'is-active' : ''} ${locked ? 'is-locked' : ''}`, type: 'button', title: locked ? `${label} — ROMIO Pro` : label, ...(id && !isCustom ? { 'data-frame': id } : {}) }, [
+        isCustom ? icon('palette') : (id ? null : el('span', { class: 'avatar-frame-none' }, icon('ban'))),
+        locked ? el('span', { class: 'avatar-frame-lock' }, icon('lock')) : null,
+      ]);
       sw.dataset.fid = id;
-      sw.addEventListener('click', () => selectFrame(id));
+      sw.addEventListener('click', () => { if (locked) { proGate('Custom avatar frames'); return; } selectFrame(id); });
       return sw;
     };
     swatches = [...AVATAR_FRAMES.map((f) => makeSwatch(f.id, f.label, false)), makeSwatch('custom', 'Custom', true)];
@@ -108,12 +118,13 @@ export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewA
       el('div', { class: 'avatar-frame-picker' }, [
         el('div', { class: 'avatar-frame-title muted' }, 'Frame'),
         el('div', { class: 'avatar-frame-grid' }, swatches),
-        customBox,
-        el('label', { class: 'avatar-cf-field avatar-cf-thickrow' }, [el('span', {}, 'Thickness'), thick]),
+        // Custom controls + thickness are Pro-only; Free shows an upgrade hint.
+        ...(pro ? [customBox, el('label', { class: 'avatar-cf-field avatar-cf-thickrow' }, [el('span', {}, 'Thickness'), thick])]
+          : [el('button', { class: 'avatar-frame-upsell', type: 'button', onclick: () => proGate('Custom avatar frames') }, [icon('crown'), ' Unlock custom color, gradient & thickness with Pro'])]),
       ]),
     );
     syncCustomInputs();
-    if (currentFrame === 'custom') customBox.style.display = '';
+    if (pro && currentFrame === 'custom') customBox.style.display = '';
   }
 
   const bioSlot = el('div', { class: 'profile-bio-slot' });
@@ -127,6 +138,7 @@ export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewA
       el('div', { class: 'profile-badges' }, [
         el('span', { class: `pill ${isMaster(user) ? 'pill--owner' : 'pill--viewer'}` },
           isMaster(user) ? 'Master · full access' : 'Member'),
+        viewerIsPro() ? el('span', { class: 'pill pill--pro' }, [icon('crown'), ' Pro']) : null,
         user.emailVerified ? el('span', { class: 'pill pill--editor' }, [icon('circle-check'), ' Verified']) : null,
       ]),
       bioSlot,

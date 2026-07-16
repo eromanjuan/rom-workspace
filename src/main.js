@@ -24,7 +24,7 @@ import { isMaster } from './workspaces/roles.js';
 import { logOut } from './auth/auth.js';
 import { openWorkspaceSettings } from './workspaces/workspaceSettings.js';
 import { buildShell, renderPlaceholder } from './ui/shell.js';
-import { isPro, setViewerPro } from './monetize.js';
+import { isPro, setViewer } from './monetize.js';
 import { mountNotifications } from './notifications/notificationsPanel.js';
 import { el, clear, icon, toast } from './ui/dom.js';
 
@@ -169,10 +169,10 @@ if (window.top !== window.self) {
         themeUser = user;
         let prof = null;
         try { prof = await getUserProfile(user.uid); if (prof?.theme) applyThemeBundle(prof.theme); } catch { /* ignore */ }
-        // Pro status gates ads + premium perks.
-        try { setViewerPro(isPro(prof)); } catch { /* ignore */ }
         // Dynamic master flag (promoted users) + suspend/ban enforcement.
         user.isMasterFlag = prof?.isMaster === true;
+        // Pro status gates ads + premium perks. Master accounts are always Pro.
+        try { setViewer(user, isMaster(user) || isPro(prof)); } catch { /* ignore */ }
         if (!isMaster(user) && (prof?.deleted || prof?.suspended)) { renderBlocked(prof?.deleted ? 'deleted' : 'suspended'); return; }
         // Every account must have a username. If the profile lost the field but a
         // reservation still exists, restore it silently instead of re-prompting.

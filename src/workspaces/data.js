@@ -7,7 +7,20 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../firebase.js';
 import { isMaster, hasWritePerm } from './roles.js';
+import { viewerIsPro } from '../monetize.js';
 import { ensureWorkspaceConversation, addWorkspaceConversationMember, removeWorkspaceConversationMember, renameWorkspaceConversation } from '../messages/messagesData.js';
+
+// How many workspaces a user owns. Free accounts are capped at 1; Pro (and
+// master, who is always Pro) are unlimited. Used to enforce the plan limit.
+export async function countOwnedWorkspaces(uid) {
+  try {
+    const snap = await getDocs(query(collection(db, 'workspaces'), where('ownerId', '==', uid)));
+    return snap.size;
+  } catch { return 0; }
+}
+
+// Thrown by createWorkspace when a Free account is already at its 1-workspace cap.
+export const FREE_WORKSPACE_LIMIT = 'free-workspace-limit';
 
 // Broadcast so mounted views (Settings, Profile, the Workspace tab) refresh
 // their workspace lists instantly without a page reload.
@@ -23,6 +36,11 @@ function workspacesChanged() { try { window.dispatchEvent(new Event('rom-workspa
 // { name, description, icon, color, imageUrl }.
 export async function createWorkspace(user, opts) {
   const o = typeof opts === 'string' ? { name: opts } : (opts || {});
+  // Free plan: at most one owned workspace. Master accounts are always Pro so
+  // this never trips for them. This is the hard backstop behind the UI gate.
+  if (!viewerIsPro() && await countOwnedWorkspaces(user.uid) >= 1) {
+    const e = new Error(FREE_WORKSPACE_LIMIT); e.code = FREE_WORKSPACE_LIMIT; throw e;
+  }
   const wsRef = doc(collection(db, 'workspaces'));
   await setDoc(wsRef, {
     name: o.name,

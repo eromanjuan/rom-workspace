@@ -1,0 +1,14 @@
+{
+  "name": "romio-functions",
+  "description": "Cloud Functions for ROMIO — Gumroad Pro auto-activation",
+  "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "private": true
+}

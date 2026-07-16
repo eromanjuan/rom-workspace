@@ -8,6 +8,7 @@ import { isOnline, presenceText, presenceExact, lastActiveDate } from '../auth/p
 import { avatarNode } from '../profile/avatar.js';
 import { listenConversations, listenMessages, sendMessage, getConversation, ensureDirectConversation, MAX_ATTACHMENT_BYTES } from './messagesData.js';
 import { ENCRYPTIONS, algoLabel, encryptMessage, decryptMessage } from './crypto.js';
+import { viewerIsPro, proGate } from '../monetize.js';
 
 // --- inline attachment encoding (no Firebase Storage; stored as data URLs) ---
 const approxBytes = (dataURL) => Math.ceil((dataURL.length - dataURL.indexOf(',') - 1) * 0.75);
@@ -283,7 +284,13 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
         encBanner.style.display = 'none';
       }
     };
-    lockB.addEventListener('click', () => { if (encState) { encState = null; refreshEncUI(); } else openEncSetup(null); });
+    // Enabling encryption is ROMIO Pro. (Free users can still DECRYPT messages
+    // they receive — only turning it on for outgoing messages is gated.)
+    lockB.addEventListener('click', () => {
+      if (encState) { encState = null; refreshEncUI(); return; }
+      if (!viewerIsPro()) { proGate('Chat encryption'); return; }
+      openEncSetup(null);
+    });
     refreshEncUI();
 
     const submit = async () => {

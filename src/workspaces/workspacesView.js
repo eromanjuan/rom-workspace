@@ -1,7 +1,8 @@
 // Lists the workspaces the user belongs to and lets them create new ones.
 import { el, clear, toast } from '../ui/dom.js';
 import { roleLabel } from './roles.js';
-import { createWorkspace, listMyWorkspaces } from './data.js';
+import { createWorkspace, listMyWorkspaces, countOwnedWorkspaces } from './data.js';
+import { viewerIsPro, proGate } from '../monetize.js';
 
 export async function renderWorkspaces(root, user, onOpen) {
   clear(root);
@@ -13,6 +14,7 @@ export async function renderWorkspaces(root, user, onOpen) {
   createBtn.addEventListener('click', async () => {
     const name = nameInput.value.trim();
     if (!name) return;
+    if (!viewerIsPro() && await countOwnedWorkspaces(user.uid) >= 1) { proGate('More than one workspace'); return; }
     createBtn.disabled = true;
     try {
       const id = await createWorkspace(user, name);

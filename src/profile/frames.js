@@ -4,6 +4,7 @@
 // setting data-frame (+ inline --frm/padding for custom) on the avatar wrapper.
 export const AVATAR_FRAMES = [
   { id: '', label: 'None' },
+  { id: 'blue', label: 'Blue' },
   { id: 'gold', label: 'Gold' },
   { id: 'gradient', label: 'Gradient' },
   { id: 'neon', label: 'Neon' },

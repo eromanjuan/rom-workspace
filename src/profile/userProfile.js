@@ -5,7 +5,8 @@ import { el, clear, icon, toast } from '../ui/dom.js';
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { getUserProfile, listMyWorkspaces, setCurrentWorkspace, requestToJoin, getMyJoinRequest, cancelJoinRequest, listenUser } from '../workspaces/data.js';
-import { roleLabel, isMaster } from '../workspaces/roles.js';
+import { roleLabel, isMaster, MASTER_EMAIL } from '../workspaces/roles.js';
+import { isPro } from '../monetize.js';
 import { postCard } from '../feed/feed.js';
 import { avatarNode } from './avatar.js';
 import { profileLinksNode } from './links.js';
@@ -80,7 +81,10 @@ export function renderUserProfile(host, targetUid, currentUser, { onBack, onOpen
     clear(head).append(
       avWrap,
       el('div', { class: 'profile-head-main' }, [
-        el('div', { class: 'profile-name' }, name),
+        el('div', { class: 'profile-name' }, [
+          name,
+          (isPro(p) || p?.isMaster === true || p?.email === MASTER_EMAIL) ? el('span', { class: 'pill pill--pro profile-pro' }, [icon('crown'), ' Pro']) : null,
+        ]),
         p?.username ? el('div', { class: 'muted profile-username' }, `@${p.username}`) : null,
         presenceEl,
         vis.email && p?.email ? el('div', { class: 'muted profile-email' }, p.email) : null,
