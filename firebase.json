@@ -1,18 +1,24 @@
 {
-  "hosting": {
-    "public": "dist",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [
-      {
-        "source": "/workspace-module/**",
-        "destination": "/workspace-module/index.html"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "site": "romio",
+      "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "/workspace-module/**", "destination": "/workspace-module/index.html" },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    },
+    {
+      "site": "rom-database-0909",
+      "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "/workspace-module/**", "destination": "/workspace-module/index.html" },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
