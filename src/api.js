@@ -1,12 +1,17 @@
 // Talking to the ROMIO backend (the Vercel API).
 //
-// The backend is optional: if VITE_API_BASE isn't set, every caller degrades
-// gracefully and the app behaves exactly as it did before (in-app reminders
-// only, manual Pro). Set it in .env.local / the host env, e.g.
-//   VITE_API_BASE=https://romio-backend.vercel.app
+// The backend is optional: point VITE_API_BASE elsewhere (or set it empty) and
+// every caller degrades gracefully — the app behaves exactly as it did before
+// (in-app reminders only, manual Pro).
+//
+// The default below is the deployed ROMIO API. It's a public URL, not a secret —
+// the same pattern firebase.js uses for its public web config — so a build works
+// with no extra env setup.
 import { auth } from './firebase.js';
 
-export const API_BASE = String(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
+export const API_BASE = String(
+  import.meta.env.VITE_API_BASE ?? 'https://romio-backend.vercel.app',
+).replace(/\/$/, '');
 export const apiReady = () => !!API_BASE;
 
 // Call the backend as the signed-in user (sends a Firebase ID token, which the
