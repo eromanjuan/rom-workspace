@@ -1,0 +1,41 @@
+{
+  "format": "romio-app",
+  "version": 1,
+  "exported_at": "2026-07-16T00:00:00.000Z",
+  "app": {
+    "name": "Class Schedule",
+    "description": "Your weekly timetable — courses, days, times, rooms and instructors.",
+    "type": "Records",
+    "icon": "ti-calendar-event",
+    "color": "#7c3aed",
+    "fields": [
+      { "id": "f_course", "label": "Course", "type": "text", "required": true, "hidden": false, "config": {} },
+      { "id": "f_day", "label": "Day", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "mon", "label": "Monday", "color": "#2563eb" },
+        { "id": "tue", "label": "Tuesday", "color": "#0d9488" },
+        { "id": "wed", "label": "Wednesday", "color": "#7c3aed" },
+        { "id": "thu", "label": "Thursday", "color": "#d97706" },
+        { "id": "fri", "label": "Friday", "color": "#16a34a" },
+        { "id": "sat", "label": "Saturday", "color": "#db2777" },
+        { "id": "sun", "label": "Sunday", "color": "#6b7280" }
+      ] } },
+      { "id": "f_start", "label": "Starts", "type": "date", "required": false, "hidden": false, "config": { "time": true } },
+      { "id": "f_end", "label": "Ends", "type": "date", "required": false, "hidden": false, "config": { "time": true } },
+      { "id": "f_room", "label": "Room", "type": "text", "required": false, "hidden": false, "config": {} },
+      { "id": "f_instructor", "label": "Instructor", "type": "text", "required": false, "hidden": false, "config": {} },
+      { "id": "f_kind", "label": "Type", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "lecture", "label": "Lecture", "color": "#2563eb" },
+        { "id": "lab", "label": "Lab", "color": "#0d9488" },
+        { "id": "seminar", "label": "Seminar", "color": "#7c3aed" },
+        { "id": "tutorial", "label": "Tutorial", "color": "#d97706" }
+      ] } }
+    ],
+    "automations": [
+      { "id": "a_added", "name": "Class added", "enabled": true, "trigger": { "event": "created" }, "actions": [ { "type": "notify", "message": "A class was added to your timetable." } ] }
+    ],
+    "items": [
+      { "id": "i_1", "values": { "f_course": "Data Structures", "f_day": "mon", "f_start": "2026-07-20T09:00", "f_end": "2026-07-20T10:30", "f_room": "CS-201", "f_instructor": "Prof. Reyes", "f_kind": "lecture" } },
+      { "id": "i_2", "values": { "f_course": "Physics Lab", "f_day": "wed", "f_start": "2026-07-22T13:00", "f_end": "2026-07-22T15:00", "f_room": "Lab B", "f_instructor": "Dr. Cruz", "f_kind": "lab" } }
+    ]
+  }
+}

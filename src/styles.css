@@ -978,6 +978,10 @@ select.input { cursor: pointer; }
 
 /* field-config modal */
 .field-modal { display: flex; flex-direction: column; gap: 0.5rem; }
+.cal-remind { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.cal-remind-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer; user-select: none; }
+.cal-remind-hint { font-size: 0.78rem; margin: 2px 0 0; }
+.cal-remind-view { display: inline-flex; align-items: center; gap: 5px; color: var(--primary); font-size: 0.9rem; }
 /* Per-workspace theme editor */
 .ws-theme-controls { display: flex; flex-direction: column; gap: 0.35rem; }
 .ws-theme-colors { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -1599,6 +1603,18 @@ body::before {
 .trash-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trash-sub { font-size: 12px; margin-top: 1px; }
 .trash-row > .btn { flex: 0 0 auto; }
+
+/* Sounds settings */
+.snd-list { display: flex; flex-direction: column; }
+.snd-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 11px 0; border-top: 1px solid var(--border, #232a34); }
+.snd-row:first-child { border-top: 0; }
+.snd-ic { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); flex: 0 0 auto; }
+.snd-label { font-size: 14px; flex: 1 1 130px; min-width: 110px; }
+.snd-preset { max-width: 140px; padding: 6px 8px; }
+.snd-preset:disabled { opacity: 0.5; }
+.snd-custom { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--primary); }
+.snd-custom-x { display: inline-flex; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 6px; }
+.snd-custom-x:hover { color: var(--danger, #ef4444); background: color-mix(in srgb, var(--text) 10%, transparent); }
 
 /* Toggle switch */
 .switch { position: relative; flex: 0 0 auto; width: 40px; height: 23px; }

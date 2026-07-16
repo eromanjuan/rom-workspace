@@ -1,0 +1,46 @@
+{
+  "format": "romio-app",
+  "version": 1,
+  "exported_at": "2026-07-16T00:00:00.000Z",
+  "app": {
+    "name": "Assignments",
+    "description": "Homework & assignment tracker — due dates, priority, progress and grades.",
+    "type": "Tasks",
+    "icon": "ti-checklist",
+    "color": "#2563eb",
+    "fields": [
+      { "id": "f_title", "label": "Assignment", "type": "text", "required": true, "hidden": false, "config": {} },
+      { "id": "f_subject", "label": "Subject", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "math", "label": "Math", "color": "#2563eb" },
+        { "id": "science", "label": "Science", "color": "#0d9488" },
+        { "id": "english", "label": "English", "color": "#7c3aed" },
+        { "id": "history", "label": "History", "color": "#d97706" },
+        { "id": "cs", "label": "Computer Sci", "color": "#16a34a" },
+        { "id": "other", "label": "Other", "color": "#6b7280" }
+      ] } },
+      { "id": "f_due", "label": "Due date", "type": "date", "required": false, "hidden": false, "config": { "time": true } },
+      { "id": "f_priority", "label": "Priority", "type": "status", "required": false, "hidden": false, "config": { "options": [
+        { "id": "low", "label": "Low", "color": "#16a34a" },
+        { "id": "medium", "label": "Medium", "color": "#d97706" },
+        { "id": "high", "label": "High", "color": "#dc2626" }
+      ] } },
+      { "id": "f_status", "label": "Status", "type": "status", "required": false, "hidden": false, "config": { "options": [
+        { "id": "todo", "label": "Not started", "color": "#6b7280" },
+        { "id": "doing", "label": "In progress", "color": "#2563eb" },
+        { "id": "done", "label": "Done", "color": "#16a34a" }
+      ] } },
+      { "id": "f_progress", "label": "Completion", "type": "progress", "required": false, "hidden": false, "config": {} },
+      { "id": "f_grade", "label": "Grade", "type": "number", "required": false, "hidden": false, "config": { "min": 0, "max": 100, "decimals": 1, "unit": "%" } },
+      { "id": "f_notes", "label": "Notes", "type": "textarea", "required": false, "hidden": false, "config": {} }
+    ],
+    "automations": [
+      { "id": "a_done100", "name": "Mark done at 100%", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_progress", "op": ">=", "value": "100" }, "actions": [ { "type": "set_field", "fieldId": "f_status", "value": "done" } ] },
+      { "id": "a_highprio", "name": "High-priority alert", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_priority", "value": "high" }, "actions": [ { "type": "notify", "message": "A high-priority assignment was added — start early." } ] },
+      { "id": "a_completed", "name": "Completed", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_status", "value": "done" }, "actions": [ { "type": "notify", "message": "Assignment marked done — nice work!" } ] }
+    ],
+    "items": [
+      { "id": "i_1", "values": { "f_title": "Essay on World War II", "f_subject": "history", "f_due": "2026-07-20T23:59", "f_priority": "high", "f_status": "doing", "f_progress": 40, "f_notes": "3 pages, cite at least 4 sources." } },
+      { "id": "i_2", "values": { "f_title": "Calculus problem set 5", "f_subject": "math", "f_due": "2026-07-18T17:00", "f_priority": "medium", "f_status": "todo", "f_progress": 0 } }
+    ]
+  }
+}

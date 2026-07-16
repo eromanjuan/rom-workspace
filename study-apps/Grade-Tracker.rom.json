@@ -1,0 +1,36 @@
+{
+  "format": "romio-app",
+  "version": 1,
+  "exported_at": "2026-07-16T00:00:00.000Z",
+  "app": {
+    "name": "Grade Tracker",
+    "description": "Track course grades and weighted points to keep an eye on your GPA.",
+    "type": "Records",
+    "icon": "ti-school",
+    "color": "#d97706",
+    "fields": [
+      { "id": "f_course", "label": "Course", "type": "text", "required": true, "hidden": false, "config": {} },
+      { "id": "f_units", "label": "Units", "type": "number", "required": false, "hidden": false, "config": { "min": 0, "max": 10, "decimals": 1 } },
+      { "id": "f_score", "label": "Score", "type": "number", "required": false, "hidden": false, "config": { "min": 0, "max": 100, "decimals": 1, "unit": "%" } },
+      { "id": "f_weighted", "label": "Weighted points", "type": "calculation", "required": false, "hidden": false, "config": { "formula": "{Units} * {Score}" } },
+      { "id": "f_semester", "label": "Semester", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "s1", "label": "1st Sem", "color": "#2563eb" },
+        { "id": "s2", "label": "2nd Sem", "color": "#7c3aed" },
+        { "id": "sum", "label": "Summer", "color": "#d97706" }
+      ] } },
+      { "id": "f_status", "label": "Result", "type": "status", "required": false, "hidden": false, "config": { "options": [
+        { "id": "enrolled", "label": "Enrolled", "color": "#2563eb" },
+        { "id": "passed", "label": "Passed", "color": "#16a34a" },
+        { "id": "failed", "label": "Failed", "color": "#dc2626" }
+      ] } }
+    ],
+    "automations": [
+      { "id": "a_pass", "name": "Passing grade", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_score", "op": ">=", "value": "75" }, "actions": [ { "type": "set_field", "fieldId": "f_status", "value": "passed" }, { "type": "notify", "message": "A course reached a passing grade — well done!" } ] },
+      { "id": "a_risk", "name": "At risk", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_score", "op": "<", "value": "60" }, "actions": [ { "type": "notify", "message": "A grade dropped below 60% — this course needs attention." } ] }
+    ],
+    "items": [
+      { "id": "i_1", "values": { "f_course": "Intro to Programming", "f_units": 3, "f_score": 88, "f_semester": "s1", "f_status": "enrolled" } },
+      { "id": "i_2", "values": { "f_course": "World History", "f_units": 2, "f_score": 72, "f_semester": "s1", "f_status": "enrolled" } }
+    ]
+  }
+}

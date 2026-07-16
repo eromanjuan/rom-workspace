@@ -2,6 +2,7 @@
 // and workspace group chats live in the same list. New DMs are started by
 // searching people. On mobile, selecting a conversation slides in the thread.
 import { el, clear, icon, toast, timeAgo, openModal } from '../ui/dom.js';
+import { playSound, primeAudio } from '../ui/sounds.js';
 import { listAllUsers, notify, getWorkspace, listenUser } from '../workspaces/data.js';
 import { isOnline, presenceText, presenceExact, lastActiveDate } from '../auth/presence.js';
 import { avatarNode } from '../profile/avatar.js';
@@ -304,6 +305,7 @@ export function renderMessages(host, user, { initialConvId, onOpenUser } = {}) {
           if (!keyRing.some((k) => k.algo === enc.algo && k.key === enc.key)) keyRing.push({ algo: enc.algo, key: enc.key });
         }
         await sendMessage(id, user, t, { attachment, enc: encPayload });
+        primeAudio(); playSound('send');
         // Notify the other members so they get a Messages badge + bell entry.
         // Never include the plaintext of an encrypted message in the notification.
         const me = user.displayName || user.email;

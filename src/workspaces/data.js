@@ -411,6 +411,23 @@ export async function notify(uid, payload) {
     });
   } catch (e) { /* non-fatal */ }
 }
+// A notification you raise for YOURSELF (e.g. a calendar reminder). actorId must
+// equal your own uid to satisfy the rules; safe to call for uid === your uid.
+export async function addSelfNotification(uid, payload = {}) {
+  if (!uid) return;
+  try {
+    await addDoc(collection(db, 'notifications', uid, 'items'), {
+      read: false,
+      createdAt: serverTimestamp(),
+      type: payload.type || 'reminder',
+      actorId: uid,
+      actorName: payload.actorName || 'Reminder',
+      title: String(payload.title || 'Reminder').slice(0, 300),
+      body: String(payload.body || '').slice(0, 500),
+      link: payload.link || { view: 'calendar' },
+    });
+  } catch (e) { /* non-fatal */ }
+}
 export function listenNotifications(uid, cb, max = 30) {
   return onSnapshot(
     query(collection(db, 'notifications', uid, 'items'), orderBy('createdAt', 'desc'), limit(max)),

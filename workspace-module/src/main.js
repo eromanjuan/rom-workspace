@@ -11905,9 +11905,11 @@ function wbFmtVal(ctx, field, value) {
     case 'url': { const href = wbUrlHref(value); return `<a class="wb-url-cell" href="${h(href)}" target="_blank" rel="noopener noreferrer" title="${h(href)}"><i class="ti ti-world-www"></i><span class="wb-url-cell-txt">${h(wbUrlLabel(value))}</span></a>`; }
     case 'phone': return h(formatPhoneNumber(value));
     case 'date': {
-      if (!value) return '<span class="wb-cell-empty">—</span>';
-      const hasTime = String(value).includes('T');
-      const d = hasTime ? new Date(value) : new Date(`${value}T00:00`);
+      // Auto-update fields always show today (recomputed on every render).
+      const v = (field.config && field.config.autoUpdate) ? nowStampValue(!!(field.config && field.config.time)) : value;
+      if (!v) return '<span class="wb-cell-empty">—</span>';
+      const hasTime = String(v).includes('T');
+      const d = hasTime ? new Date(v) : new Date(`${v}T00:00`);
       if (Number.isNaN(d.getTime())) return '<span class="wb-cell-empty">—</span>';
       const datePart = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       return hasTime ? `${datePart}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : datePart;
@@ -11933,11 +11935,18 @@ function wbComputeAutonumber(ctx, field) {
   const pad = Math.max(0, parseInt(field.config && field.config.pad, 10) || 0);
   return `${(field.config && field.config.prefix) || ''}${String(n).padStart(pad, '0')}`;
 }
-// Days between two date fields; null when either date is missing.
+// Days between two date fields; null when either date is missing. An "Auto
+// update" date field resolves to today, so a Days Between using it stays live.
 function wbComputeDatediff(ctx, field) {
   const v = ctx.values || {};
-  const a = v[field.config && field.config.startField];
-  const b = v[field.config && field.config.endField];
+  const fields = ctx.app && ctx.app.fields ? ctx.app.fields : [];
+  const resolve = (fid) => {
+    const f = fields.find((x) => x.id === fid);
+    if (f && f.config && f.config.autoUpdate) return nowStampValue(!!f.config.time);
+    return v[fid];
+  };
+  const a = resolve(field.config && field.config.startField);
+  const b = resolve(field.config && field.config.endField);
   if (!a || !b) return null;
   const d = Math.round((new Date(b) - new Date(a)) / 86400000);
   return Number.isNaN(d) ? null : d;
@@ -12966,7 +12975,11 @@ function wbRunAutomations(companyId, workspace, app, item, event, prev) {
         // On a numeric field, a value that starts with an operator (+ - * /) does
         // math on the current value instead of overwriting it (e.g. "-10%").
         item.values[ac.fieldId] = (ac.type === 'set_field' && numeric) ? wbComputeSetValue(item.values[ac.fieldId], ac.value) : ac.value;
-      } else if (ac.type === 'notify') wbLogActivity(workspace, { icon: 'ti-bell', color: '#7c3aed', text: h(ac.message || `Notification from "${au.name}"`) });
+      } else if (ac.type === 'notify') {
+        wbLogActivity(workspace, { icon: 'ti-bell', color: '#7c3aed', text: h(ac.message || `Notification from "${au.name}"`) });
+        // Also drop it into the user's ROMIO notification bell.
+        try { if (typeof window.__ROM_SELF_NOTIFY__ === 'function') window.__ROM_SELF_NOTIFY__({ title: au.name || 'Automation', body: ac.message || '', type: 'workspace' }); } catch { /* ignore */ }
+      }
     });
     fired.push(au.name);
     wbLogActivity(workspace, { icon: 'ti-bolt', color: '#7c3aed', text: `⚡ <b>${h(au.name)}</b> ran on <b>${h(wbItemTitle(app, item))}</b>` });
@@ -13463,7 +13476,8 @@ function wbFieldConfigUI(fd, app) {
   }
   if (t === 'money') return `<div class="wb-field"><label>Currency symbol</label><input class="wb-input" id="wbCurSym" value="${h(fd.config.currency || '$')}" maxlength="3" style="max-width:120px"></div>`;
   if (t === 'date') return `<div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateTime" ${fd.config.time ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Include time</b><div class="wb-sub">Pick a date and a time of day (uses a date &amp; time picker).</div></div></div>
-      <div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateAuto" ${fd.config.auto ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Auto timestamp</b><div class="wb-sub">Fill in automatically when an item is created — no manual picking.</div></div></div>`;
+      <div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateAuto" ${fd.config.auto ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Auto timestamp</b><div class="wb-sub">Fill in automatically when an item is created (a fixed "created" stamp).</div></div></div>
+      <div class="wb-check-row"><label class="wb-switch"><input type="checkbox" id="wbDateLive" ${fd.config.autoUpdate ? 'checked' : ''}><span class="wb-slider"></span></label><div><b>Auto update</b><div class="wb-sub">Always shows <b>today</b> and changes each day — read-only. Great for "days until / since" with a Days&nbsp;Between field.</div></div></div>`;
   if (t === 'number') {
     const c = fd.config || {};
     const decSel = (v) => String(c.decimals) === String(v) ? 'selected' : '';
@@ -13621,7 +13635,10 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
     case 'date': {
       const withTime = f.config && f.config.time;
       const inputType = withTime ? 'datetime-local' : 'date';
-      if (f.config && f.config.auto) {
+      if (f.config && f.config.autoUpdate) {
+        // Always today — read-only, recomputed live wherever it's shown.
+        input = `<div class="wb-inline"><input type="${inputType}" class="wb-input" data-f="${h(f.id)}" value="${h(nowStampValue(withTime))}" disabled style="max-width:240px"><span class="wb-sub"><i class="ti ti-refresh"></i> Always today</span></div>`;
+      } else if (f.config && f.config.auto) {
         // Auto-stamp: keep an existing value (created stamp), else fill with now.
         const v = val || nowStampValue(withTime);
         input = `<div class="wb-inline"><input type="${inputType}" class="wb-input" data-f="${h(f.id)}" value="${h(v)}" disabled style="max-width:240px"><span class="wb-sub"><i class="ti ti-clock-hour-4"></i> Set automatically</span></div>`;
@@ -14122,7 +14139,7 @@ function wbCollectModalDraft() {
     }
     if (t === 'calculation') m.draft.config.formula = (val('wbCalcFormula') || '').trim();
     if (t === 'money') m.draft.config.currency = (val('wbCurSym') || '').trim() || '$';
-    if (t === 'date') { m.draft.config.time = !!checked('wbDateTime'); m.draft.config.auto = !!checked('wbDateAuto'); }
+    if (t === 'date') { m.draft.config.time = !!checked('wbDateTime'); m.draft.config.auto = !!checked('wbDateAuto'); m.draft.config.autoUpdate = !!checked('wbDateLive'); }
     if (t === 'number') {
       m.draft.config.unit = (val('wbNumUnit') || '').trim();
       const rawMin = val('wbNumMin'); const rawMax = val('wbNumMax'); const rawDec = val('wbNumDecimals');

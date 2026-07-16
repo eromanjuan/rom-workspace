@@ -3,6 +3,10 @@
 // was triggered. Everything is driven by the notifications/{uid}/items feed.
 import { el, clear, icon, timeAgo } from '../ui/dom.js';
 import { listenNotifications, markNotificationRead, markAllNotificationsRead } from '../workspaces/data.js';
+import { playSound } from '../ui/sounds.js';
+
+// Which configured sound each notification type plays.
+const SOUND_FOR_TYPE = { message: 'message', reminder: 'reminder' };
 
 const TYPE_ICON = {
   invite: 'mail', joinRequest: 'user-plus', joinApproved: 'check', joinDeclined: 'x',
@@ -16,9 +20,21 @@ export function mountNotifications(bell, user, { onNavigate, onCounts } = {}) {
   bell.append(badge);
   let items = [];
   let panel = null;
+  // Track which notifications we've already seen so a sound plays only for NEW
+  // ones (not the whole list on first load).
+  let seen = null;
 
   const unsub = listenNotifications(user.uid, (list) => {
     items = list;
+    if (seen === null) {
+      seen = new Set(list.map((n) => n.id));
+    } else {
+      for (const n of list) {
+        if (n.read || seen.has(n.id)) continue;
+        seen.add(n.id);
+        playSound(SOUND_FOR_TYPE[n.type] || 'notification');
+      }
+    }
     const unreadItems = list.filter((n) => !n.read);
     const unread = unreadItems.length;
     badge.textContent = unread > 9 ? '9+' : String(unread);

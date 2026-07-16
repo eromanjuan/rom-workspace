@@ -3,6 +3,7 @@ import { configReady } from './firebase.js';
 import { initTheme, applyThemeBundle, getThemeBundle } from './ui/theme.js';
 import { watchAuth } from './auth/auth.js';
 import { startPresence } from './auth/presence.js';
+import { startReminders } from './tools/reminders.js';
 import { renderAuth } from './auth/authView.js';
 import { renderLanding } from './landing/landingView.js';
 import { renderVerify } from './auth/verifyView.js';
@@ -48,6 +49,7 @@ if (window.top !== window.self) {
 } else {
     let viewUnsub = null;
     let presenceStop = null;   // stops the online/offline heartbeat on logout
+    let remindersStop = null;  // stops the calendar reminder engine on logout
     let notifCleanup = null;
     let wsAppsOff = null; // removes the previous shell's workspace-apps listener
     let authed = false;        // is a user currently signed in?
@@ -131,6 +133,7 @@ if (window.top !== window.self) {
             viewUnsub = null; }
         // Stop any prior presence heartbeat (and mark that account offline).
         if (presenceStop) { presenceStop(); presenceStop = null; }
+        if (remindersStop) { remindersStop(); remindersStop = null; }
         // An ANONYMOUS session is never a ROMIO login. The tabulation signs judges
         // in anonymously; if that ever lands in the shared auth persistence, ROMIO
         // must treat it as signed-out rather than a broken half-logged-in user.
@@ -139,8 +142,9 @@ if (window.top !== window.self) {
             renderUnauthed();
             return;
         }
-        // Start the online/offline heartbeat for this signed-in user.
+        // Start the online/offline heartbeat + the calendar reminder engine.
         presenceStop = startPresence(user.uid);
+        remindersStop = startReminders(user);
         authed = true;
         if (unauthCleanup) { unauthCleanup(); unauthCleanup = null; }
         // Require a verified email before entering the app (the master account is exempt).
@@ -347,7 +351,7 @@ if (window.top !== window.self) {
                 el('div', { class: 'ws-spinner' }),
                 el('div', { class: 'muted' }, 'Loading workspace…'),
             ]);
-            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=36', title: 'Workspace' });
+            const frame = el('iframe', { class: 'ws-module-frame', src: '/workspace-module/index.html?v=39', title: 'Workspace' });
             const gear = el('button', { class: 'ws-gear', title: 'Workspace settings', style: 'display:none' }, icon('settings'));
             wsHost.append(frame, gear, loading);
 

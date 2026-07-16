@@ -1,0 +1,41 @@
+{
+  "format": "romio-app",
+  "version": 1,
+  "exported_at": "2026-07-16T00:00:00.000Z",
+  "app": {
+    "name": "Study Sessions",
+    "description": "Log study time by topic and method, with a focus rating (auto-timestamped).",
+    "type": "Records",
+    "icon": "ti-book",
+    "color": "#0d9488",
+    "fields": [
+      { "id": "f_topic", "label": "Topic", "type": "text", "required": true, "hidden": false, "config": {} },
+      { "id": "f_subject", "label": "Subject", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "math", "label": "Math", "color": "#2563eb" },
+        { "id": "science", "label": "Science", "color": "#0d9488" },
+        { "id": "english", "label": "English", "color": "#7c3aed" },
+        { "id": "history", "label": "History", "color": "#d97706" },
+        { "id": "other", "label": "Other", "color": "#6b7280" }
+      ] } },
+      { "id": "f_at", "label": "Logged at", "type": "date", "required": false, "hidden": false, "config": { "time": true, "auto": true } },
+      { "id": "f_duration", "label": "Time spent", "type": "duration", "required": false, "hidden": false, "config": {} },
+      { "id": "f_method", "label": "Method", "type": "category", "required": false, "hidden": false, "config": { "options": [
+        { "id": "flash", "label": "Flashcards", "color": "#2563eb" },
+        { "id": "practice", "label": "Practice problems", "color": "#0d9488" },
+        { "id": "reading", "label": "Reading", "color": "#7c3aed" },
+        { "id": "notes", "label": "Note-taking", "color": "#d97706" },
+        { "id": "video", "label": "Video", "color": "#db2777" },
+        { "id": "group", "label": "Group study", "color": "#16a34a" }
+      ] } },
+      { "id": "f_focus", "label": "Focus", "type": "rating", "required": false, "hidden": false, "config": { "max": 5 } },
+      { "id": "f_notes", "label": "Notes", "type": "textarea", "required": false, "hidden": false, "config": {} }
+    ],
+    "automations": [
+      { "id": "a_deepfocus", "name": "Deep focus", "enabled": true, "trigger": { "event": "field_is", "fieldId": "f_focus", "value": "5" }, "actions": [ { "type": "notify", "message": "Five-star focus session — keep the momentum!" } ] }
+    ],
+    "items": [
+      { "id": "i_1", "values": { "f_topic": "Derivatives", "f_subject": "math", "f_at": "2026-07-15T19:30", "f_duration": 45, "f_method": "practice", "f_focus": 4, "f_notes": "Chain rule still tricky." } },
+      { "id": "i_2", "values": { "f_topic": "Cell biology", "f_subject": "science", "f_at": "2026-07-16T08:15", "f_duration": 30, "f_method": "flash", "f_focus": 5 } }
+    ]
+  }
+}

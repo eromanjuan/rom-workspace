@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=36';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=39';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=36';
+const MODULE_PAGE = '/workspace-module/index.html?v=39';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -186,6 +186,25 @@ window.__ROM_NOTIFY__ = async (uid, payload = {}) => {
       actorId: me.uid,
       actorName: me.displayName || me.email || 'Someone',
       title: String(payload.title || 'You were mentioned').slice(0, 300),
+      body: String(payload.body || '').slice(0, 500),
+      link: { view: 'workspace' },
+    });
+  } catch (e) { /* non-fatal */ }
+};
+
+// Raise a ROMIO notification for the CURRENT user (self) — e.g. an app
+// automation's "notify" action or a reminder landing in their own bell.
+window.__ROM_SELF_NOTIFY__ = async (payload = {}) => {
+  const me = auth.currentUser;
+  if (!me) return;
+  try {
+    await addDoc(collection(db, 'notifications', me.uid, 'items'), {
+      read: false,
+      createdAt: serverTimestamp(),
+      type: payload.type || 'workspace',
+      actorId: me.uid,
+      actorName: me.displayName || me.email || 'Workspace',
+      title: String(payload.title || 'Workspace update').slice(0, 300),
       body: String(payload.body || '').slice(0, 500),
       link: { view: 'workspace' },
     });

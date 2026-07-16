@@ -4,6 +4,11 @@
 // tile can snapshot these events onto a dashboard.
 import { el, clear, icon, escapeHtml, toast, openModal } from '../ui/dom.js';
 import { addUserDoc, subscribeUserDocs, deleteUserDoc } from '../workspaces/data.js';
+import { requestReminderPermission, primeReminderAudio } from './reminders.js';
+
+// Reminder lead-times offered per event (days before; 0 = on the day).
+const REMIND_OPTS = [[0, 'On the day'], [1, '1 day before'], [2, '2 days before'], [3, '3 days before'], [7, '1 week before']];
+const remindLabel = (d) => (REMIND_OPTS.find(([v]) => v === Number(d)) || [d, `${d} days before`])[1];
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -97,24 +102,39 @@ export function renderCalendar(host, user) {
     const date = el('input', { class: 'input', type: 'date', value: iso });
     const time = el('input', { class: 'input', type: 'time' });
     const note = el('textarea', { class: 'input', rows: '2', placeholder: 'Notes (optional)' });
+    // Reminder lead-times (checkboxes). "On the day" is on by default.
+    const remindChecks = REMIND_OPTS.map(([d, label]) => {
+      const cb = el('input', { type: 'checkbox', class: 'vis-check' });
+      if (d === 0) cb.checked = true;
+      return { d, label, cb };
+    });
+    const remindRow = el('div', { class: 'cal-remind' }, remindChecks.map(({ label, cb }) => el('label', { class: 'cal-remind-opt' }, [cb, el('span', {}, label)])));
     const save = el('button', { class: 'btn btn--primary' }, [icon('plus'), ' Add event']);
     save.addEventListener('click', async () => {
       if (!title.value.trim()) return toast('Give the event a title.', 'error');
+      const reminders = remindChecks.filter((x) => x.cb.checked).map((x) => x.d);
+      // These need a user gesture — do it here, on the Save click.
+      if (reminders.length) { requestReminderPermission(); primeReminderAudio(); }
       save.disabled = true;
-      try { await addUserDoc(user.uid, 'events', { title: title.value.trim(), date: date.value, time: time.value, note: note.value.trim() }); toast('Event added', 'success'); close(); }
+      try { await addUserDoc(user.uid, 'events', { title: title.value.trim(), date: date.value, time: time.value, note: note.value.trim(), reminders }); toast('Event added', 'success'); close(); }
       catch (err) { toast(err.message, 'error'); save.disabled = false; }
     });
     body.append(el('div', { class: 'field-modal' }, [
       el('label', { class: 'form-label' }, 'Title'), title,
       el('div', { class: 'row' }, [el('div', { style: 'flex:1' }, [el('label', { class: 'form-label' }, 'Date'), date]), el('div', { style: 'flex:1' }, [el('label', { class: 'form-label' }, 'Time'), time])]),
+      el('label', { class: 'form-label' }, [icon('bell'), ' Remind me']),
+      remindRow,
+      el('div', { class: 'muted cal-remind-hint' }, 'Alerts show in the bell and as a desktop alarm (with sound) while ROMIO is open in a tab.'),
       el('label', { class: 'form-label' }, 'Notes'), note,
       el('div', { class: 'app-create-foot' }, [save]),
     ]));
   }
   function openEventView(ev) {
     const { body, close } = openModal({ title: ev.title, iconName: 'calendar-event' });
+    const reminders = Array.isArray(ev.reminders) ? ev.reminders : (ev.remind != null && ev.remind !== '' ? [ev.remind] : []);
     body.append(el('div', { class: 'field-modal' }, [
       el('p', {}, `${ev.date}${ev.time ? ' · ' + ev.time : ''}`),
+      reminders.length ? el('p', { class: 'cal-remind-view' }, [icon('bell'), ` Reminders: ${reminders.map(remindLabel).join(', ')}`]) : null,
       ev.note ? el('p', { class: 'muted', html: escapeHtml(ev.note).replace(/\n/g, '<br>') }) : null,
       el('div', { class: 'app-create-foot' }, [el('button', { class: 'btn btn--danger', onclick: async () => { try { await deleteUserDoc(user.uid, 'events', ev.id); close(); } catch (e) { toast(e.message, 'error'); } } }, [icon('trash'), ' Delete'])]),
     ]));

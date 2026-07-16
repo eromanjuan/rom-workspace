@@ -15,6 +15,7 @@ import {
   listenActivity,
   listTrashedFiles, restoreFile, permanentlyDeleteFile, purgeExpiredTrash, TRASH_TTL_MS,
 } from '../workspaces/data.js';
+import { SOUND_EVENTS, SOUND_PRESETS, getSoundConfig, setSoundConfig, previewSound, primeAudio, MAX_SOUND_BYTES } from '../ui/sounds.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
@@ -28,6 +29,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
     { key: 'password', title: 'Password', icon: 'lock', desc: 'Update your password', build: () => buildPasswordSection(user) },
     { key: 'theme', title: 'Theme', icon: 'palette', desc: 'Colours, background & dark mode', build: () => buildThemeSection() },
     { key: 'trash', title: 'Trash', icon: 'trash', desc: 'Restore or permanently delete files', build: () => buildTrashSection(user) },
+    { key: 'sounds', title: 'Sounds', icon: 'volume', desc: 'Chat, notification, reminder & alarm sounds', build: () => buildSoundsSection(user) },
     { key: 'report', title: 'Report a problem', icon: 'flag', desc: 'Send feedback or report a bug', build: () => buildReportSection(user) },
     { key: 'workspace', title: 'Workspaces', icon: 'layout-dashboard', desc: 'Create & manage your workspaces', build: () => buildWorkspaceSection(user, onOpenWorkspace) },
     { key: 'activity', title: 'Activity log', icon: 'history', desc: 'Your recent actions', build: () => buildActivitySection(user) },
@@ -340,6 +342,63 @@ function buildControlPanelSection(user) {
     el('div', { class: 'admin-users-head' }, [el('label', { class: 'settings-label' }, 'All users'), countEl]),
     search,
     wrap,
+  ]);
+}
+
+/* ---------- Sounds: per-event alert sounds (preset or uploaded) ---------- */
+
+function buildSoundsSection(user) {
+  const cfg = getSoundConfig();
+  const list = el('div', { class: 'snd-list' });
+
+  for (const ev of SOUND_EVENTS) {
+    const c = cfg[ev.id];
+    const row = el('div', { class: 'snd-row' });
+
+    const enable = el('input', { type: 'checkbox', class: 'switch-input' });
+    enable.checked = c.enabled;
+    enable.addEventListener('change', () => setSoundConfig(ev.id, { enabled: enable.checked }));
+
+    const preset = el('select', { class: 'input snd-preset' }, SOUND_PRESETS.map(([v, l]) => el('option', { value: v }, l)));
+    preset.value = c.preset;
+    preset.addEventListener('change', () => setSoundConfig(ev.id, { preset: preset.value }));
+
+    const play = el('button', { class: 'btn btn--ghost btn--sm', type: 'button', title: 'Preview' }, [icon('player-play'), ' Play']);
+    play.addEventListener('click', () => { primeAudio(); previewSound(ev.id, c.custom ? undefined : preset.value); });
+
+    const fileInput = el('input', { type: 'file', accept: 'audio/*', style: 'display:none' });
+    const upload = el('button', { class: 'btn btn--ghost btn--sm', type: 'button' }, [icon('upload'), ' Upload']);
+    const customChip = el('span', { class: 'snd-custom', style: c.custom ? '' : 'display:none' }, [
+      icon('music'), ' Custom',
+      el('button', { class: 'snd-custom-x', type: 'button', title: 'Remove custom sound' }, icon('x')),
+    ]);
+    const clearCustom = () => { c.custom = ''; setSoundConfig(ev.id, { custom: '' }); customChip.style.display = 'none'; preset.disabled = false; };
+    customChip.querySelector('.snd-custom-x').addEventListener('click', clearCustom);
+    upload.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files[0]; fileInput.value = '';
+      if (!f) return;
+      if (f.size > MAX_SOUND_BYTES) { toast(`Sound too large (max ${Math.round(MAX_SOUND_BYTES / 1024)} KB).`, 'error'); return; }
+      const r = new FileReader();
+      r.onload = () => { c.custom = r.result; setSoundConfig(ev.id, { custom: r.result }); customChip.style.display = ''; preset.disabled = true; toast(`Custom sound set for "${ev.label}".`, 'success'); };
+      r.onerror = () => toast('Could not read that audio file.', 'error');
+      r.readAsDataURL(f);
+    });
+    preset.disabled = !!c.custom;
+
+    row.append(
+      el('label', { class: 'switch' }, [enable, el('span', { class: 'switch-track' }, el('span', { class: 'switch-thumb' }))]),
+      el('span', { class: 'snd-ic' }, icon(ev.icon)),
+      el('span', { class: 'snd-label' }, ev.label),
+      preset, play, upload, fileInput, customChip,
+    );
+    list.append(row);
+  }
+
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('volume'), ' Sounds']),
+    el('p', { class: 'muted' }, 'Choose a sound for each alert — pick a preset or upload your own audio clip. Turn any off with its switch.'),
+    list,
   ]);
 }
 
