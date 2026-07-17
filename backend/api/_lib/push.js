@@ -1,13 +1,20 @@
-// Web push via Firebase Cloud Messaging (free — no Blaze plan needed).
+// Push via Firebase Cloud Messaging (free — no Blaze plan needed).
 //
-// Each browser that grants notification permission registers an FCM token at
-// users/{uid}/fcmTokens/{token}. We fan a message out to all of a user's tokens
-// so the alert reaches whichever device they're on — even with ROMIO closed,
-// as long as the browser is running.
+// Devices register at users/{uid}/fcmTokens/{token} with a `platform` field. We
+// fan a message out to all of a user's devices so the alert reaches whichever
+// one they're on — even with ROMIO closed.
 //
-// Tokens die (cleared site data, reinstall, long inactivity). FCM tells us with
-// a registration-token-not-registered error, and we prune those so the list
-// doesn't rot.
+// WHY SPLIT BY PLATFORM: FCM needs a different message shape per platform, and
+// one shape breaks the other.
+//   • web     → data-only. Our service worker renders it, so we control the
+//               click target. Adding a `notification` block here would make the
+//               browser auto-display it AND fire our handler = duplicates.
+//   • android → needs a real `notification` block, otherwise a data-only message
+//               shows nothing while the app is backgrounded/closed.
+// So each platform gets its own send.
+//
+// Tokens die (cleared data, reinstall, inactivity). FCM reports that, and we
+// prune those so the list doesn't rot.
 import { getDb, getMessaging } from './firebase.js';
 
 const DEAD = new Set([
@@ -16,35 +23,11 @@ const DEAD = new Set([
   'messaging/invalid-argument',
 ]);
 
-export async function userTokens(uid) {
-  const snap = await getDb().collection('users').doc(uid).collection('fcmTokens').get();
-  return snap.docs.map((d) => d.id);
-}
+// Send to one platform's tokens, pruning any FCM reports as permanently dead.
+async function sendBatch(uid, tokens, message) {
+  if (!tokens.length) return { sent: 0, failed: 0, pruned: 0 };
+  const res = await getMessaging().sendEachForMulticast({ tokens, ...message });
 
-// Send one notification to every device a user has registered.
-// Returns { sent, failed, pruned }.
-export async function pushToUser(uid, { title, body, link, tag }) {
-  const tokens = await userTokens(uid);
-  if (!tokens.length) return { sent: 0, failed: 0, pruned: 0, skipped: 'no tokens' };
-
-  const appUrl = process.env.APP_URL || 'https://romio.web.app';
-  const res = await getMessaging().sendEachForMulticast({
-    tokens,
-    // `data`-only: our service worker renders the notification itself, so the
-    // click target and behaviour stay consistent across browsers.
-    data: {
-      title: String(title || 'ROMIO'),
-      body: String(body || ''),
-      url: `${appUrl}${link || ''}`,
-      tag: String(tag || 'romio'),
-    },
-    webpush: {
-      headers: { Urgency: 'high', TTL: '86400' },
-      fcmOptions: { link: `${appUrl}${link || ''}` },
-    },
-  });
-
-  // Prune tokens FCM reports as permanently dead.
   const stale = [];
   res.responses.forEach((r, i) => {
     if (!r.success && DEAD.has(r.error?.code)) stale.push(tokens[i]);
@@ -53,4 +36,44 @@ export async function pushToUser(uid, { title, body, link, tag }) {
     getDb().collection('users').doc(uid).collection('fcmTokens').doc(t).delete().catch(() => {})));
 
   return { sent: res.successCount, failed: res.failureCount, pruned: stale.length };
+}
+
+// Send one notification to every device a user has registered.
+// Returns { sent, failed, pruned }.
+export async function pushToUser(uid, { title, body, link, tag }) {
+  const snap = await getDb().collection('users').doc(uid).collection('fcmTokens').get();
+  if (snap.empty) return { sent: 0, failed: 0, pruned: 0, skipped: 'no tokens' };
+
+  const web = [];
+  const android = [];
+  snap.docs.forEach((d) => {
+    (d.data()?.platform === 'android' ? android : web).push(d.id);
+  });
+
+  const appUrl = process.env.APP_URL || 'https://romio.web.app';
+  const url = `${appUrl}${link || ''}`;
+  const t = String(title || 'ROMIO');
+  const b = String(body || '');
+  const tg = String(tag || 'romio');
+
+  const results = await Promise.all([
+    sendBatch(uid, web, {
+      data: { title: t, body: b, url, tag: tg },
+      webpush: { headers: { Urgency: 'high', TTL: '86400' }, fcmOptions: { link: url } },
+    }),
+    sendBatch(uid, android, {
+      notification: { title: t, body: b },
+      // The app reads `url` on tap (pushNotificationActionPerformed).
+      data: { url, tag: tg },
+      android: {
+        priority: 'high',
+        ttl: 86400 * 1000,
+        notification: { tag: tg, defaultSound: true, priority: 'high' },
+      },
+    }),
+  ]);
+
+  return results.reduce((a, r) => ({
+    sent: a.sent + r.sent, failed: a.failed + r.failed, pruned: a.pruned + r.pruned,
+  }), { sent: 0, failed: 0, pruned: 0 });
 }

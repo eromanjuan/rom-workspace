@@ -3,11 +3,18 @@ import { getAuth } from './firebase.js';
 
 // Only these origins may call the API from a browser. ALLOWED_ORIGINS (comma
 // separated) can extend it — e.g. to add a custom domain later.
+//
+// The last two are the ROMIO Android app: Capacitor serves the bundled web app
+// from a local origin, not from romio.web.app. With androidScheme "https" that's
+// https://localhost; capacitor://localhost covers iOS/older configs. Without
+// them the native app's API calls fail CORS.
 const DEFAULT_ORIGINS = [
   'https://romio.web.app',
   'https://rom-database-0909.web.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://localhost',
+  'capacitor://localhost',
 ];
 
 function allowedOrigins() {

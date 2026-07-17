@@ -1,5 +1,8 @@
-// POST /api/push/register  { token }   → save this browser's FCM token
+// POST /api/push/register  { token, platform }   → save this device's FCM token
 // POST /api/push/register  { token, remove: true } → forget it (on sign-out)
+//
+// `platform` is 'web' (browser) or 'android' (the Capacitor app). It decides the
+// message shape the sender uses — see _lib/push.js.
 //
 // Requires the caller's Firebase ID token, so a user can only ever register a
 // token against their own uid.
@@ -23,7 +26,9 @@ export default async function handler(req, res) {
     return json(res, 200, { ok: true, removed: true });
   }
 
+  const platform = body.platform === 'android' ? 'android' : 'web';
   await ref.set({
+    platform,
     createdAt: FieldValue.serverTimestamp(),
     ua: String(req.headers['user-agent'] || '').slice(0, 300),
   }, { merge: true });
