@@ -11057,9 +11057,20 @@ function wbTileLinks(tile) {
 // tabs that fit the width (measured in wbMountTopbar) and reveals ‹ › paging
 // buttons only when there are more apps than fit. Activity is pinned left, Add
 // app pinned right.
+// Below this width the topbar stops paginating. The measured page size only
+// makes sense when several tabs fit at once; on a phone the reserved space for
+// Activity + Add app + arrows leaves room for ONE tab, which turned the bar into
+// a one-app-at-a-time carousel. Narrow screens show every app and swipe instead.
+const WB_TOPBAR_NARROW = 720;
+const wbTopbarNarrow = () => {
+  try { return window.innerWidth <= WB_TOPBAR_NARROW; } catch { return false; }
+};
+
 function wbWorkspaceHeader(companyId, workspace, activeAppId) {
   const apps = (workspace && workspace.apps) || [];
-  const perPage = Math.max(1, state.wbTopbarPerPage || 6);
+  const narrow = wbTopbarNarrow();
+  // Narrow: no paging — render them all and let the strip scroll.
+  const perPage = narrow ? Math.max(1, apps.length) : Math.max(1, state.wbTopbarPerPage || 6);
   let page = Math.max(0, state.wbTopbarPage || 0);
   const pageCount = Math.max(1, Math.ceil(apps.length / perPage));
   // Keep the open app visible: jump to its page if it's off the current one.
@@ -11080,11 +11091,11 @@ function wbWorkspaceHeader(companyId, workspace, activeAppId) {
   }).join('');
   const prev = `<button class="wb-topbar-arrow" type="button" data-wb-topbar-page="${page - 1}" ${page === 0 ? 'disabled' : ''} title="Previous apps" aria-label="Previous apps"><i class="ti ti-chevron-left"></i></button>`;
   const next = `<button class="wb-topbar-arrow" type="button" data-wb-topbar-page="${page + 1}" ${page >= pageCount - 1 ? 'disabled' : ''} title="More apps" aria-label="More apps"><i class="ti ti-chevron-right"></i></button>`;
-  const nav = pageCount > 1 ? `<div class="wb-topbar-nav">${prev}${next}</div>` : '';
+  const nav = (pageCount > 1 && !narrow) ? `<div class="wb-topbar-nav">${prev}${next}</div>` : '';
   const addBtn = can('workspaces.manage', companyId)
     ? `<button class="wb-topbar-add" type="button" data-new-app title="Add app" aria-label="Add app"><i class="ti ti-plus" aria-hidden="true"></i><span>Add app</span></button>`
     : '';
-  return `<nav class="wb-topbar" data-wb-topbar aria-label="Workspace apps">${homeTab}<div class="wb-topbar-apps" data-wb-topbar-apps>${appTabs}</div><div class="wb-topbar-spacer"></div>${nav}${addBtn}</nav>`;
+  return `<nav class="wb-topbar${narrow ? ' wb-topbar--scroll' : ''}" data-wb-topbar aria-label="Workspace apps">${homeTab}<div class="wb-topbar-apps" data-wb-topbar-apps>${appTabs}</div><div class="wb-topbar-spacer"></div>${nav}${addBtn}</nav>`;
 }
 
 // Measure how many fixed-width app tabs fit the bar and adjust the page size,
@@ -11093,6 +11104,15 @@ function wbWorkspaceHeader(companyId, workspace, activeAppId) {
 function wbMountTopbar() {
   const nav = document.querySelector('[data-wb-topbar]');
   if (!nav || !nav.clientWidth) return;
+  // Crossing the breakpoint (rotate/resize) has to re-render, since the paged
+  // and scrolling bars are different markup.
+  const narrow = wbTopbarNarrow();
+  const was = state.wbTopbarNarrow;
+  state.wbTopbarNarrow = narrow;
+  if (was !== undefined && was !== narrow) { render(); return; }
+  // Narrow screens don't paginate, so don't measure — the maths below would set
+  // perPage back to 1 and re-render, undoing the scrolling strip.
+  if (narrow) return;
   const home = nav.querySelector('.wb-topbar-home');
   const add = nav.querySelector('.wb-topbar-add');
   const TAB_W = 90; // fixed app-tab width (84) + gap (6)

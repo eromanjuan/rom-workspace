@@ -20156,6 +20156,31 @@ button {
 .wb-topbar-arrow:hover:not(:disabled) { border-color: var(--orange, #e0552d); color: var(--orange, #e0552d); }
 .wb-topbar-arrow:disabled { opacity: .35; cursor: default; }
 .wb-topbar-apps .wb-topbar-tab { width: 84px; }
+
+/* Phones: the bar can't fit Activity + Add app + arrows + several tabs, so the
+   measured page size collapsed to one app. Drop paging (see wbTopbarNarrow) and
+   make the strip a swipeable, snapping row instead. */
+.wb-topbar--scroll { flex-wrap: wrap; overflow: visible; padding: 10px; gap: 6px; }
+.wb-topbar--scroll .wb-topbar-apps {
+  order: 3; flex: 1 1 100%; width: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.wb-topbar--scroll .wb-topbar-apps .wb-topbar-tab { scroll-snap-align: start; width: 76px; }
+.wb-topbar--scroll .wb-topbar-spacer { display: none; }
+/* Activity + Add app sit on the first line, the app strip wraps under them. */
+.wb-topbar--scroll .wb-topbar-home { order: 1; }
+.wb-topbar--scroll .wb-topbar-add { order: 2; margin-left: auto; }
+.wb-topbar--scroll .wb-topbar-tab { flex-direction: row; gap: 6px; padding: 6px 8px; }
+.wb-topbar--scroll .wb-topbar-home,
+.wb-topbar--scroll .wb-topbar-add { width: auto; }
+.wb-topbar--scroll .wb-topbar-apps .wb-topbar-tab { flex-direction: column; }
+.wb-topbar--scroll .wb-topbar-label {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .wb-topbar-tab { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border-radius: 14px; border: 1px solid transparent; color: var(--text-muted, #72695d); font-weight: 700; font-size: .78rem; text-align: center; transition: background .12s ease, border-color .12s ease, color .12s ease; }
 .wb-topbar-tab:hover { background: var(--surface-2, #f6efe4); color: var(--text, #17130f); }
 .wb-topbar-tab.active { background: var(--surface, #fffaf0); border-color: var(--orange, #e0552d); color: var(--text, #17130f); }

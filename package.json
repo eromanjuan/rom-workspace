@@ -24,6 +24,7 @@
     "firebase": "^11.1.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.1",
     "vite": "^7.3.6"
   }

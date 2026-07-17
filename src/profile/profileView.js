@@ -131,7 +131,10 @@ export function renderProfile(host, user, { onOpenWorkspace, onOpenUser, onViewA
   const linksEl = el('div', { class: 'profile-links' });
   const details = el('div', { class: 'profile-head profile-head--visit card' }, [
     avatarWrap,
-    el('div', {}, [
+    // .profile-head-main matters: it carries min-width:0 so this column can
+    // shrink. Without it a long email can't wrap and shoves the badges
+    // off-screen on a phone.
+    el('div', { class: 'profile-head-main' }, [
       el('div', { class: 'profile-name' }, name),
       el('div', { class: 'muted profile-username', id: 'profile-username' }, ''),
       el('div', { class: 'muted' }, user.email),

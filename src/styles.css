@@ -794,10 +794,34 @@ select.input { cursor: pointer; }
 .profile-avatar--lg { width: auto; height: auto; align-self: stretch; aspect-ratio: 1 / 1; min-width: 96px; min-height: 96px; max-width: 220px; font-size: 3rem; }
 /* On My Profile the avatar lives inside .profile-avatar-wrap, so stretch the wrap. */
 .profile-head--visit .profile-avatar-wrap { align-self: stretch; width: auto; display: flex; }
+
+/* The header is a flex row, and a flex item defaults to min-width:auto — it
+   refuses to shrink below its widest unbreakable word. A long email is exactly
+   that, so the column overflowed and pushed the badges off the side of a phone.
+   min-width:0 lets it shrink; the wrapping rules below let the text break. */
+.profile-head-main { min-width: 0; flex: 1 1 auto; }
+.profile-name, .profile-username, .profile-email, .profile-phone { overflow-wrap: anywhere; }
+.profile-name { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.profile-name .profile-pro { margin-left: 0; }
+
 @media (max-width: 640px) {
-  .profile-head--visit { align-items: center; }
-  .profile-avatar--lg { width: 96px; height: 96px; align-self: auto; }
-  .profile-head--visit .profile-avatar-wrap { align-self: center; display: block; width: max-content; }
+  .profile-head--visit { align-items: center; gap: 0.75rem; }
+  /* Cap the avatar by viewport too, so it can never crowd out the text. */
+  .profile-avatar--lg {
+    width: clamp(64px, 22vw, 96px); height: clamp(64px, 22vw, 96px);
+    min-width: 0; min-height: 0; align-self: auto; font-size: 1.8rem;
+  }
+  .profile-head--visit .profile-avatar-wrap { align-self: center; display: block; width: max-content; flex: 0 0 auto; }
+  .profile-name { font-size: 1.1rem; }
+  .profile-username, .profile-email, .profile-phone { font-size: 0.85rem; }
+  .profile-email { opacity: 0.85; }
+  .profile-badges { margin-top: 0.3rem; }
+  .profile-badges .pill, .profile-name .pill { font-size: 0.68rem; padding: 0.12rem 0.45rem; }
+}
+/* Very narrow phones: stack so the text gets the full width. */
+@media (max-width: 380px) {
+  .profile-head--visit { flex-direction: column; align-items: flex-start; }
+  .profile-head--visit .profile-avatar-wrap { align-self: flex-start; }
 }
 .profile-website { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--primary); font-size: 0.9rem; text-decoration: none; margin-top: 0.1rem; }
 .profile-website:hover { text-decoration: underline; }
