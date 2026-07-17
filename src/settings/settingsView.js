@@ -1,7 +1,7 @@
 // The Settings page: change password, switch theme, and manage workspaces
 // (add / open / set-as-current / delete).
 import { el, clear, icon, toast, openModal, confirmModal } from '../ui/dom.js';
-import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf, verifyPassword } from '../auth/auth.js';
+import { changePassword, changeName, changeEmailAddress, sendPasswordReset, displayNameOf, verifyPassword, deleteMyAccount } from '../auth/auth.js';
 import { checkPassword } from '../auth/passwordPolicy.js';
 import { getTheme, applyTheme, PALETTE_VARS, setPaletteVar, resetPalette, currentPaletteValue, getAppearance, setAppearance, resetAppearance, BG_PATTERNS } from '../ui/theme.js';
 import { isMaster, roleLabel, MASTER_EMAIL } from '../workspaces/roles.js';
@@ -17,6 +17,7 @@ import {
 } from '../workspaces/data.js';
 import { SOUND_EVENTS, SOUND_PRESETS, getSoundConfig, setSoundConfig, previewSound, primeAudio, MAX_SOUND_BYTES } from '../ui/sounds.js';
 import { MONETIZE, PRO_PERKS, PLAN_MATRIX, isPro, proCheckoutUrlFor, viewerIsPro, proGate } from '../monetize.js';
+import { isNativeApp, WEB_APP_URL } from '../platform.js';
 
 export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
   clear(host);
@@ -35,6 +36,7 @@ export function renderSettings(host, user, { onOpenWorkspace, section } = {}) {
     { key: 'report', title: 'Report a problem', icon: 'flag', desc: 'Send feedback or report a bug', build: () => buildReportSection(user) },
     { key: 'workspace', title: 'Workspaces', icon: 'layout-dashboard', desc: 'Create & manage your workspaces', build: () => buildWorkspaceSection(user, onOpenWorkspace) },
     { key: 'activity', title: 'Activity log', icon: 'history', desc: 'Your recent actions', build: () => buildActivitySection(user) },
+    { key: 'delete', title: 'Delete account', icon: 'user-x', desc: 'Permanently delete your account & data', build: () => buildDeleteAccountSection(user) },
   ];
   if (isMaster(user)) {
     ENTRIES.push({ key: 'reports', title: 'Report inbox', icon: 'inbox', desc: 'User reports & message search', build: () => buildReportInboxSection(user) });
@@ -375,17 +377,25 @@ function buildProSection(user) {
     ]));
 
     const actions = el('div', { class: 'pro-actions' });
-    if (!pro && MONETIZE.proCheckoutUrl) {
-      actions.append(el('a', { class: 'btn btn--primary', href: proCheckoutUrlFor(user), target: '_blank', rel: 'noopener' }, [icon('crown'), MONETIZE.proPriceLabel ? ` Upgrade to Pro — ${MONETIZE.proPriceLabel}` : ' Upgrade to Pro']));
-    } else if (!pro) {
-      actions.append(el('span', { class: 'muted' }, 'Pro checkout isn\'t configured yet.'));
-    }
-    if (MONETIZE.supportUrl) {
-      actions.append(el('a', { class: 'btn btn--ghost', href: MONETIZE.supportUrl, target: '_blank', rel: 'noopener' }, [icon('heart'), ' Support ROMIO']));
-    }
-    body.append(actions);
-    if (!pro && MONETIZE.proCheckoutUrl) {
-      body.append(el('p', { class: 'muted pro-note' }, 'After paying, a ROMIO admin activates your Pro (automatic activation via webhook comes later).'));
+    // Google Play requires digital purchases to use Play Billing, so the native
+    // Android app must not offer the Gumroad checkout. Show where to upgrade
+    // instead (plain text, not a checkout deep-link); Pro bought on the web
+    // carries over automatically.
+    if (!pro && isNativeApp()) {
+      body.append(el('p', { class: 'muted pro-note' }, `Upgrade to ROMIO Pro at ${WEB_APP_URL} — your Pro applies here automatically.`));
+    } else {
+      if (!pro && MONETIZE.proCheckoutUrl) {
+        actions.append(el('a', { class: 'btn btn--primary', href: proCheckoutUrlFor(user), target: '_blank', rel: 'noopener' }, [icon('crown'), MONETIZE.proPriceLabel ? ` Upgrade to Pro — ${MONETIZE.proPriceLabel}` : ' Upgrade to Pro']));
+      } else if (!pro) {
+        actions.append(el('span', { class: 'muted' }, 'Pro checkout isn\'t configured yet.'));
+      }
+      if (MONETIZE.supportUrl) {
+        actions.append(el('a', { class: 'btn btn--ghost', href: MONETIZE.supportUrl, target: '_blank', rel: 'noopener' }, [icon('heart'), ' Support ROMIO']));
+      }
+      body.append(actions);
+      if (!pro && MONETIZE.proCheckoutUrl) {
+        body.append(el('p', { class: 'muted pro-note' }, 'After paying, a ROMIO admin activates your Pro (automatic activation via webhook comes later).'));
+      }
     }
   }).catch(() => { clear(body).append(el('p', { class: 'error-text' }, 'Could not load Pro status.')); });
 
@@ -930,6 +940,47 @@ function buildPasswordSection(user) {
     el('p', { class: 'muted' }, 'Confirm with your current password, or verify by email — we\'ll send a secure reset link to your address.'),
     cur, next, reqs,
     el('div', { class: 'row' }, [save, emailBtn]),
+  ]);
+}
+
+/* ---------- delete account (Google Play requires self-serve deletion) ---------- */
+
+function buildDeleteAccountSection(user) {
+  const pw = el('input', { class: 'input', type: 'password', placeholder: 'Your password', autocomplete: 'current-password' });
+  const del = el('button', { class: 'btn btn--danger' }, [icon('user-x'), ' Delete my account']);
+
+  del.addEventListener('click', async () => {
+    if (!pw.value) { toast('Enter your password to confirm.', 'error'); return; }
+    const ok = await confirmModal({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your account, profile, posts, messages and files. This cannot be undone.',
+      confirmLabel: 'Delete forever', danger: true, iconName: 'user-x',
+    });
+    if (!ok) return;
+    del.disabled = true;
+    try {
+      await deleteMyAccount(pw.value);
+      // The auth user is gone; watchAuth will drop to the signed-out view.
+      toast('Your account has been deleted.', 'success');
+    } catch (err) {
+      const code = err?.code || '';
+      if (code.includes('wrong-password') || code.includes('invalid-credential')) toast('Password is incorrect.', 'error');
+      else if (code.includes('requires-recent-login')) toast('Please log out and back in, then try again.', 'error');
+      else toast(err.message || 'Could not delete account.', 'error');
+      del.disabled = false;
+    }
+  });
+
+  return el('section', { class: 'settings-card card' }, [
+    el('h3', { class: 'settings-title' }, [icon('user-x'), ' Delete account']),
+    el('p', { class: 'muted' }, 'Permanently delete your ROMIO account and its data. This cannot be undone. Confirm with your password.'),
+    el('ul', { class: 'pro-perks', style: 'margin:0 0 0.75rem' }, [
+      el('li', {}, [icon('point'), ' Removes your profile, posts, comments & messages you own']),
+      el('li', {}, [icon('point'), ' Removes your files, workspaces you own, reminders & notifications']),
+    ]),
+    pw,
+    el('div', { class: 'row', style: 'margin-top:0.6rem' }, [del]),
+    el('p', { class: 'muted', style: 'margin-top:0.6rem;font-size:12px' }, 'Can\'t sign in? Email info@lumenmarketingusa.com from your account address.'),
   ]);
 }
 

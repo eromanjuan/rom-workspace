@@ -12,6 +12,7 @@
 // then you (a master) flip them to Pro in Settings → Control panel. Later, a
 // Stripe/Lemon Squeezy webhook + Cloud Function can automate that.
 import { el, icon, openModal } from './ui/dom.js';
+import { isNativeApp, WEB_APP_URL } from './platform.js';
 
 export const MONETIZE = {
   // Which checkout provider proCheckoutUrl / supportUrl point at. This only
@@ -98,11 +99,16 @@ export function proGate(feature) {
       el('span', { class: 'pro-gate-pro' }, pro),
     ]));
     const upgradeUrl = proCheckoutUrlFor(viewer.user) || MONETIZE.proCheckoutUrl;
+    // On the native Android app, Play Billing policy means no external checkout
+    // button — point to the web instead (plain text, not a purchase link).
+    const upgradeCta = isNativeApp()
+      ? el('span', { class: 'muted' }, `Upgrade at ${WEB_APP_URL}`)
+      : (upgradeUrl
+        ? el('a', { class: 'btn btn--primary', href: upgradeUrl, target: '_blank', rel: 'noopener', onclick: close }, [icon('crown'), ' Upgrade to Pro'])
+        : el('span', { class: 'muted' }, 'Upgrade coming soon'));
     const actions = el('div', { class: 'pro-gate-actions' }, [
       el('button', { class: 'btn btn--ghost', type: 'button', onclick: close }, 'Maybe later'),
-      upgradeUrl
-        ? el('a', { class: 'btn btn--primary', href: upgradeUrl, target: '_blank', rel: 'noopener', onclick: close }, [icon('crown'), ' Upgrade to Pro'])
-        : el('span', { class: 'muted' }, 'Upgrade coming soon'),
+      upgradeCta,
     ]);
     body.append(
       el('p', { class: 'pro-gate-lead' }, [el('b', {}, feature), ' is part of ', el('b', {}, 'ROMIO Pro'), '.']),

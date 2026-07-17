@@ -24,3 +24,7 @@ secrets/
 
 # Built APKs (binaries — do not commit)
 build-output/
+
+# Android release signing (keep OUT of git — losing/leaking these is unrecoverable)
+android/keystore/
+android/keystore.properties

@@ -59,6 +59,12 @@ service cloud.firestore {
       allow update: if signedIn() && (
         (request.auth.uid == uid
          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isMaster', 'suspended', 'deleted', 'pro', 'proUntil']))
+        // A user may tombstone their OWN account (Google Play self-serve deletion):
+        // set deleted=true and scrub personal fields — nothing else, and never un-delete.
+        || (request.auth.uid == uid
+            && request.resource.data.deleted == true
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['deleted', 'deletedAt', 'bio', 'phone', 'photoURL', 'links', 'username']))
         || isMaster()
       );
       allow delete: if isMaster();

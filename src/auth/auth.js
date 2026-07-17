@@ -18,6 +18,7 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithPopup,
+  deleteUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase.js';
@@ -189,4 +190,25 @@ export async function changePassword(currentPassword, newPassword) {
   const cred = EmailAuthProvider.credential(user.email, currentPassword);
   await reauthenticateWithCredential(user, cred);
   await updatePassword(user, newPassword);
+}
+
+// Permanently delete the signed-in user's account (required by Google Play).
+// Deleting an auth user needs a recent login, so we reauthenticate with the
+// password first. We mark the profile deleted BEFORE removing the auth account:
+// once the auth user is gone the client loses permission to write, and the
+// `deleted` flag lets admin/cleanup treat the leftover data as tombstoned.
+export async function deleteMyAccount(password) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in.');
+  const cred = EmailAuthProvider.credential(user.email, password);
+  await reauthenticateWithCredential(user, cred);
+  const uid = user.uid;
+  try {
+    await setDoc(doc(db, 'users', uid), {
+      deleted: true, deletedAt: serverTimestamp(),
+      // Scrub the profile so nothing personal lingers in a readable doc.
+      bio: '', phone: '', photoURL: '', links: {}, username: '',
+    }, { merge: true });
+  } catch { /* best effort — proceed to remove the auth account regardless */ }
+  await deleteUser(user);
 }
