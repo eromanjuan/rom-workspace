@@ -458,7 +458,9 @@ select.input { cursor: pointer; }
 .post__avatar img, .comment__avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .post__avatar.is-link, .comment__avatar.is-link { cursor: pointer; }
 .post__avatar.is-link:hover, .comment__avatar.is-link:hover { box-shadow: 0 0 0 2px var(--primary); }
-.post__body { line-height: 1.5; }
+/* overflow-wrap: a pasted URL or a long unbroken string is one "word", and
+   without this it widens the card and pushes the feed sideways on a phone. */
+.post__body { line-height: 1.5; overflow-wrap: anywhere; }
 .post__delete { position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; color: var(--muted); font-size: 0.8rem; }
 .post__actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
 .post__act { display: inline-flex; align-items: center; gap: 0.3rem; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.78rem; padding: 0.28rem 0.55rem; cursor: pointer; }
@@ -781,7 +783,7 @@ select.input { cursor: pointer; }
 .profile-avatar { width: 88px; height: 88px; border-radius: 20px; background: linear-gradient(135deg, var(--primary), #8a5bff); color: #fff; display: grid; place-items: center; font-size: 1.9rem; font-weight: 700; flex: 0 0 auto; }
 .profile-name { font-size: 1.3rem; font-weight: 700; }
 .profile-badges { display: flex; gap: 0.4rem; margin-top: 0.4rem; flex-wrap: wrap; }
-.profile-bio { margin: 0.55rem 0 0.3rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; max-width: 60ch; }
+.profile-bio { margin: 0.55rem 0 0.3rem; color: var(--text); line-height: 1.5; white-space: pre-wrap; max-width: 60ch; overflow-wrap: anywhere; }
 /* Bio clamped to 3 lines with a reveal toggle */
 .profile-bio-wrap { max-width: 60ch; }
 .profile-bio--clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; cursor: pointer; }
