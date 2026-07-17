@@ -32,4 +32,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Reminders arrive as push while ROMIO is closed. Android 13+ (API 33)
+         requires this runtime permission before any notification can be shown;
+         without it the permission prompt resolves silently and nothing appears.
+         PushNotifications.requestPermissions() asks for it on first use. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

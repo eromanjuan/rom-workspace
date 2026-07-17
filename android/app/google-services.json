@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "192979949981",
+    "project_id": "rom-database-0909",
+    "storage_bucket": "rom-database-0909.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:192979949981:android:809a2b41a099f6848e3774",
+        "android_client_info": {
+          "package_name": "com.romio.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "192979949981-g5h2gomovfvqk5jr89tlc37hpfd889ck.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCU9Oxo8H355z0Nu5-dWv28HOybPdcm2vs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "192979949981-g5h2gomovfvqk5jr89tlc37hpfd889ck.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
