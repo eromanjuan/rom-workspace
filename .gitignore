@@ -21,3 +21,6 @@ secrets/
 .vscode/
 .firebase/
 *.log
+
+# Built APKs (binaries — do not commit)
+build-output/
