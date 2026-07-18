@@ -26,6 +26,31 @@ service cloud.firestore {
       );
     }
 
+    // The ORIGINAL super-admin (the hardcoded email). Only they may suspend or
+    // delete a master account, or promote/demote master — promoted masters can't
+    // act on each other or on the primary.
+    function isPrimaryMaster() {
+      return signedIn() && request.auth.token.email == 'eugenioiromanjuan@gmail.com';
+    }
+    // Is the user doc being written currently a master account?
+    function targetUserIsMaster() {
+      return resource.data.isMaster == true
+        || (resource.data.email is string
+            && resource.data.email.lower() == 'eugenioiromanjuan@gmail.com');
+    }
+    function userUpdateTouches(field) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([field]);
+    }
+    // A master's update to someone else's user doc, with the master-protection
+    // guard: promoting/demoting master, and suspending/deleting a master account,
+    // are restricted to the primary master.
+    function masterUserUpdateAllowed() {
+      return isMaster()
+        && (!userUpdateTouches('isMaster') || isPrimaryMaster())
+        && ((!userUpdateTouches('suspended') && !userUpdateTouches('deleted'))
+            || !targetUserIsMaster() || isPrimaryMaster());
+    }
+
     // --- workspace membership helpers ---
     function memberPath(wsId) {
       return /databases/$(database)/documents/workspaces/$(wsId)/members/$(request.auth.uid);
@@ -65,9 +90,13 @@ service cloud.firestore {
             && request.resource.data.deleted == true
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['deleted', 'deletedAt', 'bio', 'phone', 'photoURL', 'links', 'username']))
-        || isMaster()
+        // Masters manage others — but only the primary master may suspend/delete
+        // a master or change the isMaster flag.
+        || (request.auth.uid != uid && masterUserUpdateAllowed())
       );
-      allow delete: if isMaster();
+      // Hard-deleting a master's user doc is primary-master only (the app doesn't
+      // hard-delete anyway — this is defence in depth).
+      allow delete: if isMaster() && (isPrimaryMaster() || !targetUserIsMaster());
 
       // per-user subcollections (widgets, events, checklists, notes, …) — owner (or master) only
       match /{sub}/{docId} {

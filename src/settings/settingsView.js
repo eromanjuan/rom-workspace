@@ -297,18 +297,40 @@ function buildControlPanelSection(user) {
     if (isSelf || isOriginal) {
       acts.append(el('span', { class: 'muted admin-note' }, isSelf ? 'You' : 'Primary master'));
     } else {
-      const susBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.suspended ? 'Unsuspend' : 'Suspend');
-      susBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { suspended: !u.suspended }); toast(u.suspended ? 'Unsuspended' : 'Suspended', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
-      const masBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.isMaster ? 'Revoke master' : 'Make master');
-      masBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { isMaster: !u.isMaster }); toast('Updated', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+      // Only the PRIMARY master (you) may suspend/delete a master account or
+      // promote/demote master. Promoted masters can still manage regular users
+      // and grant Pro. Enforced in firestore.rules too — this is just the UI.
+      const viewerIsPrimary = (user.email || '').toLowerCase() === MASTER_EMAIL;
+      const canActOnMasterTarget = viewerIsPrimary || !uMaster;
+
+      // Pro toggle — available to any master (non-destructive).
       const proBtn = el('button', { class: `btn btn--sm ${u.pro ? '' : 'btn--ghost'}`, title: u.pro ? 'Remove Pro' : 'Grant Pro (after they pay)' }, [icon('crown'), u.pro ? ' Remove Pro' : ' Make Pro']);
       proBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { pro: !u.pro }); toast(u.pro ? 'Pro removed' : 'Pro granted', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
-      const delBtn = el('button', { class: 'btn btn--danger btn--sm' }, 'Delete');
-      delBtn.addEventListener('click', async () => {
-        if (!(await confirmModal({ title: 'Delete this account?', message: `${u.displayName || u.email} will be banned and their posts removed. Their sign-in credential can only be fully deleted from the Firebase console.`, confirmLabel: 'Delete', danger: true }))) return;
-        try { await adminDeleteUser(u); toast('Account removed', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
-      });
-      acts.append(susBtn, masBtn, proBtn, delBtn);
+
+      let susBtn = null;
+      let delBtn = null;
+      if (canActOnMasterTarget) {
+        susBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.suspended ? 'Unsuspend' : 'Suspend');
+        susBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { suspended: !u.suspended }); toast(u.suspended ? 'Unsuspended' : 'Suspended', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+        delBtn = el('button', { class: 'btn btn--danger btn--sm' }, 'Delete');
+        delBtn.addEventListener('click', async () => {
+          if (!(await confirmModal({ title: 'Delete this account?', message: `${u.displayName || u.email} will be banned and their posts removed. Their sign-in credential can only be fully deleted from the Firebase console.`, confirmLabel: 'Delete', danger: true }))) return;
+          try { await adminDeleteUser(u); toast('Account removed', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+        });
+      }
+
+      // Promote/demote master — primary master only.
+      let masBtn = null;
+      if (viewerIsPrimary) {
+        masBtn = el('button', { class: 'btn btn--ghost btn--sm' }, u.isMaster ? 'Revoke master' : 'Make master');
+        masBtn.addEventListener('click', async () => { try { await adminSetUser(u.uid, { isMaster: !u.isMaster }); toast('Updated', 'success'); load(); } catch (e) { toast(e.message, 'error'); } });
+      }
+
+      if (susBtn) acts.append(susBtn);
+      if (masBtn) acts.append(masBtn);
+      acts.append(proBtn);
+      if (delBtn) acts.append(delBtn);
+      if (uMaster && !viewerIsPrimary) acts.append(el('span', { class: 'muted admin-note' }, 'Master — primary only'));
     }
     return el('tr', {}, [
       el('td', {}, el('div', { class: 'admin-user' }, [
