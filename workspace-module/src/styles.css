@@ -20776,7 +20776,14 @@ button.wb-file:hover { color: var(--orange); text-decoration: underline; }
 .wb-field { margin-bottom: 14px; }
 /* new field-type widgets */
 .wb-rating .ti { color: var(--muted, #9aa2b1); font-size: 15px; }
-.wb-rating .ti-star-filled { color: #f5a524; }
+/* SVG stars (see wbStarsHtml — the icon font has no filled variants). */
+.wb-rating { display: inline-flex; align-items: center; gap: 2px; line-height: 1; }
+.wb-star {
+  width: 1.05em; height: 1.05em; flex: none;
+  fill: none; stroke: var(--muted, #9aa2b1); stroke-width: 1.6;
+  stroke-linejoin: round; opacity: .55;
+}
+.wb-star.is-on { fill: #f5a524; stroke: #f5a524; opacity: 1; }
 .wb-richtext { border: 1px solid var(--border, #e2d5bf); border-radius: 8px; overflow: hidden; }
 .wb-rt-bar { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--border, #e2d5bf); background: var(--surface-2, #f6efe4); }
 .wb-rt-btn { background: none; border: none; color: var(--text-2, #473f34); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: grid; place-items: center; }

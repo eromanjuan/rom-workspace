@@ -852,54 +852,54 @@ const WORKSPACE_PLUGIN_PRESET_LABELS = {
 const WORKSPACE_SELF_CREATE_LIMIT = 3;
 const WORKSPACE_ICON_UPLOAD_MAX_BYTES = 220 * 1024;
 const WORKSPACE_ICON_OPTIONS = [
-  { key: 'home', icon: 'ti-home-filled', label: 'Home' },
-  { key: 'building', icon: 'ti-building-broadcast-tower-filled', label: 'Building' },
-  { key: 'store', icon: 'ti-shopping-cart-filled', label: 'Store' },
-  { key: 'warehouse', icon: 'ti-archive-filled', label: 'Warehouse' },
-  { key: 'briefcase', icon: 'ti-briefcase-filled', label: 'Briefcase' },
-  { key: 'tools', icon: 'ti-settings-filled', label: 'Tools' },
-  { key: 'tool', icon: 'ti-adjustments-filled', label: 'Tool' },
-  { key: 'hammer', icon: 'ti-barrier-block-filled', label: 'Hammer' },
-  { key: 'helmet', icon: 'ti-shield-filled', label: 'Helmet' },
-  { key: 'ruler', icon: 'ti-layout-grid-filled', label: 'Ruler' },
-  { key: 'truck', icon: 'ti-navigation-filled', label: 'Truck' },
-  { key: 'delivery', icon: 'ti-arrow-badge-right-filled', label: 'Delivery' },
-  { key: 'users', icon: 'ti-user-filled', label: 'User' },
-  { key: 'messages', icon: 'ti-message-filled', label: 'Message' },
-  { key: 'calendar', icon: 'ti-calendar-filled', label: 'Calendar' },
-  { key: 'folder', icon: 'ti-folder-filled', label: 'Folder' },
-  { key: 'chart', icon: 'ti-chart-pie-filled', label: 'Chart' },
-  { key: 'shield', icon: 'ti-shield-check-filled', label: 'Shield' },
-  { key: 'star', icon: 'ti-star-filled', label: 'Star' },
-  { key: 'contacts', icon: 'ti-badges-filled', label: 'Contacts' },
-  { key: 'checklist', icon: 'ti-layout-list-filled', label: 'Checklist' },
-  { key: 'approved', icon: 'ti-square-check-filled', label: 'Approved' },
-  { key: 'map-pin', icon: 'ti-map-pin-filled', label: 'Pin' },
-  { key: 'map', icon: 'ti-location-filled', label: 'Map' },
-  { key: 'paint', icon: 'ti-paint-filled', label: 'Paint' },
-  { key: 'plugin', icon: 'ti-puzzle-filled', label: 'Plugin' },
-  { key: 'alerts', icon: 'ti-bell-filled', label: 'Alerts' },
-  { key: 'book', icon: 'ti-book-filled', label: 'Book' },
-  { key: 'receipt', icon: 'ti-cash-banknote-filled', label: 'Receipt' },
-  { key: 'clock', icon: 'ti-clock-filled', label: 'Clock' },
-  { key: 'camera', icon: 'ti-camera-filled', label: 'Camera' },
-  { key: 'photo', icon: 'ti-photo-filled', label: 'Photo' },
-  { key: 'file', icon: 'ti-file-filled', label: 'File' },
-  { key: 'database', icon: 'ti-stack-filled', label: 'Data' },
-  { key: 'lock', icon: 'ti-lock-filled', label: 'Lock' },
-  { key: 'key', icon: 'ti-key-filled', label: 'Key' },
-  { key: 'flag', icon: 'ti-flag-filled', label: 'Flag' },
-  { key: 'partner', icon: 'ti-heart-filled', label: 'Partner' },
-  { key: 'support', icon: 'ti-help-circle-filled', label: 'Support' },
-  { key: 'target', icon: 'ti-circle-dot-filled', label: 'Target' },
-  { key: 'rocket', icon: 'ti-award-filled', label: 'Rocket' },
-  { key: 'bolt', icon: 'ti-sun-filled', label: 'Bolt' },
-  { key: 'package', icon: 'ti-box-align-bottom-filled', label: 'Package' },
-  { key: 'desktop', icon: 'ti-device-mobile-filled', label: 'Desktop' },
-  { key: 'cloud', icon: 'ti-cloud-filled', label: 'Cloud' },
-  { key: 'mail', icon: 'ti-mail-filled', label: 'Mail' },
-  { key: 'phone', icon: 'ti-phone-filled', label: 'Phone' },
-  { key: 'headset', icon: 'ti-headphones-filled', label: 'Headset' },
+  { key: 'home', icon: 'ti-home', label: 'Home' },
+  { key: 'building', icon: 'ti-building-broadcast-tower', label: 'Building' },
+  { key: 'store', icon: 'ti-shopping-cart', label: 'Store' },
+  { key: 'warehouse', icon: 'ti-archive', label: 'Warehouse' },
+  { key: 'briefcase', icon: 'ti-briefcase', label: 'Briefcase' },
+  { key: 'tools', icon: 'ti-settings', label: 'Tools' },
+  { key: 'tool', icon: 'ti-adjustments', label: 'Tool' },
+  { key: 'hammer', icon: 'ti-barrier-block', label: 'Hammer' },
+  { key: 'helmet', icon: 'ti-shield', label: 'Helmet' },
+  { key: 'ruler', icon: 'ti-layout-grid', label: 'Ruler' },
+  { key: 'truck', icon: 'ti-navigation', label: 'Truck' },
+  { key: 'delivery', icon: 'ti-arrow-badge-right', label: 'Delivery' },
+  { key: 'users', icon: 'ti-user', label: 'User' },
+  { key: 'messages', icon: 'ti-message', label: 'Message' },
+  { key: 'calendar', icon: 'ti-calendar', label: 'Calendar' },
+  { key: 'folder', icon: 'ti-folder', label: 'Folder' },
+  { key: 'chart', icon: 'ti-chart-pie', label: 'Chart' },
+  { key: 'shield', icon: 'ti-shield-check', label: 'Shield' },
+  { key: 'star', icon: 'ti-star', label: 'Star' },
+  { key: 'contacts', icon: 'ti-badges', label: 'Contacts' },
+  { key: 'checklist', icon: 'ti-layout-list', label: 'Checklist' },
+  { key: 'approved', icon: 'ti-square-check', label: 'Approved' },
+  { key: 'map-pin', icon: 'ti-map-pin', label: 'Pin' },
+  { key: 'map', icon: 'ti-location', label: 'Map' },
+  { key: 'paint', icon: 'ti-paint', label: 'Paint' },
+  { key: 'plugin', icon: 'ti-puzzle', label: 'Plugin' },
+  { key: 'alerts', icon: 'ti-bell', label: 'Alerts' },
+  { key: 'book', icon: 'ti-book', label: 'Book' },
+  { key: 'receipt', icon: 'ti-cash-banknote', label: 'Receipt' },
+  { key: 'clock', icon: 'ti-clock', label: 'Clock' },
+  { key: 'camera', icon: 'ti-camera', label: 'Camera' },
+  { key: 'photo', icon: 'ti-photo', label: 'Photo' },
+  { key: 'file', icon: 'ti-file', label: 'File' },
+  { key: 'database', icon: 'ti-stack', label: 'Data' },
+  { key: 'lock', icon: 'ti-lock', label: 'Lock' },
+  { key: 'key', icon: 'ti-key', label: 'Key' },
+  { key: 'flag', icon: 'ti-flag', label: 'Flag' },
+  { key: 'partner', icon: 'ti-heart', label: 'Partner' },
+  { key: 'support', icon: 'ti-help-circle', label: 'Support' },
+  { key: 'target', icon: 'ti-circle-dot', label: 'Target' },
+  { key: 'rocket', icon: 'ti-award', label: 'Rocket' },
+  { key: 'bolt', icon: 'ti-sun', label: 'Bolt' },
+  { key: 'package', icon: 'ti-box-align-bottom', label: 'Package' },
+  { key: 'desktop', icon: 'ti-device-mobile', label: 'Desktop' },
+  { key: 'cloud', icon: 'ti-cloud', label: 'Cloud' },
+  { key: 'mail', icon: 'ti-mail', label: 'Mail' },
+  { key: 'phone', icon: 'ti-phone', label: 'Phone' },
+  { key: 'headset', icon: 'ti-headphones', label: 'Headset' },
 ];
 const WORKSPACE_ICON_SVG = {
   home: '<path d="M3 11.2 12 4l9 7.2v8.3a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H4.5A1.5 1.5 0 0 1 3 19.5v-8.3Z" />',
@@ -9683,7 +9683,7 @@ function fileTypeBadge(file) {
     return `<span class="file-type image-thumb"><img src="${h(file.thumb_url)}" alt="" loading="lazy" /></span>`;
   }
   if (file.signed_url && kind === 'video') {
-    return `<span class="file-type video-thumb"><video src="${h(file.signed_url)}#t=0.1" muted preload="metadata" playsinline></video><i class="ti ti-player-play-filled"></i></span>`;
+    return `<span class="file-type video-thumb"><video src="${h(file.signed_url)}#t=0.1" muted preload="metadata" playsinline></video><i class="ti ti-player-play"></i></span>`;
   }
   return `
     <span class="file-type ${h(fileTypeClass(file))}">
@@ -11889,6 +11889,18 @@ function wbUrlControl(value) {
     <div class="wb-url-qr" hidden><img loading="lazy" width="180" height="180" alt="QR code linking to ${h(wbUrlLabel(s))}" src="${h(qr)}"><span class="wb-sub">Scan to open the link.</span></div>
   </div>`;
 }
+// Star rating markup. Drawn as inline SVG rather than the icon font on purpose:
+// the Tabler webfont we load ships NO "filled" star glyph, so the old filled
+// class rendered as nothing — a 4/5 rating showed a single empty star. An SVG
+// path we control fills reliably and scales with font-size.
+function wbStarsHtml(value, max) {
+  const v = Math.max(0, Math.min(max, Number(value) || 0));
+  const star = (on) => `<svg class="wb-star${on ? ' is-on' : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.4l-5.8 3.06 1.1-6.46-4.69-4.58 6.49-.94z"/></svg>`;
+  return `<span class="wb-rating" role="img" aria-label="${v} out of ${max}">${
+    Array.from({ length: max }, (_, i) => star(i < v)).join('')
+  }</span>`;
+}
+
 function wbFmtVal(ctx, field, value) {
   // Checkbox renders as an inline toggle (even when unset) so managers can flip
   // it straight from the table — handled before the empty-value guard below.
@@ -11941,7 +11953,7 @@ function wbFmtVal(ctx, field, value) {
     case 'image': { const fv = wbFileValue(value); return fv && fv.url ? `<img class="wb-img-avatar" src="${h(fv.url)}" alt="${h(fv.name || 'image')}" loading="lazy">` : '<span class="wb-cell-empty">—</span>'; }
     case 'textarea': { const str = String(value); return h(str.length > 60 ? `${str.slice(0, 60)}…` : str); }
     case 'multiselect': { const arr = Array.isArray(value) ? value : []; return arr.map((id) => { const o = (field.config.options || []).find((x) => x.id === id); return o ? `<span class="wb-tag" style="background:${o.color || '#6b7280'}1f;color:${o.color || '#6b7280'}">${h(o.label)}</span>` : ''; }).join(' '); }
-    case 'rating': { const max = Math.min(10, Math.max(3, parseInt(field.config.max, 10) || 5)); const v = Math.max(0, Math.min(max, Number(value) || 0)); return `<span class="wb-rating">${Array.from({ length: max }, (_, i) => `<i class="ti ${i < v ? 'ti-star-filled' : 'ti-star'}"></i>`).join('')}</span>`; }
+    case 'rating': { const max = Math.min(10, Math.max(3, parseInt(field.config.max, 10) || 5)); const v = Math.max(0, Math.min(max, Number(value) || 0)); return wbStarsHtml(v, max); }
     case 'richtext': { const plain = String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return h(plain.length > 60 ? `${plain.slice(0, 60)}…` : plain); }
     default: return h(value);
   }
@@ -12370,7 +12382,7 @@ function wbRenderItemsTable(companyId, workspace, app, rows, cols, ui, selectabl
   const allSel = selectable && rows.length > 0 && rows.every((r) => ui.sel.has(r.id));
   const head = `<tr>${selectable ? `<th class="wb-check-col"><input type="checkbox" data-wb-select-all ${allSel ? 'checked' : ''} title="Select all"></th>` : ''}${cols.map((field) => {
     const active = ui.sort && ui.sort.fieldId === field.id;
-    const caret = active ? (ui.sort.dir === 'desc' ? 'ti-caret-down-filled' : 'ti-caret-up-filled') : 'ti-arrows-sort';
+    const caret = active ? (ui.sort.dir === 'desc' ? 'ti-caret-down' : 'ti-caret-up') : 'ti-arrows-sort';
     return `<th class="wb-th-sort ${active ? 'active' : ''}" data-wb-sort="${h(field.id)}" title="Sort by ${h(field.label)}"><span>${h(field.label)}</span><i class="ti ${caret}"></i></th>`;
   }).join('')}<th></th></tr>`;
   const body = rows.map((item) => {
@@ -18628,7 +18640,7 @@ function renderTimePage(companyId) {
     <section class="tool-page operations-page">
       ${workspaceHeader('My time', "A compact personal work queue built from this company's tasks.", `
         <a class="btn" href="${appHref(companyPath('tasks', {}, companyId))}" data-router><i class="ti ti-list-check"></i>Open tasks</a>
-        <button class="btn btn-primary" type="button" data-action="${active ? 'clock-out' : 'clock-in'}"><i class="ti ${active ? 'ti-player-stop-filled' : 'ti-player-play-filled'}"></i>${active ? 'Clock out' : 'Clock in'}</button>
+        <button class="btn btn-primary" type="button" data-action="${active ? 'clock-out' : 'clock-in'}"><i class="ti ${active ? 'ti-player-stop' : 'ti-player-play'}"></i>${active ? 'Clock out' : 'Clock in'}</button>
       `)}
       ${renderOperationsTabs(companyId, 'time')}
       <section class="metric-grid operations-metrics">
@@ -18683,7 +18695,7 @@ function renderClockDashboardPage(companyId) {
   return `
     <section class="tool-page operations-page clock-page">
       ${workspaceHeader('Clock dashboard', 'Local basic-mode clock tracking for the active company.', `
-        <button class="btn btn-primary" type="button" data-action="${active ? 'clock-out' : 'clock-in'}"><i class="ti ${active ? 'ti-player-stop-filled' : 'ti-player-play-filled'}"></i>${active ? 'Clock out' : 'Clock in'}</button>
+        <button class="btn btn-primary" type="button" data-action="${active ? 'clock-out' : 'clock-in'}"><i class="ti ${active ? 'ti-player-stop' : 'ti-player-play'}"></i>${active ? 'Clock out' : 'Clock in'}</button>
       `)}
       ${renderOperationsTabs(companyId, 'clock')}
       <section class="metric-grid operations-metrics">
@@ -31123,7 +31135,7 @@ async function mountLocationPicker() {
   }).addTo(locationPickerMap);
   locationPickerMarker = mapLibrary.marker([lat, lng], {
     draggable: true,
-    icon: mapLibrary.divIcon({ className: 'rom-map-pin', html: '<i class="ti ti-map-pin-filled"></i>', iconSize: [34, 34], iconAnchor: [17, 34] }),
+    icon: mapLibrary.divIcon({ className: 'rom-map-pin', html: '<i class="ti ti-map-pin"></i>', iconSize: [34, 34], iconAnchor: [17, 34] }),
   }).addTo(locationPickerMap);
   const sync = (reverse = false) => {
     const pos = locationPickerMarker.getLatLng();
@@ -34076,7 +34088,7 @@ function fileThumb(file, large = false) {
   const kind = fileTypeKind(file);
   if (file.signed_url && kind === 'image') return `<img src="${h(file.signed_url)}" alt="" loading="lazy" />`;
   if (file.thumb_url && kind === 'pdf') return `<img src="${h(file.thumb_url)}" alt="" loading="lazy" />`;
-  if (file.signed_url && kind === 'video') return `<span class="file-thumb-video"><video src="${h(file.signed_url)}#t=0.1" muted preload="metadata" playsinline></video><i class="ti ti-player-play-filled"></i></span>`;
+  if (file.signed_url && kind === 'video') return `<span class="file-thumb-video"><video src="${h(file.signed_url)}#t=0.1" muted preload="metadata" playsinline></video><i class="ti ti-player-play"></i></span>`;
   return `<span class="file-doc-icon ${h(fileTypeClass(file))} ${large ? 'large' : ''}">${fileIconAsset(file, fileTypeLabel(file))}<small>${h(fileTypeShortLabel(file))}</small></span>`;
 }
 
