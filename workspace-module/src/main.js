@@ -2441,6 +2441,8 @@ function init() {
   document.addEventListener('click', onDocumentClick);
   // ROM: the bridge pushes fresh workspace events/checklists via this event.
   window.addEventListener('rom-ws-data', () => { try { render(); } catch { /* ignore */ } });
+  // Cross-workspace app data finished loading (for cross-workspace relationships).
+  window.addEventListener('rom-xws-data', () => { try { render(); } catch { /* ignore */ } });
   document.addEventListener('keydown', onDocumentKeydown);
   document.addEventListener('submit', onDocumentSubmit);
   document.addEventListener('input', onDocumentInput);
@@ -11752,7 +11754,7 @@ function wbNameValue(app, field, item, depth = 0) {
     case 'user': { const loc = wbLocateApp(app); const m = wbMemberById(loc.companyId, raw); return m ? String(m.name) : ''; }
     case 'relationship': {
       const loc = wbLocateApp(app);
-      const ta = loc.workspace && loc.workspace.apps.find((x) => x.id === field.config.targetApp);
+      const ta = wbRelApp(loc.workspace, field.config);
       if (!ta) return '';
       const ids = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(raw) ? raw : [raw]);
       return ids.map((id) => {
@@ -11779,6 +11781,24 @@ function wbItemTitle(app, item, depth = 0) {
   for (const f of fields) { const v = wbNameValue(app, f, item, depth); if (v) return v; }
   return 'Untitled';
 }
+// Resolve a relationship field's target app. When config.targetWs is set the
+// link points at an app in ANOTHER of the user's workspaces (read-only snapshot
+// from the bridge, window.__ROM_XWS_APPS__); otherwise it's an app in this same
+// workspace. Returns the app object (with .fields and .items) or null.
+function wbRelApp(workspace, config) {
+  if (!config) return null;
+  if (config.targetWs) {
+    const w = (window.__ROM_XWS_APPS__ || []).find((x) => x.wsId === config.targetWs);
+    return w ? (w.apps || []).find((a) => a.id === config.targetApp) || null : null;
+  }
+  return ((workspace && workspace.apps) || []).find((a) => a.id === config.targetApp) || null;
+}
+// The apps available to pick from for a given target workspace ('' = current).
+function wbRelAppChoices(workspace, targetWs) {
+  if (targetWs) { const w = (window.__ROM_XWS_APPS__ || []).find((x) => x.wsId === targetWs); return w ? (w.apps || []) : []; }
+  return (workspace && workspace.apps) || [];
+}
+
 // Label for a linked (relationship) item: the chosen display field's value if
 // the relationship field specifies one, otherwise the linked item's name.
 function wbRelLabel(targetApp, item, displayFieldId, depth = 0) {
@@ -11825,7 +11845,7 @@ function wbProgressFillPct(app, field, values, workspace) {
     const relField = (app.fields || []).find((f) => f.id === relId && f.type === 'relationship');
     if (!relField) return null;
     const ws = workspace || wbLocateApp(app).workspace;
-    const ta = ws && (ws.apps || []).find((a) => a.id === relField.config.targetApp);
+    const ta = wbRelApp(ws, relField.config);
     if (!ta) return null;
     const linkedField = (ta.fields || []).find((f) => f.id === linkedFieldId);
     if (!linkedField) return null;
@@ -11981,7 +12001,7 @@ function wbFmtVal(ctx, field, value) {
       return hasTime ? `${datePart}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : datePart;
     }
     case 'file': { const fv = wbFileValue(value); if (!fv) return '<span class="wb-cell-empty">—</span>'; const kind = fileTypeKind({ file_name: fv.name }); return fv.url ? `<button type="button" class="wb-file-icon-btn" data-wb-view-file data-file-url="${h(fv.url)}" data-file-name="${h(fv.name)}" title="${h(fv.name)}" aria-label="Open ${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></button>` : `<span class="wb-file-icon-btn muted" title="${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></span>`; }
-    case 'relationship': { const ta = ctx.workspace.apps.find((x) => x.id === field.config.targetApp); if (!ta) return h(value); const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return `<span class="wb-tag wb-rel">${h(it ? wbRelLabel(ta, it, field.config.displayField) : '?')}</span>`; }).join(' '); }
+    case 'relationship': { const ta = wbRelApp(ctx.workspace, field.config); if (!ta) return h(value); const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return `<span class="wb-tag wb-rel">${h(it ? wbRelLabel(ta, it, field.config.displayField) : '?')}</span>`; }).join(' '); }
     case 'location': return `<a class="wb-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(value))}" target="_blank" rel="noreferrer" title="Open in Google Maps"><i class="ti ti-map-pin"></i>${h(value)}</a>`;
     case 'duration': return h(wbFmtDuration(value));
     case 'image': { const fv = wbFileValue(value); return fv && fv.url ? `<img class="wb-img-avatar" src="${h(fv.url)}" alt="${h(fv.name || 'image')}" loading="lazy">` : '<span class="wb-cell-empty">—</span>'; }
@@ -12083,7 +12103,7 @@ function wbPlainVal(companyId, workspace, app, field, value, values) {
   switch (field.type) {
     case 'status': case 'category': { const o = (field.config.options || []).find((x) => x.id === value); return o ? o.label : String(value); }
     case 'user': { const m = wbMemberById(companyId, value); return m ? m.name : ''; }
-    case 'relationship': { const ta = workspace.apps.find((x) => x.id === field.config.targetApp); if (!ta) return ''; const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return it ? wbRelLabel(ta, it, field.config.displayField) : ''; }).join(' '); }
+    case 'relationship': { const ta = wbRelApp(workspace, field.config); if (!ta) return ''; const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return it ? wbRelLabel(ta, it, field.config.displayField) : ''; }).join(' '); }
     case 'file': case 'image': { const fv = wbFileValue(value); return fv ? (fv.name || '') : ''; }
     case 'money': return `${field.config.currency || '$'}${value}`;
     case 'number': return `${value}${field.config.unit ? ` ${field.config.unit}` : ''}`;
@@ -12592,7 +12612,7 @@ function wbViewBuilder(companyId, workspace, app) {
     const meta = WB_FIELD_TYPES[field.type];
     let extra = '';
     if ((field.type === 'category' || field.type === 'status') && field.config.options) extra = ` · ${field.config.options.length} options`;
-    if (field.type === 'relationship' && field.config.targetApp) { const ta = workspace.apps.find((x) => x.id === field.config.targetApp); extra = ta ? ` · → ${h(ta.name)}` : ' · (no target)'; }
+    if (field.type === 'relationship' && field.config.targetApp) { const ta = wbRelApp(workspace, field.config); const xw = field.config.targetWs ? (window.__ROM_XWS_APPS__ || []).find((w) => w.wsId === field.config.targetWs) : null; extra = ta ? ` · → ${h(ta.name)}${xw ? ` (${h(xw.wsName)})` : ''}` : ' · (no target)'; }
     if (field.type === 'calculation' && field.config.formula) extra = ` · ${h(field.config.formula)}`;
     return `<div class="wb-field-row ${field.hidden ? 'wb-field-hidden' : ''}" ${canManage ? 'draggable="true"' : ''} data-fid="${h(field.id)}">
       ${canManage ? '<span class="wb-grip"><i class="ti ti-grip-vertical"></i></span>' : ''}
@@ -13028,6 +13048,9 @@ function wbInstallBundle(companyId, workspaceId, rootAppId) {
   for (const b of built) {
     for (const f of b.app.fields) {
       if (f.type !== 'relationship' || !f.config || !f.config.targetApp) continue;
+      // A cross-workspace link points at another workspace, not into this bundle —
+      // leave it untouched.
+      if (f.config.targetWs) continue;
       const newTarget = appIdMap[f.config.targetApp];
       if (newTarget) {
         f.config.targetApp = newTarget;
@@ -13680,10 +13703,18 @@ function wbFieldConfigUI(fd, app) {
       <div class="wb-field"><label>To date</label><select class="wb-input" id="wbDdEnd">${opts(fd.config.endField)}</select><div class="wb-sub">Shows the number of days between these two dates.</div></div>`;
   }
   if (t === 'relationship') {
-    const apps = wbFind(state.builderModal.companyId, state.builderModal.workspaceId).workspace.apps;
+    const thisWs = wbFind(state.builderModal.companyId, state.builderModal.workspaceId).workspace;
+    const curWsId = window.__ROM_WS_ID__ || '';
+    const otherWs = (window.__ROM_XWS_APPS__ || []).filter((w) => w.wsId && w.wsId !== curWsId);
+    const selWs = fd.config.targetWs || '';
+    // Apps to choose from: this workspace, or the selected other workspace.
+    const apps = wbRelAppChoices(thisWs, selWs);
     const targetApp = apps.find((ap) => ap.id === fd.config.targetApp);
     const displayFields = targetApp ? targetApp.fields : [];
-    return `<div class="wb-field"><label>Linked app</label><select class="wb-input" id="wbRelTarget" data-wb-rel-refresh><option value="">— Select app to link —</option>${apps.map((ap) => `<option value="${h(ap.id)}" ${fd.config.targetApp === ap.id ? 'selected' : ''}>${h(ap.name)}</option>`).join('')}</select><div class="wb-sub">Items in this app can reference items from the linked app.</div></div>
+    const wsPicker = otherWs.length
+      ? `<div class="wb-field"><label>From workspace</label><select class="wb-input" id="wbRelWs" data-wb-rel-refresh><option value="">This workspace</option>${otherWs.map((w) => `<option value="${h(w.wsId)}" ${selWs === w.wsId ? 'selected' : ''}>${h(w.wsName)}</option>`).join('')}</select><div class="wb-sub">Link to records in an app from another of your workspaces (read-only).</div></div>`
+      : '';
+    return `${wsPicker}<div class="wb-field"><label>Linked app</label><select class="wb-input" id="wbRelTarget" data-wb-rel-refresh><option value="">— Select app to link —</option>${apps.map((ap) => `<option value="${h(ap.id)}" ${fd.config.targetApp === ap.id ? 'selected' : ''}>${h(ap.name)}</option>`).join('')}</select><div class="wb-sub">${apps.length ? 'Items in this app can reference items from the linked app.' : 'That workspace has no apps yet.'}</div></div>
       ${targetApp ? `<div class="wb-field"><label>Show field <span class="wb-opt">(what to display from the linked item)</span></label><select class="wb-input" id="wbRelDisplay"><option value="">Item name (default)</option>${displayFields.map((f) => `<option value="${h(f.id)}" ${fd.config.displayField === f.id ? 'selected' : ''}>${h(f.label)}</option>`).join('')}</select><div class="wb-sub">Pick a field from <b>${h(targetApp.name)}</b> to show instead of the item's name.</div></div>` : ''}
       ${targetApp ? `<div class="wb-field"><label>Identify by <span class="wb-opt">(how records are labeled when choosing)</span></label><select class="wb-input" id="wbRelIdentify" data-wb-rel-refresh><option value="">Item name (default)</option>${displayFields.map((f) => `<option value="${h(f.id)}" ${fd.config.identifyField === f.id ? 'selected' : ''}>${h(f.label)}</option>`).join('')}</select><div class="wb-sub">Labels each <b>${h(targetApp.name)}</b> record in the pickers below so you can tell them apart — e.g. by <b>Project Name</b> instead of the shown field.</div></div>` : ''}
       ${targetApp ? `<div class="wb-field"><label>Specific record <span class="wb-opt">(optional — pin one record)</span></label><select class="wb-input" id="wbRelFixed" data-wb-rel-refresh><option value="">Let each item choose</option>${targetApp.items.map((it) => `<option value="${h(it.id)}" ${fd.config.fixedItem === it.id ? 'selected' : ''}>${h(wbRelLabel(targetApp, it, fd.config.identifyField))}</option>`).join('')}</select><div class="wb-sub">Pin every item to one <b>${h(targetApp.name)}</b> record. Leave unset to let each item choose.</div></div>` : ''}
@@ -13784,7 +13815,7 @@ function wbTrigCfgUI(draft, app) {
     valueControl = `<select class="wb-input" data-wb-trig-val><option value="">— value —</option>${wbMembers(state.builderModal?.companyId).map((mem) => opt(mem.id, mem.name)).join('')}</select>`;
   } else if (field.type === 'relationship') {
     const ws = wbFind(state.builderModal?.companyId, state.builderModal?.workspaceId).workspace;
-    const ta = ws?.apps.find((x) => x.id === field.config.targetApp);
+    const ta = wbRelApp(ws, field.config);
     valueControl = `<select class="wb-input" data-wb-trig-val><option value="">— value —</option>${(ta?.items || []).map((it) => opt(it.id, wbRelLabel(ta, it, field.config.identifyField || field.config.displayField))).join('')}</select>`;
   } else if (['number', 'money', 'calculation', 'duration', 'progress'].includes(field.type)) {
     // Numeric fields (including calculation results, durations in minutes, and
@@ -13873,7 +13904,7 @@ function wbRenderFieldInput(companyId, workspaceId, f, val) {
       input = members.length ? `<select class="wb-input" data-f="${h(f.id)}"><option value="">— Unassigned —</option>${members.map((m) => `<option value="${h(m.id)}" ${val === m.id ? 'selected' : ''}>${h(m.name)}</option>`).join('')}</select>` : '<div class="wb-sub" style="color:var(--warning,#d97706)">No company members to assign.</div>'; break;
     }
     case 'relationship': {
-      const ta = wbFind(companyId, workspaceId).workspace.apps.find((x) => x.id === f.config.targetApp);
+      const ta = wbRelApp(wbFind(companyId, workspaceId).workspace, f.config);
       if (!ta) { input = '<div class="wb-sub" style="color:var(--warning,#d97706)">No linked app configured.</div>'; break; }
       // A pinned record: every item links to the same record — show it read-only.
       if (f.config.fixedItem) {
@@ -14345,7 +14376,12 @@ function wbCollectModalDraft() {
     if (t === 'datediff') { m.draft.config.startField = val('wbDdStart') || ''; m.draft.config.endField = val('wbDdEnd') || ''; }
     if (t === 'relationship') {
       const prevTarget = m.draft.config.targetApp;
-      m.draft.config.targetApp = val('wbRelTarget') || '';
+      const prevWs = m.draft.config.targetWs || '';
+      const wsSel = document.getElementById('wbRelWs');
+      if (wsSel) m.draft.config.targetWs = wsSel.value || '';
+      // Switching workspace clears the app (its ids belong to the old workspace).
+      if ((m.draft.config.targetWs || '') !== prevWs) { m.draft.config.targetApp = ''; m.draft.config.displayField = ''; m.draft.config.identifyField = ''; m.draft.config.fixedItem = ''; }
+      else { m.draft.config.targetApp = val('wbRelTarget') || ''; }
       m.draft.config.multiple = !!checked('wbRelMulti');
       const disp = document.getElementById('wbRelDisplay');
       if (disp) m.draft.config.displayField = disp.value || '';

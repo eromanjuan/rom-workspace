@@ -5,7 +5,7 @@
 // the workspace members — then imports the module bundle and signals ROM.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, getDocs, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocs, collection, collectionGroup, query, where, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDgJai9t4UxicjzaIyHdc-hk5pTyAVF0bI',
@@ -358,6 +358,45 @@ async function boot() {
       notify();
     }, () => {});
 
+    // --- Cross-workspace app data (for relationship fields that link to an app
+    // in another of the user's workspaces) ---
+    // Reads each workspace's builder doc (workspaceBuilder/{wsId}) the user is a
+    // member of, extracts its apps (fields + items) and exposes them read-only as
+    // window.__ROM_XWS_APPS__ = [{ wsId, wsName, apps:[{id,name,icon,color,type,fields,items}] }].
+    window.__ROM_XWS_APPS__ = window.__ROM_XWS_APPS__ || [];
+    async function loadCrossWorkspaceApps(user, curWsId) {
+      const ids = new Set();
+      try {
+        const snap = await getDocs(query(collectionGroup(db, 'members'), where('uid', '==', user.uid)));
+        for (const mDoc of snap.docs) { const p = mDoc.ref.parent.parent; if (p) ids.add(p.id); }
+      } catch (e) { /* index missing / offline — fall back to just the current ws */ }
+      if (curWsId) ids.add(curWsId);
+      const out = [];
+      for (const id of ids) {
+        try {
+          const [wsSnap, bSnap] = await Promise.all([
+            getDoc(doc(db, 'workspaces', id)),
+            getDoc(doc(db, 'workspaceBuilder', id)),
+          ]);
+          const wsName = wsSnap.exists() ? (wsSnap.data().name || 'Workspace') : 'Workspace';
+          const keys = bSnap.exists() ? (bSnap.data().keys || {}) : {};
+          const apps = [];
+          for (const [k, v] of Object.entries(keys)) {
+            if (!k.startsWith(`${PREFIX}:`)) continue;
+            let parsed; try { parsed = JSON.parse(v); } catch (e) { continue; }
+            for (const ws of (parsed.workspaces || [])) {
+              for (const app of (ws.apps || [])) {
+                apps.push({ id: app.id, name: app.name, icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], items: app.items || [] });
+              }
+            }
+          }
+          out.push({ wsId: id, wsName, apps });
+        } catch (e) { /* skip a workspace we can't read */ }
+      }
+      window.__ROM_XWS_APPS__ = out;
+      try { window.dispatchEvent(new Event('rom-xws-data')); } catch (e) { /* ignore */ }
+    }
+
     // --- Romio App Market (cross-user shared app definitions) ---
     // The module publishes an app's definition here when shared, and reads the
     // full cross-user feed to populate its App Market. Records are never shared.
@@ -479,6 +518,12 @@ async function boot() {
     // Open the company whose data we just seeded (see syncActiveCompanyFromKeys).
     syncActiveCompanyFromKeys();
     syncReady = true; // safe to persist local edits now
+
+    // Expose the current ROMIO workspace id, and load a read-only snapshot of the
+    // apps in this user's OTHER workspaces — so a relationship field can link to
+    // records in an app that lives in a different workspace on the same account.
+    window.__ROM_WS_ID__ = wsId || '';
+    loadCrossWorkspaceApps(user, wsId).catch(() => {});
 
     onSnapshot(ref, (snap) => {
       if (!snap.exists() || snap.metadata.hasPendingWrites) return;
