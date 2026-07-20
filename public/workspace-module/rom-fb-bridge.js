@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=46';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=48';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=46';
+const MODULE_PAGE = '/workspace-module/index.html?v=48';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -364,37 +364,46 @@ async function boot() {
     // member of, extracts its apps (fields + items) and exposes them read-only as
     // window.__ROM_XWS_APPS__ = [{ wsId, wsName, apps:[{id,name,icon,color,type,fields,items}] }].
     window.__ROM_XWS_APPS__ = window.__ROM_XWS_APPS__ || [];
+    // Extract [{id,name,icon,color,type,fields,items}] from a builder doc's keys.
+    function appsFromBuilderKeys(keys) {
+      const apps = [];
+      for (const [k, v] of Object.entries(keys || {})) {
+        if (!k.startsWith(`${PREFIX}:`)) continue;
+        let parsed; try { parsed = JSON.parse(v); } catch (e) { continue; }
+        for (const ws of (parsed.workspaces || [])) {
+          for (const app of (ws.apps || [])) {
+            apps.push({ id: app.id, name: app.name, icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], items: app.items || [] });
+          }
+        }
+      }
+      return apps;
+    }
+    // LIVE cross-workspace app data: watch each OTHER workspace's builder doc so a
+    // record added in workspace B shows up in a relationship picker in workspace A
+    // without a reload. (The current workspace is excluded — its apps come from
+    // live module state, and its own edits shouldn't churn this cache.)
+    let xwsWatching = false;
     async function loadCrossWorkspaceApps(user, curWsId) {
+      if (xwsWatching) return; xwsWatching = true;
       const ids = new Set();
       try {
         const snap = await getDocs(query(collectionGroup(db, 'members'), where('uid', '==', user.uid)));
-        for (const mDoc of snap.docs) { const p = mDoc.ref.parent.parent; if (p) ids.add(p.id); }
-      } catch (e) { /* index missing / offline — fall back to just the current ws */ }
-      if (curWsId) ids.add(curWsId);
-      const out = [];
+        for (const mDoc of snap.docs) { const p = mDoc.ref.parent.parent; if (p && p.id !== curWsId) ids.add(p.id); }
+      } catch (e) { /* index missing / offline — no cross-workspace links this session */ }
+      const wsNames = {};
+      const wsApps = {};
+      const rebuild = () => {
+        window.__ROM_XWS_APPS__ = [...ids].map((id) => ({ wsId: id, wsName: wsNames[id] || 'Workspace', apps: wsApps[id] || [] }));
+        try { window.dispatchEvent(new Event('rom-xws-data')); } catch (e) { /* ignore */ }
+      };
       for (const id of ids) {
-        try {
-          const [wsSnap, bSnap] = await Promise.all([
-            getDoc(doc(db, 'workspaces', id)),
-            getDoc(doc(db, 'workspaceBuilder', id)),
-          ]);
-          const wsName = wsSnap.exists() ? (wsSnap.data().name || 'Workspace') : 'Workspace';
-          const keys = bSnap.exists() ? (bSnap.data().keys || {}) : {};
-          const apps = [];
-          for (const [k, v] of Object.entries(keys)) {
-            if (!k.startsWith(`${PREFIX}:`)) continue;
-            let parsed; try { parsed = JSON.parse(v); } catch (e) { continue; }
-            for (const ws of (parsed.workspaces || [])) {
-              for (const app of (ws.apps || [])) {
-                apps.push({ id: app.id, name: app.name, icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], items: app.items || [] });
-              }
-            }
-          }
-          out.push({ wsId: id, wsName, apps });
-        } catch (e) { /* skip a workspace we can't read */ }
+        getDoc(doc(db, 'workspaces', id)).then((s) => { wsNames[id] = s.exists() ? (s.data().name || 'Workspace') : 'Workspace'; rebuild(); }).catch(() => {});
+        onSnapshot(doc(db, 'workspaceBuilder', id), (bSnap) => {
+          wsApps[id] = appsFromBuilderKeys(bSnap.exists() ? bSnap.data().keys : {});
+          rebuild();
+        }, () => {});
       }
-      window.__ROM_XWS_APPS__ = out;
-      try { window.dispatchEvent(new Event('rom-xws-data')); } catch (e) { /* ignore */ }
+      rebuild();
     }
 
     // --- Romio App Market (cross-user shared app definitions) ---
