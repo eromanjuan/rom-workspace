@@ -13453,7 +13453,8 @@ function renderWorkspaceBuilderModal() {
         const meta = { icon: e.app.icon || WB_APP_ICONS[0], color: e.app.color || WB_PALETTE[1] };
         const links = wbBundleRelatedEntries(e, all).length;
         const linkBadge = links ? `<span class="wb-lib-links" title="Links to ${links} other app${links === 1 ? '' : 's'} — installable as a bundle"><i class="ti ti-link"></i>+${links}</span>` : '';
-        return `<div class="wb-lib-card">
+        const stext = h(`${e.app.name} ${e.app.description || ''} ${e.app.type || ''} ${e.companyLabel} ${e.workspaceName}`.toLowerCase());
+        return `<div class="wb-lib-card" data-search="${stext}">
             <div class="wb-lib-ic" style="background:${h(meta.color)}"><i class="ti ${h(meta.icon)}"></i></div>
             <div class="wb-lib-body">
               <b>${h(e.app.name)}${linkBadge}</b>
@@ -14968,11 +14969,22 @@ function wbMountModal() {
   if (libSearch) libSearch.oninput = () => {
     m.q = libSearch.value;
     const q = libSearch.value.trim().toLowerCase();
-    overlay.querySelectorAll('#wbLibGrid .wb-lib-card').forEach((card) => { card.hidden = !!q && !card.textContent.toLowerCase().includes(q); });
-    // Hide category headers whose cards are all filtered out.
+    // Hide non-matching cards in place (data-search matches the same fields the
+    // chip counts use, so the two stay consistent).
+    overlay.querySelectorAll('#wbLibGrid .wb-lib-card').forEach((card) => { card.hidden = !!q && !(card.dataset.search || '').includes(q); });
     overlay.querySelectorAll('#wbLibGrid .wb-lib-cat').forEach((cat) => {
       const anyVisible = [...cat.querySelectorAll('.wb-lib-card')].some((c) => !c.hidden);
       cat.hidden = !anyVisible;
+    });
+    // Live-update the category chip counts from the data, so they track search.
+    const all2 = state.wbAppLibrary || [];
+    const catOf2 = (e) => (e.app.type || '').trim() || 'Other';
+    const matched = q ? all2.filter((e) => `${e.app.name} ${e.app.description || ''} ${e.app.type || ''} ${e.companyLabel} ${e.workspaceName}`.toLowerCase().includes(q)) : all2;
+    overlay.querySelectorAll('[data-wb-lib-cat]').forEach((chip) => {
+      const c = chip.dataset.wbLibCat;
+      const n = c ? matched.filter((e) => catOf2(e) === c).length : matched.length;
+      const badge = chip.querySelector('span'); if (badge) badge.textContent = String(n);
+      if (c) chip.hidden = n === 0;   // drop empty category chips (keep "All")
     });
   };
   const iconSearch = overlay.querySelector('[data-wb-icon-search]');
