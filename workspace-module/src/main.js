@@ -14744,9 +14744,12 @@ function mountWorkspaceBuilder() {
         showToast(`"${app.name}" is now shared to the Romio App Market.`, 'local', 'Workspaces');
       } else {
         app.shared = false;
-        if (app.marketId && typeof window.__ROM_UNPUBLISH_APP__ === 'function') {
-          try { await window.__ROM_UNPUBLISH_APP__(app.marketId); } catch (e) { /* best effort */ }
-        }
+        // Remove from the market reliably by app id (covers a missing/stale
+        // marketId and any duplicate entries), falling back to the tracked id.
+        try {
+          if (typeof window.__ROM_UNPUBLISH_APP_FOR__ === 'function') await window.__ROM_UNPUBLISH_APP_FOR__(app.id);
+          else if (app.marketId && typeof window.__ROM_UNPUBLISH_APP__ === 'function') await window.__ROM_UNPUBLISH_APP__(app.marketId);
+        } catch (e) { /* best effort */ }
         delete app.marketId;
         showToast(`"${app.name}" removed from the Romio App Market.`, 'local', 'Workspaces');
       }

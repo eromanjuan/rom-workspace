@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=39';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=46';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=39';
+const MODULE_PAGE = '/workspace-module/index.html?v=46';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -361,10 +361,30 @@ async function boot() {
     // --- Romio App Market (cross-user shared app definitions) ---
     // The module publishes an app's definition here when shared, and reads the
     // full cross-user feed to populate its App Market. Records are never shared.
+    // Delete every appMarket doc THIS user published for a given app id. This is
+    // the reliable un-share: it doesn't depend on a stored marketId (which older
+    // shares, or a cleared market, may have lost) and also clears any duplicates.
+    window.__ROM_UNPUBLISH_APP_FOR__ = async (appId) => {
+      const me = auth.currentUser;
+      if (!me || !appId) return 0;
+      try {
+        const snap = await getDocs(collection(db, 'appMarket'));
+        let n = 0;
+        for (const dd of snap.docs) {
+          const x = dd.data() || {};
+          if (x.publishedBy === me.uid && x.app && x.app.id === appId) {
+            try { await deleteDoc(doc(db, 'appMarket', dd.id)); n += 1; } catch (e) { /* keep going */ }
+          }
+        }
+        return n;
+      } catch (e) { console.warn('[ROM] unpublish-for failed', e); return 0; }
+    };
     window.__ROM_PUBLISH_APP__ = async (payload = {}) => {
       const me = auth.currentUser;
       if (!me || !payload.app) return null;
       try {
+        // Replace, don't duplicate: drop any prior entries for this app first.
+        if (payload.app.id) { try { await window.__ROM_UNPUBLISH_APP_FOR__(payload.app.id); } catch (e) { /* best effort */ } }
         const docRef = await addDoc(collection(db, 'appMarket'), {
           app: payload.app,
           workspaceName: String(payload.workspaceName || '').slice(0, 120),
