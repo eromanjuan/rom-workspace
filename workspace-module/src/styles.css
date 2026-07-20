@@ -20985,7 +20985,33 @@ textarea.wb-input { min-height: 70px; resize: vertical; }
 .wb-modal-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: rgba(15, 23, 42, .42); backdrop-filter: blur(2px); padding: 20px; overflow: auto; }
 .wb-modal { width: min(560px, 100%); background: var(--surface, #fffaf0); border-radius: 16px; box-shadow: 0 24px 70px rgba(15, 23, 42, .35); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
 .wb-modal.wb-modal-wide { width: min(680px, 100%); }
+.wb-modal.wb-modal-market { width: min(920px, 100%); }
 .wb-modal.wb-modal-sm { width: min(420px, 100%); }
+
+/* App Market: category groups, link badges, and the bundle section */
+.wb-lib-cats { display: flex; flex-direction: column; gap: 18px; }
+.wb-lib-cat-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-size: .78rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-muted, #72695d);
+}
+.wb-lib-cat-head span {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 999px; background: var(--surface-2, #f6efe4); color: var(--text, #17130f); font-size: .72rem;
+}
+.wb-lib-links {
+  display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; padding: 1px 7px;
+  border-radius: 999px; background: color-mix(in srgb, #0891b2 16%, transparent); color: #0891b2;
+  font-size: .68rem; font-weight: 700; vertical-align: middle;
+}
+.wb-info-related { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.wb-info-rel { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border, #e2d5bf); border-radius: 10px; }
+.wb-info-bundle-note {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; padding: 9px 12px;
+  border-radius: 10px; font-size: .82rem;
+  background: color-mix(in srgb, #0891b2 10%, transparent); color: #0e7490;
+}
+.wb-info-bundle-note .ti { flex: none; }
 .wb-modal-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--border, #e2d5bf); }
 .wb-modal-head h3 { font-size: 1.15rem; font-weight: 800; flex: 1; }
 .wb-modal-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: #fff; font-size: 19px; flex: none; }

@@ -12876,7 +12876,10 @@ function wbBuildInstalledApp(workspace, src, includeItems) {
   });
   let name = String(src.name || 'Imported app').trim() || 'Imported app';
   if (workspace.apps.some((a) => a.name === name)) { let n = 2; while (workspace.apps.some((a) => a.name === `${name} (${n})`)) n += 1; name = `${name} (${n})`; }
-  return { id: wbUid(), name, description: String(src.description || ''), type: String(src.type || ''), icon: WB_APP_ICONS.includes(src.icon) ? src.icon : WB_APP_ICONS[0], color: src.color || WB_PALETTE[1], fields, items, automations };
+  const app = { id: wbUid(), name, description: String(src.description || ''), type: String(src.type || ''), icon: WB_APP_ICONS.includes(src.icon) ? src.icon : WB_APP_ICONS[0], color: src.color || WB_PALETTE[1], fields, items, automations };
+  // fieldIdMap lets a bundle install remap cross-app references (a relationship's
+  // displayField points at a field id in the LINKED app).
+  return { app, fieldIdMap };
 }
 function wbInstallAppFromJson(companyId, workspaceId, text) {
   let bundle;
@@ -12887,7 +12890,7 @@ function wbInstallAppFromJson(companyId, workspaceId, text) {
   if (!workspace) return;
   // A file the user uploaded is their own backup/template, so bring its records
   // in too (restore-style). The shared app library stays structure-only.
-  const app = wbBuildInstalledApp(workspace, src, true);
+  const { app } = wbBuildInstalledApp(workspace, src, true);
   workspace.apps.push(app);
   wbLogActivity(workspace, { icon: 'ti-package-import', color: '#16a34a', text: `Installed app <b>${h(app.name)}</b> (${app.fields.length} fields · ${app.items.length} records · ${app.automations.length} automations)` });
   wbSave(companyId);
@@ -12940,13 +12943,82 @@ function wbInstallLibraryApp(companyId, workspaceId, appId) {
   if (!workspace) return;
   const entry = (state.wbAppLibrary || []).find((e) => e.app && e.app.id === appId);
   if (!entry) { showToast('That app is no longer available.', 'local', 'Workspaces'); return; }
-  const app = wbBuildInstalledApp(workspace, clone(entry.app), false);
+  const { app } = wbBuildInstalledApp(workspace, clone(entry.app), false);
   workspace.apps.push(app);
   wbLogActivity(workspace, { icon: 'ti-package-import', color: '#16a34a', text: `Installed app <b>${h(app.name)}</b> from the library (${app.fields.length} fields · ${app.automations.length} automations)` });
   state.builderModal = null;
   wbSave(companyId);
   showToast(`Installed "${app.name}" — fields & automations copied (no records).`, 'local', 'Workspaces');
   navigate(companyPath('workspaces', { workspace_id: workspace.id, app_id: app.id, tab: 'items' }, companyId));
+}
+
+// Market entries related to `rootEntry` through relationship fields (transitively),
+// limited to the SAME publisher so their internal app ids line up. Returns the
+// related entries (excluding the root), used to offer a "bundle" install.
+function wbBundleRelatedEntries(rootEntry, library) {
+  const byAppId = new Map();
+  for (const e of library) {
+    if (e && e.app && e.app.id && e.companyId === rootEntry.companyId) byAppId.set(e.app.id, e);
+  }
+  const seen = new Set([rootEntry.app.id]);
+  const queue = [rootEntry];
+  const related = [];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const f of (cur.app.fields || [])) {
+      const tgtId = f && f.type === 'relationship' && f.config && f.config.targetApp;
+      if (tgtId && byAppId.has(tgtId) && !seen.has(tgtId)) {
+        seen.add(tgtId); const tgt = byAppId.get(tgtId); related.push(tgt); queue.push(tgt);
+      }
+    }
+  }
+  return related;
+}
+
+// Install a market app together with every app it links to, preserving the
+// relationships: install each app, then remap relationship targetApp (and its
+// displayField) from old ids to the freshly-installed ones.
+function wbInstallBundle(companyId, workspaceId, rootAppId) {
+  if (!wbGuard()) return;
+  const { workspace } = wbFind(companyId, workspaceId);
+  if (!workspace) return;
+  const library = state.wbAppLibrary || [];
+  const root = library.find((e) => e.app && e.app.id === rootAppId);
+  if (!root) { showToast('That app is no longer available.', 'local', 'Workspaces'); return; }
+  const entries = [root, ...wbBundleRelatedEntries(root, library)];
+
+  const built = [];
+  const appIdMap = {};   // original app id -> new app id
+  for (const e of entries) {
+    const b = wbBuildInstalledApp(workspace, clone(e.app), false);
+    appIdMap[e.app.id] = b.app.id;
+    built.push({ origId: e.app.id, app: b.app, fieldIdMap: b.fieldIdMap });
+  }
+  const byNewId = new Map(built.map((b) => [b.app.id, b]));
+  for (const b of built) {
+    for (const f of b.app.fields) {
+      if (f.type !== 'relationship' || !f.config || !f.config.targetApp) continue;
+      const newTarget = appIdMap[f.config.targetApp];
+      if (newTarget) {
+        f.config.targetApp = newTarget;
+        const tb = byNewId.get(newTarget);
+        if (tb && f.config.displayField && tb.fieldIdMap[f.config.displayField]) f.config.displayField = tb.fieldIdMap[f.config.displayField];
+        if (tb && f.config.identifyField && tb.fieldIdMap[f.config.identifyField]) f.config.identifyField = tb.fieldIdMap[f.config.identifyField];
+        // A pinned record won't exist in a fresh install (records aren't copied).
+        if (f.config.fixedItem) delete f.config.fixedItem;
+      } else {
+        // Linked app wasn't part of the bundle — drop the dangling target.
+        delete f.config.targetApp;
+      }
+    }
+    workspace.apps.push(b.app);
+  }
+  const rootApp = built[0].app;
+  wbLogActivity(workspace, { icon: 'ti-package-import', color: '#16a34a', text: `Installed bundle <b>${h(rootApp.name)}</b> + ${built.length - 1} linked app${built.length - 1 === 1 ? '' : 's'}` });
+  state.builderModal = null;
+  wbSave(companyId);
+  showToast(`Installed "${rootApp.name}" with ${built.length - 1} linked app${built.length - 1 === 1 ? '' : 's'}.`, 'local', 'Workspaces');
+  navigate(companyPath('workspaces', { workspace_id: workspace.id, app_id: rootApp.id, tab: 'items' }, companyId));
 }
 function openWbAppChooser(companyId, workspaceId) {
   if (!wbGuard()) return;
@@ -13312,17 +13384,28 @@ function renderWorkspaceBuilderModal() {
           return `<div class="wb-info-row"><span class="wb-info-ic" style="background:${meta.color}22;color:${meta.color}"><i class="ti ${meta.icon}"></i></span><span class="wb-info-label">${h(f.label)}${f.required ? '<span class="wb-req">*</span>' : ''}${f.hidden ? ' <span class="wb-hidden-tag"><i class="ti ti-eye-off"></i>Hidden</span>' : ''}</span><span class="wb-info-type">${h(meta.label)}${extra}</span></div>`;
         }).join('') || '<div class="wb-sub">No fields.</div>';
         const autoHtml = (a.automations || []).length ? a.automations.map((au) => `<div class="wb-info-auto"><i class="ti ti-bolt"></i><b>${h(au.name || 'Automation')}</b>${au.enabled === false ? ' <span class="wb-sub">· off</span>' : ''}</div>`).join('') : '<div class="wb-sub">No automations.</div>';
-        return wbModalShell('Add app', 'wb-modal-wide', `<div class="wb-modal-ic" style="background:${h(a.color || '#0891b2')}"><i class="ti ${h(a.icon || 'ti-apps')}"></i></div><h3>${h(a.name)}</h3>`,
+        // Linked apps: this app relates to other shared apps. Offer a bundle install.
+        const related = wbBundleRelatedEntries(entry, state.wbAppLibrary || []);
+        const relatedHtml = related.length
+          ? `<h4 class="wb-info-title"><i class="ti ti-link"></i>Linked apps <span>${related.length}</span></h4>
+             <div class="wb-info-related">${related.map((r) => `<div class="wb-info-rel"><span class="wb-ws-ic" style="background:${h(r.app.color || '#0891b2')}"><i class="ti ${h(r.app.icon || 'ti-apps')}"></i></span><span class="wb-ws-main"><b>${h(r.app.name)}</b><span>${h(r.app.type || 'App')} · ${(r.app.fields || []).length} fields</span></span></div>`).join('')}</div>
+             <div class="wb-info-bundle-note"><i class="ti ti-package"></i> This app links to ${related.length} other app${related.length === 1 ? '' : 's'}. Install it as a bundle to keep those links working.</div>`
+          : '';
+        const installBtns = related.length
+          ? `<button class="btn" type="button" data-wb-lib-install data-app-id="${h(a.id)}"><i class="ti ti-download"></i>App only</button><button class="btn btn-primary" type="button" data-wb-lib-bundle data-app-id="${h(a.id)}"><i class="ti ti-packages"></i>Install bundle (${related.length + 1})</button>`
+          : `<button class="btn btn-primary" type="button" data-wb-lib-install data-app-id="${h(a.id)}"><i class="ti ti-download"></i>Install app</button>`;
+        return wbModalShell('Add app', 'wb-modal-market', `<div class="wb-modal-ic" style="background:${h(a.color || '#0891b2')}"><i class="ti ${h(a.icon || 'ti-apps')}"></i></div><h3>${h(a.name)}</h3>`,
           `<div class="wb-info-head">
             <div class="wb-info-source"><i class="ti ti-building"></i>${h(entry.companyLabel)} · ${h(entry.workspaceName)}${a.type ? ` · ${h(a.type)}` : ''}</div>
             ${a.description ? `<p class="wb-info-desc">${h(a.description)}</p>` : ''}
           </div>
+          ${relatedHtml}
           <h4 class="wb-info-title"><i class="ti ti-forms"></i>Fields <span>${(a.fields || []).length}</span></h4>
           <div class="wb-info-fields">${fieldsHtml}</div>
           <h4 class="wb-info-title"><i class="ti ti-bolt"></i>Automations <span>${(a.automations || []).length}</span></h4>
           <div class="wb-info-autos">${autoHtml}</div>
-          <div class="wb-sub" style="margin-top:14px">Installing copies these fields &amp; automations into your workspace. Records are not copied.</div>`,
-          `<button class="btn" type="button" data-wb-detail-back><i class="ti ti-arrow-left"></i>Back</button><button class="btn" data-action="wb-modal-close">Close</button><button class="btn btn-primary" type="button" data-wb-lib-install data-app-id="${h(a.id)}"><i class="ti ti-download"></i>Install app</button>`);
+          <div class="wb-sub" style="margin-top:14px">Installing copies fields &amp; automations into your workspace. Records are not copied.</div>`,
+          `<button class="btn" type="button" data-wb-detail-back><i class="ti ti-arrow-left"></i>Back</button><button class="btn" data-action="wb-modal-close">Close</button>${installBtns}`);
       }
     }
     if (m.step === 'library') {
@@ -13335,23 +13418,33 @@ function renderWorkspaceBuilderModal() {
       const q = (m.q || '').trim().toLowerCase();
       const all = state.wbAppLibrary || [];
       const apps = q ? all.filter((e) => `${e.app.name} ${e.app.description || ''} ${e.app.type || ''} ${e.companyLabel} ${e.workspaceName}`.toLowerCase().includes(q)) : all;
-      const cards = loading
-        ? '<div class="wb-sub" style="padding:24px;text-align:center"><i class="ti ti-loader"></i> Loading apps…</div>'
-        : (apps.map((e) => {
-          const meta = { icon: e.app.icon || WB_APP_ICONS[0], color: e.app.color || WB_PALETTE[1] };
-          return `<div class="wb-lib-card">
+      // One card, with a "+N linked" badge when the app relates to other apps.
+      const cardFor = (e) => {
+        const meta = { icon: e.app.icon || WB_APP_ICONS[0], color: e.app.color || WB_PALETTE[1] };
+        const links = wbBundleRelatedEntries(e, all).length;
+        const linkBadge = links ? `<span class="wb-lib-links" title="Links to ${links} other app${links === 1 ? '' : 's'} — installable as a bundle"><i class="ti ti-link"></i>+${links}</span>` : '';
+        return `<div class="wb-lib-card">
             <div class="wb-lib-ic" style="background:${h(meta.color)}"><i class="ti ${h(meta.icon)}"></i></div>
             <div class="wb-lib-body">
-              <b>${h(e.app.name)}</b>
+              <b>${h(e.app.name)}${linkBadge}</b>
               <div class="wb-lib-meta"><i class="ti ti-forms"></i>${(e.app.fields || []).length} fields · <i class="ti ti-bolt"></i>${(e.app.automations || []).length} automations · <i class="ti ti-building"></i>${h(e.companyLabel)}</div>
             </div>
             <div class="wb-lib-actions"><button class="btn btn-sm" type="button" data-wb-lib-info data-app-id="${h(e.app.id)}"><i class="ti ti-info-circle"></i>More info</button><button class="btn btn-sm btn-primary" type="button" data-wb-lib-install data-app-id="${h(e.app.id)}"><i class="ti ti-download"></i>Install</button></div>
           </div>`;
-        }).join('') || `<div class="wb-empty wb-empty-inline"><i class="ti ti-package"></i><h3>No apps yet</h3><p>${q ? 'No shared apps match your search.' : 'No apps have been shared to the market yet. Share one from an app\'s Settings to see it here.'}</p></div>`);
-      return wbModalShell('Add app', 'wb-modal-wide', `<div class="wb-modal-ic" style="background:#0891b2"><i class="ti ti-building-store"></i></div><h3>Romio App Market</h3>`,
-        `<div class="wb-sub" style="margin-bottom:12px">Install apps shared by anyone on Romio. Installing copies its <b>fields and automations</b> into this workspace — records are not copied.</div>
+      };
+      // Group cards by category (the app's type); "Other" sinks to the bottom.
+      const groups = {};
+      for (const e of apps) { const cat = (e.app.type || '').trim() || 'Other'; (groups[cat] = groups[cat] || []).push(e); }
+      const cats = Object.keys(groups).sort((x, y) => (x === 'Other') - (y === 'Other') || x.localeCompare(y));
+      const cards = loading
+        ? '<div class="wb-sub" style="padding:24px;text-align:center"><i class="ti ti-loader"></i> Loading apps…</div>'
+        : (cats.length
+          ? cats.map((cat) => `<div class="wb-lib-cat"><div class="wb-lib-cat-head">${h(cat)} <span>${groups[cat].length}</span></div><div class="wb-lib-grid">${groups[cat].map(cardFor).join('')}</div></div>`).join('')
+          : `<div class="wb-empty wb-empty-inline"><i class="ti ti-package"></i><h3>No apps yet</h3><p>${q ? 'No shared apps match your search.' : 'No apps have been shared to the market yet. Share one from an app\'s Settings to see it here.'}</p></div>`);
+      return wbModalShell('Add app', 'wb-modal-market', `<div class="wb-modal-ic" style="background:#0891b2"><i class="ti ti-building-store"></i></div><h3>Romio App Market</h3>`,
+        `<div class="wb-sub" style="margin-bottom:12px">Install apps shared by anyone on Romio. Installing copies its <b>fields and automations</b> into this workspace — records are not copied. Apps that link to others can be installed as a bundle.</div>
          <div class="wb-search-box" style="max-width:none;margin-bottom:14px"><i class="ti ti-search"></i><input type="text" class="wb-search-input" data-wb-lib-search value="${h(m.q || '')}" placeholder="Search the app market…"></div>
-         <div class="wb-lib-grid" id="wbLibGrid">${cards}</div>`,
+         <div id="wbLibGrid" class="wb-lib-cats">${cards}</div>`,
         `<button class="btn" type="button" data-wb-chooser-back><i class="ti ti-arrow-left"></i>Back</button><button class="btn" data-action="wb-modal-close">Close</button>`);
     }
     const opt = (key, icon, color, title, desc) => `<button class="wb-chooser-opt" type="button" data-wb-choose="${key}"><span class="wb-chooser-ic" style="background:${color}"><i class="ti ${icon}"></i></span><span class="wb-chooser-text"><b>${h(title)}</b><small>${h(desc)}</small></span><i class="ti ti-chevron-right wb-chooser-arrow"></i></button>`;
@@ -14823,11 +14916,17 @@ function wbMountModal() {
   overlay.querySelectorAll('[data-wb-lib-info]').forEach((b) => { b.onclick = () => { m.step = 'detail'; m.detailAppId = b.dataset.appId; render(); }; });
   const detailBack = overlay.querySelector('[data-wb-detail-back]'); if (detailBack) detailBack.onclick = () => { m.step = 'library'; render(); };
   overlay.querySelectorAll('[data-wb-lib-install]').forEach((b) => { b.onclick = () => wbInstallLibraryApp(m.companyId, m.workspaceId, b.dataset.appId); });
+  overlay.querySelectorAll('[data-wb-lib-bundle]').forEach((b) => { b.onclick = () => wbInstallBundle(m.companyId, m.workspaceId, b.dataset.appId); });
   const libSearch = overlay.querySelector('[data-wb-lib-search]');
   if (libSearch) libSearch.oninput = () => {
     m.q = libSearch.value;
     const q = libSearch.value.trim().toLowerCase();
     overlay.querySelectorAll('#wbLibGrid .wb-lib-card').forEach((card) => { card.hidden = !!q && !card.textContent.toLowerCase().includes(q); });
+    // Hide category headers whose cards are all filtered out.
+    overlay.querySelectorAll('#wbLibGrid .wb-lib-cat').forEach((cat) => {
+      const anyVisible = [...cat.querySelectorAll('.wb-lib-card')].some((c) => !c.hidden);
+      cat.hidden = !anyVisible;
+    });
   };
   const iconSearch = overlay.querySelector('[data-wb-icon-search]');
   if (iconSearch) {
