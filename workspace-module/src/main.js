@@ -10415,6 +10415,10 @@ function wbViewCompanyHome(companyId, workspace) {
       </div>
       <div class="wb-spacer"></div>
     </div>
+    <div class="wb-ws-search">
+      <div class="wb-search-box wb-ws-search-box"><i class="ti ti-search"></i><input type="text" class="wb-search-input" data-wb-ws-search value="${h(state.wbWsQuery || '')}" placeholder="Search apps, fields &amp; records in this workspace…" autocomplete="off"></div>
+      <div class="wb-ws-results" data-wb-ws-results hidden></div>
+    </div>
     ${wbWorkspaceHeader(companyId, workspace, null)}
     <div class="wb-dash">
       <main class="wb-dash-main">
@@ -12130,6 +12134,51 @@ function wbApplyItemSearch() {
   const countEl = document.querySelector('[data-wb-items-count]');
   if (countEl) countEl.textContent = `${shown} item${shown === 1 ? '' : 's'}`;
 }
+// Workspace-wide search: apps, fields and records across every app in the
+// current workspace. Returns grouped result HTML (empty string when no query).
+// Capped so a big workspace stays responsive on each keystroke.
+function wbWorkspaceSearchHtml(companyId, workspace, rawQ) {
+  const q = (rawQ || '').trim().toLowerCase();
+  if (!q) return '';
+  const apps = (workspace && workspace.apps) || [];
+  const CAP = 8;               // max shown per group
+  const SCAN_CAP = 4000;       // max records scanned (safety)
+  const appHits = [], fieldHits = [], recHits = [];
+  let scanned = 0;
+  for (const app of apps) {
+    if (`${app.name || ''} ${app.description || ''} ${app.type || ''}`.toLowerCase().includes(q)) {
+      appHits.push(app);
+    }
+    for (const f of (app.fields || [])) {
+      if ((f.label || '').toLowerCase().includes(q)) fieldHits.push({ app, field: f });
+    }
+    for (const item of (app.items || [])) {
+      if (scanned++ > SCAN_CAP || recHits.length > CAP * 3) break;
+      let text = wbItemTitle(app, item) || '';
+      for (const f of (app.fields || [])) text += ' ' + wbPlainVal(companyId, workspace, app, f, item.values[f.id], item.values);
+      if (text.toLowerCase().includes(q)) recHits.push({ app, item });
+    }
+  }
+  if (!appHits.length && !fieldHits.length && !recHits.length) {
+    return `<div class="wb-ws-noresult"><i class="ti ti-search-off"></i> No apps, fields or records match “${h(rawQ.trim())}”.</div>`;
+  }
+  const appIc = (app) => `<span class="wb-ws-ic" style="background:${h(app.color || '#0891b2')}"><i class="ti ${h(app.icon || 'ti-apps')}"></i></span>`;
+  const group = (label, count, rowsHtml) => count ? `<div class="wb-ws-group"><div class="wb-ws-group-head">${h(label)} <span>${count}</span></div>${rowsHtml}</div>` : '';
+
+  const appRows = appHits.slice(0, CAP).map((app) =>
+    `<button type="button" class="wb-ws-row" data-wb-ws-go-app="${h(app.id)}">${appIc(app)}<span class="wb-ws-main"><b>${h(app.name)}</b><span>${h(app.type || 'App')} · ${(app.items || []).length} record${(app.items || []).length === 1 ? '' : 's'}</span></span><i class="ti ti-arrow-up-right"></i></button>`).join('');
+
+  const fieldRows = fieldHits.slice(0, CAP).map(({ app, field }) => {
+    const meta = WB_FIELD_TYPES[field.type] || { label: field.type, icon: 'ti-square', color: '#6b7280' };
+    return `<button type="button" class="wb-ws-row" data-wb-ws-go-field="${h(app.id)}"><span class="wb-ws-ic" style="background:${meta.color}22;color:${meta.color}"><i class="ti ${meta.icon}"></i></span><span class="wb-ws-main"><b>${h(field.label)}</b><span>${h(meta.label)} field · in ${h(app.name)}</span></span><i class="ti ti-arrow-up-right"></i></button>`;
+  }).join('');
+
+  const recRows = recHits.slice(0, CAP).map(({ app, item }) =>
+    `<button type="button" class="wb-ws-row" data-wb-ws-go-item="${h(app.id)}:${h(item.id)}">${appIc(app)}<span class="wb-ws-main"><b>${h(wbItemTitle(app, item) || 'Record')}</b><span>Record · in ${h(app.name)}</span></span><i class="ti ti-arrow-up-right"></i></button>`).join('');
+
+  return group('Apps', appHits.length, appRows) + group('Fields', fieldHits.length, fieldRows) + group('Records', recHits.length, recRows);
+}
+
 function wbFilterValueControl(companyId, app, field, kind, flt, i) {
   const v = flt.value == null ? '' : String(flt.value);
   const attrs = `class="wb-input wb-filter-val" data-wb-filter-val data-idx="${i}"`;
@@ -14470,6 +14519,28 @@ function mountWorkspaceBuilder() {
     bind('[data-wb-topbar-page]', (el) => { state.wbTopbarPage = +el.dataset.wbTopbarPage; render(); });
     bind('[data-open-app]', (el) => nav({ app_id: el.dataset.openApp, tab: 'items' }));
     bind('[data-new-app]', () => openWbAppChooser(companyId, workspaceId));
+    // Workspace-wide search (apps / fields / records). Updates a results panel
+    // in place (no full re-render) so typing keeps focus; clicks jump to the hit.
+    const wsSearch = document.querySelector('[data-wb-ws-search]');
+    const wsResults = document.querySelector('[data-wb-ws-results]');
+    if (wsSearch && wsResults) {
+      const workspace = wbCompanyWorkspace(companyId);
+      const runWsSearch = () => {
+        state.wbWsQuery = wsSearch.value;
+        wsResults.innerHTML = wbWorkspaceSearchHtml(companyId, workspace, wsSearch.value);
+        wsResults.hidden = !wsSearch.value.trim();
+      };
+      wsSearch.oninput = runWsSearch;
+      wsResults.onclick = (e) => {
+        const goApp = e.target.closest('[data-wb-ws-go-app]');
+        const goField = e.target.closest('[data-wb-ws-go-field]');
+        const goItem = e.target.closest('[data-wb-ws-go-item]');
+        if (goItem) { const [aid, iid] = goItem.dataset.wbWsGoItem.split(':'); openWbItemModal(companyId, workspaceId, aid, iid, 'view'); }
+        else if (goField) { nav({ app_id: goField.dataset.wbWsGoField, tab: 'fields' }); }
+        else if (goApp) { nav({ app_id: goApp.dataset.wbWsGoApp, tab: 'items' }); }
+      };
+      if (state.wbWsQuery) runWsSearch();
+    }
     // Workspace activity feed (dashboard home): publisher + posts.
     wbMountComposer(companyId);
     bind('[data-wb-compose-share]', () => wbComposerShare(companyId));
