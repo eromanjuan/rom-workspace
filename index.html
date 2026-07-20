@@ -3,7 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ROMIO</title>
+
+    <!-- SEO: primary meta -->
+    <title>ROMIO — Social feed, team chat & a no-code app builder</title>
+    <meta name="description" content="ROMIO is an all-in-one social app: a social feed, team chat, and a no-code app builder in one place. Sign up free and start posting, chatting and building in minutes." />
+    <meta name="keywords" content="ROMIO, social app, social feed, team chat, messaging, workspaces, no-code app builder, productivity, collaboration" />
+    <meta name="author" content="ROMIO" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://romio.web.app/" />
+
+    <!-- Open Graph (Facebook, Messenger, LinkedIn…) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ROMIO" />
+    <meta property="og:title" content="ROMIO — Social feed, team chat & a no-code app builder" />
+    <meta property="og:description" content="An all-in-one social app: social feed, team chat, and a no-code app builder in one place. Sign up free." />
+    <meta property="og:url" content="https://romio.web.app/" />
+    <meta property="og:image" content="https://romio.web.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ROMIO — Social feed · Chat · No-code app builder" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ROMIO — Social feed, team chat & a no-code app builder" />
+    <meta name="twitter:description" content="An all-in-one social app: social feed, team chat, and a no-code app builder in one place. Sign up free." />
+    <meta name="twitter:image" content="https://romio.web.app/og-image.png" />
+
+    <!-- Structured data: helps search engines understand what ROMIO is -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "ROMIO",
+      "url": "https://romio.web.app/",
+      "description": "An all-in-one social app: a social feed, team chat, and a no-code app builder in one place.",
+      "applicationCategory": "SocialNetworkingApplication",
+      "operatingSystem": "Web, Android",
+      "image": "https://romio.web.app/og-image.png",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "publisher": { "@type": "Organization", "name": "ROMIO", "url": "https://romio.web.app/", "logo": "https://romio.web.app/romio-mark.png" }
+    }
+    </script>
+
     <link rel="icon" type="image/png" href="/romio-mark.png" />
     <link rel="apple-touch-icon" href="/romio-mark.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -20,6 +62,24 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Crawlable content for search engines and no-JS visitors. The app itself
+         renders into #app via JavaScript. -->
+    <noscript>
+      <main style="max-width:680px;margin:3rem auto;padding:0 1.25rem;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#e7e7ea;background:#0f1115">
+        <h1>ROMIO — social feed, team chat &amp; a no-code app builder</h1>
+        <p>ROMIO is an all-in-one social app that brings a social feed, team
+        messaging, and a no-code app builder into one place. Create a free
+        account and start posting, chatting and building in minutes.</p>
+        <ul>
+          <li><strong>Social feed</strong> — post, comment and react.</li>
+          <li><strong>Chat</strong> — direct and group messaging, with optional end-to-end encryption.</li>
+          <li><strong>Workspaces &amp; app builder</strong> — build no-code dashboards and apps for your team.</li>
+        </ul>
+        <p>ROMIO needs JavaScript to run. Please enable JavaScript, or open
+        <a href="https://romio.web.app/">romio.web.app</a> in a modern browser.</p>
+        <p><a href="/privacy.html">Privacy Policy</a> · <a href="/delete-account.html">Delete your account</a></p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

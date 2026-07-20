@@ -1,14 +1,18 @@
 {
-  "name": "ROMIO",
+  "name": "ROMIO — Social, Chat & App Builder",
   "short_name": "ROMIO",
-  "description": "ROMIO — social feed, workspaces, chat and an app builder.",
+  "description": "An all-in-one social app: a social feed, team chat, and a no-code app builder in one place.",
+  "lang": "en",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
+  "categories": ["social", "productivity", "business"],
   "icons": [
-    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/romio-mark.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/romio-mark.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
