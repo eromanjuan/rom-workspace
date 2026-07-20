@@ -14527,7 +14527,10 @@ function mountWorkspaceBuilder() {
         app.shared = true;
         const def = { id: app.id, name: app.name, description: app.description || '', icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], automations: app.automations || [] };
         if (typeof window.__ROM_PUBLISH_APP__ === 'function') {
-          try { const id = await window.__ROM_PUBLISH_APP__({ app: def, workspaceName: (workspace && workspace.name) || window.__ROM_WS_NAME__ || 'Workspace' }); if (id) app.marketId = id; } catch (e) { /* keep shared flag */ }
+          // Prefer the REAL ROMIO workspace name (set by the bridge) over the
+          // module's internal workspace label, which can be leftover demo data
+          // (e.g. "Lumen"). This is what shows as the source tag in the market.
+          try { const id = await window.__ROM_PUBLISH_APP__({ app: def, workspaceName: window.__ROM_WS_NAME__ || (workspace && workspace.name) || 'Workspace' }); if (id) app.marketId = id; } catch (e) { /* keep shared flag */ }
         }
         showToast(`"${app.name}" is now shared to the Romio App Market.`, 'local', 'Workspaces');
       } else {
