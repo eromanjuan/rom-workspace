@@ -20988,6 +20988,22 @@ textarea.wb-input { min-height: 70px; resize: vertical; }
 .wb-modal.wb-modal-market { width: min(920px, 100%); }
 .wb-modal.wb-modal-sm { width: min(420px, 100%); }
 
+/* App Market: category filter chips */
+.wb-lib-catbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.wb-cat-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border: 1px solid var(--border, #e2d5bf); border-radius: 999px;
+  background: var(--surface, #fffaf0); color: var(--text, #17130f);
+  font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .12s ease;
+}
+.wb-cat-chip:hover { border-color: #0891b2; color: #0891b2; }
+.wb-cat-chip.active { background: #0891b2; border-color: #0891b2; color: #fff; }
+.wb-cat-chip span {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: color-mix(in srgb, currentColor 16%, transparent); font-size: .7rem;
+}
+.wb-cat-chip.active span { background: rgba(255, 255, 255, .28); }
+
 /* App Market: category groups, link badges, and the bundle section */
 .wb-lib-cats { display: flex; flex-direction: column; gap: 18px; }
 .wb-lib-cat-head {

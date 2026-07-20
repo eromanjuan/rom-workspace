@@ -2566,7 +2566,37 @@ async function fetchSupabaseProfile(user) {
   return normalizeProfile(result.data, fallback);
 }
 
-function render() {
+// Scroll-preserving wrapper around the real render. A plain innerHTML rebuild
+// drops the scroll position, so any in-place change (checking a checklist item,
+// toggling Share, saving settings) jumped the page to the top. We only want the
+// scroll to reset on an actual NAVIGATION (the route/URL changed) — for same-URL
+// re-renders we capture and restore the page + inner-pane scroll offsets.
+let __wbLastRenderKey = null;
+function render(opts) {
+  let key = '';
+  try { const r = getRoute(); key = `${r.section}|${r.name}|${r.token || ''}|${r.params ? r.params.toString() : ''}`; } catch { key = ''; }
+  const keepScroll = (opts && opts.keepScroll) || (__wbLastRenderKey !== null && key === __wbLastRenderKey);
+  __wbLastRenderKey = key;
+  if (!keepScroll) { renderCore(); return; }
+  const root = document.scrollingElement || document.documentElement;
+  const pageY = window.scrollY || root.scrollTop || 0;
+  const panes = [];
+  document.querySelectorAll('[class]').forEach((node) => {
+    if (node.scrollTop > 0 && typeof node.className === 'string') {
+      const sel = node.tagName.toLowerCase() + node.className.trim().split(/\s+/).map((c) => '.' + CSS.escape(c)).join('');
+      panes.push({ sel, top: node.scrollTop });
+    }
+  });
+  renderCore();
+  const restore = () => {
+    root.scrollTop = pageY; window.scrollTo(0, pageY);
+    for (const p of panes) { try { const node = document.querySelector(p.sel); if (node) node.scrollTop = p.top; } catch { /* stale selector */ } }
+  };
+  restore();
+  requestAnimationFrame(restore);
+}
+
+function renderCore() {
   state.route = getRoute();
 
   if (CONFIG.authEnabled && !state.authReady) {
@@ -13432,9 +13462,22 @@ function renderWorkspaceBuilderModal() {
             <div class="wb-lib-actions"><button class="btn btn-sm" type="button" data-wb-lib-info data-app-id="${h(e.app.id)}"><i class="ti ti-info-circle"></i>More info</button><button class="btn btn-sm btn-primary" type="button" data-wb-lib-install data-app-id="${h(e.app.id)}"><i class="ti ti-download"></i>Install</button></div>
           </div>`;
       };
-      // Group cards by category (the app's type); "Other" sinks to the bottom.
+      // Category of an entry (its app type, or "Other").
+      const catOf = (e) => (e.app.type || '').trim() || 'Other';
+      // All categories present after the search filter, for the filter buttons.
+      const allCats = [...new Set(apps.map(catOf))].sort((x, y) => (x === 'Other') - (y === 'Other') || x.localeCompare(y));
+      // The active category button (a "dynamic button" that opens one category).
+      const activeCat = allCats.includes(m.cat) ? m.cat : '';
+      const chips = (!loading && allCats.length > 1)
+        ? `<div class="wb-lib-catbar">
+            <button class="wb-cat-chip ${!activeCat ? 'active' : ''}" type="button" data-wb-lib-cat=""><i class="ti ti-apps"></i>All <span>${apps.length}</span></button>
+            ${allCats.map((c) => `<button class="wb-cat-chip ${activeCat === c ? 'active' : ''}" type="button" data-wb-lib-cat="${h(c)}">${h(c)} <span>${apps.filter((e) => catOf(e) === c).length}</span></button>`).join('')}
+          </div>`
+        : '';
+      // When a category is selected, show only that one; else group all by category.
+      const shown = activeCat ? apps.filter((e) => catOf(e) === activeCat) : apps;
       const groups = {};
-      for (const e of apps) { const cat = (e.app.type || '').trim() || 'Other'; (groups[cat] = groups[cat] || []).push(e); }
+      for (const e of shown) { (groups[catOf(e)] = groups[catOf(e)] || []).push(e); }
       const cats = Object.keys(groups).sort((x, y) => (x === 'Other') - (y === 'Other') || x.localeCompare(y));
       const cards = loading
         ? '<div class="wb-sub" style="padding:24px;text-align:center"><i class="ti ti-loader"></i> Loading apps…</div>'
@@ -13443,7 +13486,8 @@ function renderWorkspaceBuilderModal() {
           : `<div class="wb-empty wb-empty-inline"><i class="ti ti-package"></i><h3>No apps yet</h3><p>${q ? 'No shared apps match your search.' : 'No apps have been shared to the market yet. Share one from an app\'s Settings to see it here.'}</p></div>`);
       return wbModalShell('Add app', 'wb-modal-market', `<div class="wb-modal-ic" style="background:#0891b2"><i class="ti ti-building-store"></i></div><h3>Romio App Market</h3>`,
         `<div class="wb-sub" style="margin-bottom:12px">Install apps shared by anyone on Romio. Installing copies its <b>fields and automations</b> into this workspace — records are not copied. Apps that link to others can be installed as a bundle.</div>
-         <div class="wb-search-box" style="max-width:none;margin-bottom:14px"><i class="ti ti-search"></i><input type="text" class="wb-search-input" data-wb-lib-search value="${h(m.q || '')}" placeholder="Search the app market…"></div>
+         <div class="wb-search-box" style="max-width:none;margin-bottom:12px"><i class="ti ti-search"></i><input type="text" class="wb-search-input" data-wb-lib-search value="${h(m.q || '')}" placeholder="Search the app market…"></div>
+         ${chips}
          <div id="wbLibGrid" class="wb-lib-cats">${cards}</div>`,
         `<button class="btn" type="button" data-wb-chooser-back><i class="ti ti-arrow-left"></i>Back</button><button class="btn" data-action="wb-modal-close">Close</button>`);
     }
@@ -14917,6 +14961,9 @@ function wbMountModal() {
   const detailBack = overlay.querySelector('[data-wb-detail-back]'); if (detailBack) detailBack.onclick = () => { m.step = 'library'; render(); };
   overlay.querySelectorAll('[data-wb-lib-install]').forEach((b) => { b.onclick = () => wbInstallLibraryApp(m.companyId, m.workspaceId, b.dataset.appId); });
   overlay.querySelectorAll('[data-wb-lib-bundle]').forEach((b) => { b.onclick = () => wbInstallBundle(m.companyId, m.workspaceId, b.dataset.appId); });
+  // Category filter buttons: open one category (or "All"). Same-route re-render
+  // keeps the modal's scroll position.
+  overlay.querySelectorAll('[data-wb-lib-cat]').forEach((b) => { b.onclick = () => { m.cat = b.dataset.wbLibCat; render(); }; });
   const libSearch = overlay.querySelector('[data-wb-lib-search]');
   if (libSearch) libSearch.oninput = () => {
     m.q = libSearch.value;
