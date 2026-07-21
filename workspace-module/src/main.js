@@ -11749,7 +11749,7 @@ function wbNameValue(app, field, item, depth = 0) {
   const raw = item && item.values ? item.values[field.id] : undefined;
   if (raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && !raw.length)) return '';
   switch (field.type) {
-    case 'checklist': case 'progress': case 'checkbox': case 'file': case 'image': case 'duration': case 'calculation': return '';
+    case 'checklist': case 'progress': case 'checkbox': case 'file': case 'image': case 'duration': case 'calculation': case 'rating': return '';
     case 'category': case 'status': { const o = (field.config.options || []).find((x) => x.id === raw); return o ? String(o.label) : ''; }
     case 'user': { const loc = wbLocateApp(app); const m = wbMemberById(loc.companyId, raw); return m ? String(m.name) : ''; }
     case 'relationship': {
@@ -11771,10 +11771,13 @@ function wbNameValue(app, field, item, depth = 0) {
 }
 // The field that names an item — the first field with a readable value, so a card
 // is titled by its first field rather than an internal id.
+// The field the card is titled by — only a field that actually produces a name.
+// Returns null when nothing names the item (so the card body doesn't wrongly hide
+// a field like a rating that can't be a title but should still show its stars).
 function wbTitleField(app, item) {
   const fields = app.fields || [];
   for (const f of fields) { if (wbNameValue(app, f, item)) return f; }
-  return fields[0] || null;
+  return null;
 }
 function wbItemTitle(app, item, depth = 0) {
   const fields = app.fields || [];
