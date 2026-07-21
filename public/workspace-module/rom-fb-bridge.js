@@ -5,7 +5,7 @@
 // the workspace members — then imports the module bundle and signals ROM.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, getDocs, collection, collectionGroup, query, where, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocs, collection, collectionGroup, query, where, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDgJai9t4UxicjzaIyHdc-hk5pTyAVF0bI',
@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=51';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=52';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=51';
+const MODULE_PAGE = '/workspace-module/index.html?v=52';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -410,6 +410,77 @@ async function boot() {
       rebuild();
     }
 
+    // --- Live linked apps (the SAME app shared live across the user's workspaces) ---
+    // Source of truth: sharedApps/{gid}. Each workspace using it lists the gid in
+    // sharedAppLinks/{wsId}. We watch this workspace's links + each linked shared
+    // app and expose them live as window.__ROM_LINKED_APPS__ = [{ gid, app }].
+    // The module merges these into its workspace, routes their edits back to the
+    // shared doc, and keeps them OUT of the workspace's own blob.
+    window.__ROM_LINKED_APPS__ = window.__ROM_LINKED_APPS__ || [];
+    function watchLinkedApps(user, curWsId) {
+      if (!curWsId) return;
+      const data = {};            // gid -> shared app data
+      const unsubs = {};          // gid -> onSnapshot unsub
+      let gids = [];
+      let emitTimer = null;
+      const emit = () => {
+        window.__ROM_LINKED_APPS__ = gids.filter((g) => data[g]).map((g) => ({ gid: g, app: data[g] }));
+        clearTimeout(emitTimer);
+        emitTimer = setTimeout(() => { try { window.dispatchEvent(new Event('rom-linked-apps')); } catch (e) { /* ignore */ } }, 120);
+      };
+      onSnapshot(doc(db, 'sharedAppLinks', curWsId), (snap) => {
+        gids = (snap.exists() && Array.isArray(snap.data().gids)) ? snap.data().gids : [];
+        for (const g of gids) {
+          if (unsubs[g]) continue;
+          unsubs[g] = onSnapshot(doc(db, 'sharedApps', g), (s) => {
+            if (s.metadata.hasPendingWrites) return;   // ignore our own just-written echo
+            data[g] = s.exists() ? s.data() : null;
+            emit();
+          }, () => {});
+        }
+        for (const g of Object.keys(unsubs)) {
+          if (!gids.includes(g)) { try { unsubs[g](); } catch (e) { /* ignore */ } delete unsubs[g]; delete data[g]; }
+        }
+        emit();
+      }, () => {});
+    }
+
+    // Share an app LIVE into a target workspace: create its shared source and link
+    // it into both workspaces. Returns the new gid.
+    window.__ROM_LINK_APP_TO_WS__ = async (appData, targetWsId) => {
+      const me = auth.currentUser;
+      if (!me || !appData || !targetWsId || !wsId) return null;
+      try {
+        const gid = 'sa_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        await setDoc(doc(db, 'sharedApps', gid), {
+          gid, ownerId: me.uid,
+          name: appData.name || 'App', icon: appData.icon || '', color: appData.color || '', type: appData.type || '', description: appData.description || '',
+          fields: appData.fields || [], items: appData.items || [], automations: appData.automations || [],
+          linkedWorkspaces: [wsId, targetWsId], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, 'sharedAppLinks', wsId), { gids: arrayUnion(gid) }, { merge: true });
+        await setDoc(doc(db, 'sharedAppLinks', targetWsId), { gids: arrayUnion(gid) }, { merge: true });
+        return gid;
+      } catch (e) { console.warn('[ROM] link app failed', e); return null; }
+    };
+    // Persist a linked app's structure + records to its shared source.
+    window.__ROM_SAVE_LINKED_APP__ = async (gid, appData) => {
+      const me = auth.currentUser;
+      if (!me || !gid || !appData) return;
+      try {
+        await setDoc(doc(db, 'sharedApps', gid), {
+          name: appData.name || 'App', icon: appData.icon || '', color: appData.color || '', type: appData.type || '', description: appData.description || '',
+          fields: appData.fields || [], items: appData.items || [], automations: appData.automations || [],
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) { console.warn('[ROM] save linked app failed', e); }
+    };
+    // Remove a linked app from THIS workspace only (other workspaces keep it).
+    window.__ROM_UNLINK_APP__ = async (gid) => {
+      if (!gid || !wsId) return;
+      try { await setDoc(doc(db, 'sharedAppLinks', wsId), { gids: arrayRemove(gid) }, { merge: true }); } catch (e) { console.warn('[ROM] unlink failed', e); }
+    };
+
     // --- Romio App Market (cross-user shared app definitions) ---
     // The module publishes an app's definition here when shared, and reads the
     // full cross-user feed to populate its App Market. Records are never shared.
@@ -537,6 +608,7 @@ async function boot() {
     // records in an app that lives in a different workspace on the same account.
     window.__ROM_WS_ID__ = wsId || '';
     loadCrossWorkspaceApps(user, wsId).catch(() => {});
+    watchLinkedApps(user, wsId);
 
     onSnapshot(ref, (snap) => {
       if (!snap.exists() || snap.metadata.hasPendingWrites) return;

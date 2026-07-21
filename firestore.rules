@@ -232,6 +232,22 @@ service cloud.firestore {
       allow delete: if signedIn() && (resource.data.publishedBy == request.auth.uid || isMaster());
     }
 
+    // --- live linked apps (one app shared across a user's workspaces) ---
+    // The shared source of truth. Its owner (the account that shared it) may edit
+    // its structure + records; any signed-in user may read it (a linked workspace
+    // needs to display it).
+    match /sharedApps/{gid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());
+    }
+    // Which shared apps are linked into a given workspace. Only members of that
+    // workspace (or the master) may add/remove links there.
+    match /sharedAppLinks/{wsId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && (isMember(wsId) || isMaster());
+    }
+
     // --- uploaded files (metadata; the blobs live in Storage) ---
     match /files/{fileId} {
       allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || isMaster());

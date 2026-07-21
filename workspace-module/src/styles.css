@@ -20993,6 +20993,20 @@ textarea.wb-input { min-height: 70px; resize: vertical; }
 .wb-modal.wb-modal-market { width: min(920px, 100%); }
 .wb-modal.wb-modal-sm { width: min(420px, 100%); }
 
+/* Live-linked app markers */
+.wb-linked-badge {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; padding: 2px 9px;
+  border-radius: 999px; font-size: .68rem; font-weight: 800; letter-spacing: .02em; vertical-align: middle;
+  background: color-mix(in srgb, #7c3aed 16%, transparent); color: #7c3aed;
+}
+.wb-linked-badge .ti { font-size: 13px; }
+.wb-tab-link-dot {
+  position: absolute; right: -3px; top: -3px; width: 15px; height: 15px; border-radius: 50%;
+  background: #7c3aed; color: #fff; display: grid; place-items: center; border: 2px solid var(--surface, #fffaf0);
+}
+.wb-tab-link-dot .ti { font-size: 9px; }
+.wb-topbar-ic { position: relative; }
+
 /* App Market: category filter chips */
 .wb-lib-catbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .wb-cat-chip {

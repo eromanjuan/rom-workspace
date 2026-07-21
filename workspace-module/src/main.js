@@ -2443,6 +2443,11 @@ function init() {
   window.addEventListener('rom-ws-data', () => { try { render(); } catch { /* ignore */ } });
   // Cross-workspace app data finished loading (for cross-workspace relationships).
   window.addEventListener('rom-xws-data', () => { try { render(); } catch { /* ignore */ } });
+  // Live linked-app data changed (a linked shared app was added/edited elsewhere):
+  // re-merge into every loaded builder doc and re-render.
+  window.addEventListener('rom-linked-apps', () => {
+    try { for (const k of Object.keys(state.workspaceBuilderDocs)) wbMergeLinkedApps(state.workspaceBuilderDocs[k]); render(); } catch { /* ignore */ }
+  });
   document.addEventListener('keydown', onDocumentKeydown);
   document.addEventListener('submit', onDocumentSubmit);
   document.addEventListener('input', onDocumentInput);
@@ -10326,6 +10331,33 @@ function loadWorkspaceBuilderState(companyId) {
   if (!state.workspaceBuilderDocs[key]) ensureWorkspaceBuilderLoaded(companyId);
   return state.workspaceBuilderDocs[key] || normalizeWorkspaceBuilderDoc({ workspaces: [] });
 }
+// True for an app that is a LIVE linked app (its data lives in a shared doc, not
+// this workspace's blob). Marked with _gid by the merge below.
+function wbIsLinkedApp(a) { return !!(a && a._gid); }
+// The payload we persist to a linked app's shared source (structure + records).
+function wbLinkedAppPayload(a) {
+  return { name: a.name || 'App', icon: a.icon || '', color: a.color || '', type: a.type || '', description: a.description || '', fields: a.fields || [], items: a.items || [], automations: a.automations || [] };
+}
+// Merge the bridge's live linked apps (window.__ROM_LINKED_APPS__) into a builder
+// doc's first workspace, so the module renders them as normal apps. They are NOT
+// stored in the blob (saveWorkspaceBuilderDoc strips them and routes edits to the
+// shared doc). Re-run whenever the linked set changes.
+function wbMergeLinkedApps(bdoc) {
+  if (!bdoc || !bdoc.workspaces || !bdoc.workspaces[0]) return bdoc;
+  const ws = bdoc.workspaces[0];
+  ws.apps = (ws.apps || []).filter((a) => !a._gid);
+  const linked = Array.isArray(window.__ROM_LINKED_APPS__) ? window.__ROM_LINKED_APPS__ : [];
+  for (const { gid, app } of linked) {
+    if (!app) continue;
+    ws.apps.push({
+      id: gid, name: app.name || 'Linked app', description: app.description || '', icon: app.icon || WB_APP_ICONS[0], color: app.color || WB_PALETTE[1], type: app.type || '',
+      fields: Array.isArray(app.fields) ? app.fields : [], items: Array.isArray(app.items) ? app.items : [], automations: Array.isArray(app.automations) ? app.automations : [],
+      _gid: gid, _linked: true,
+    });
+  }
+  return bdoc;
+}
+
 function ensureWorkspaceBuilderLoaded(companyId) {
   const key = canonicalCompanyId(companyId);
   if (state.workspaceBuilderDocs[key]) return true;
@@ -10339,7 +10371,7 @@ function ensureWorkspaceBuilderLoaded(companyId) {
       doc = result.data?.doc || null;
     }
     if (!doc) doc = readJson(workspaceBuilderStorageKey(companyId), { workspaces: [] });
-    state.workspaceBuilderDocs[key] = normalizeWorkspaceBuilderDoc(doc);
+    state.workspaceBuilderDocs[key] = wbMergeLinkedApps(normalizeWorkspaceBuilderDoc(doc));
     state.workspaceBuilderLoading = '';
     render();
   })();
@@ -10349,7 +10381,20 @@ async function saveWorkspaceBuilderDoc(companyId) {
   const key = canonicalCompanyId(companyId);
   const doc = state.workspaceBuilderDocs[key];
   if (!doc) return;
-  if (!isReadOnlyDemo()) writeJson(workspaceBuilderStorageKey(companyId), doc);
+  // Live linked apps: push their edits to the shared source and persist a blob
+  // WITHOUT them (their data lives in sharedApps, not this workspace's blob).
+  const linked = [];
+  const blobDoc = {
+    ...doc,
+    workspaces: (doc.workspaces || []).map((ws) => {
+      if (!(ws.apps || []).some(wbIsLinkedApp)) return ws;
+      const apps = [];
+      for (const a of ws.apps) { if (wbIsLinkedApp(a)) linked.push(a); else apps.push(a); }
+      return { ...ws, apps };
+    }),
+  };
+  for (const a of linked) { try { if (typeof window.__ROM_SAVE_LINKED_APP__ === 'function') window.__ROM_SAVE_LINKED_APP__(a._gid, wbLinkedAppPayload(a)); } catch (e) { /* best effort */ } }
+  if (!isReadOnlyDemo()) writeJson(workspaceBuilderStorageKey(companyId), blobDoc);
   const client = createSupabaseClient();
   if (isLiveSupabaseSession() && client) {
     // Mark this doc as being written so a background realtime refresh can't
@@ -11123,7 +11168,7 @@ function wbWorkspaceHeader(companyId, workspace, activeAppId) {
   const appTabs = pageApps.map((a) => {
     const active = a.id === activeAppId;
     const href = appHref(companyPath('workspaces', { app_id: a.id, tab: 'items' }, companyId));
-    return `<a class="wb-topbar-tab ${active ? 'active' : ''}" href="${href}" data-router title="${h(a.name)}" aria-current="${active ? 'page' : 'false'}"><span class="wb-topbar-ic" style="background:${h(a.color)}"><i class="ti ${h(a.icon)}" aria-hidden="true"></i></span><span class="wb-topbar-label">${h(a.name)}</span></a>`;
+    return `<a class="wb-topbar-tab ${active ? 'active' : ''}" href="${href}" data-router title="${h(a.name)}${a._linked ? ' (linked live)' : ''}" aria-current="${active ? 'page' : 'false'}"><span class="wb-topbar-ic" style="background:${h(a.color)}"><i class="ti ${h(a.icon)}" aria-hidden="true"></i>${a._linked ? '<span class="wb-tab-link-dot"><i class="ti ti-link"></i></span>' : ''}</span><span class="wb-topbar-label">${h(a.name)}</span></a>`;
   }).join('');
   const prev = `<button class="wb-topbar-arrow" type="button" data-wb-topbar-page="${page - 1}" ${page === 0 ? 'disabled' : ''} title="Previous apps" aria-label="Previous apps"><i class="ti ti-chevron-left"></i></button>`;
   const next = `<button class="wb-topbar-arrow" type="button" data-wb-topbar-page="${page + 1}" ${page >= pageCount - 1 ? 'disabled' : ''} title="More apps" aria-label="More apps"><i class="ti ti-chevron-right"></i></button>`;
@@ -11181,7 +11226,7 @@ function wbViewApp(route, companyId, workspace, app) {
   return `
     <div class="wb-page-head">
       <div>
-        <h1 class="wb-title"><span class="wb-title-ic" style="background:${h(app.color)}" aria-hidden="true"><i class="ti ${h(app.icon)}"></i></span>${h(app.name)}</h1>
+        <h1 class="wb-title"><span class="wb-title-ic" style="background:${h(app.color)}" aria-hidden="true"><i class="ti ${h(app.icon)}"></i></span>${h(app.name)}${app._linked ? '<span class="wb-linked-badge" title="Linked live across your workspaces — shares fields and records"><i class="ti ti-link"></i>Linked</span>' : ''}</h1>
         <div class="wb-sub">${h(app.description || '')}</div>
       </div>
       <div class="wb-spacer"></div>
@@ -12657,6 +12702,18 @@ function wbViewBuilder(companyId, workspace, app) {
 function wbViewAppSettings(companyId, workspace, app) {
   const canManage = can('workspaces.manage', companyId);
   const isCustomColor = !WB_PALETTE.includes(app.color);
+  const curWsId = window.__ROM_WS_ID__ || '';
+  const otherWs = (window.__ROM_XWS_APPS__ || []).filter((w) => w.wsId && w.wsId !== curWsId);
+  const liveShareHtml = canManage ? `<div class="wb-field"><label>Live share to another workspace</label>
+      <div class="wb-sub">${app._linked
+        ? 'This app is <b>linked live</b> across your workspaces — it shares the same fields <b>and records</b>. Edits (new fields, records, etc.) sync both ways.'
+        : 'Share this app <b>live</b> into another of your workspaces. Both copies share the same fields and records — changes sync both ways, instantly.'}</div>
+      ${app._linked
+        ? `<div class="wb-settings-actions" style="margin-top:10px"><span class="wb-linked-badge"><i class="ti ti-link"></i>Linked live</span><button class="btn danger" data-wb-unlink-app="${h(app._gid)}"><i class="ti ti-unlink"></i>Unlink from this workspace</button></div>`
+        : (otherWs.length
+          ? `<div class="wb-settings-actions" style="margin-top:10px"><select class="wb-input" id="wbLinkWs" style="max-width:240px"><option value="">— Choose a workspace —</option>${otherWs.map((w) => `<option value="${h(w.wsId)}">${h(w.wsName)}</option>`).join('')}</select><button class="btn btn-primary" data-wb-link-app><i class="ti ti-link"></i>Link live</button></div>`
+          : '<div class="wb-sub" style="margin-top:8px">You have no other workspace to link this into yet.</div>')}
+    </div>` : '';
   return `<div class="wb-settings card">
     <h3 class="wb-settings-title">App settings</h3>
     <div class="wb-field"><label>App name</label><input class="wb-input" id="wbSetName" value="${h(app.name)}" ${canManage ? '' : 'disabled'}></div>
@@ -12674,7 +12731,8 @@ function wbViewAppSettings(companyId, workspace, app) {
       <div class="wb-sub">${app.shared ? 'This app is <b>shared</b> — anyone on Romio can install its fields &amp; automations from the Romio App Market. Your records are never shared.' : 'Share this app so anyone on Romio can install its fields &amp; automations from the Romio App Market. Your records are never shared.'}</div>
       ${canManage ? `<div class="wb-settings-actions" style="margin-top:10px"><button class="btn ${app.shared ? 'wb-shared-on' : ''}" data-wb-share-app><i class="ti ti-${app.shared ? 'circle-check' : 'share'}"></i>${app.shared ? 'App shared' : 'Share this app'}</button></div>` : ''}
     </div>
-    ${canManage ? `<div class="wb-settings-actions"><button class="btn btn-primary" data-save-app><i class="ti ti-device-floppy"></i>Save changes</button><button class="btn danger" data-del-app><i class="ti ti-trash"></i>Delete app</button></div>` : ''}
+    ${liveShareHtml}
+    ${canManage ? `<div class="wb-settings-actions"><button class="btn btn-primary" data-save-app><i class="ti ti-device-floppy"></i>Save changes</button><button class="btn danger" data-del-app><i class="ti ti-trash"></i>${app._linked ? 'Unlink app' : 'Delete app'}</button></div>` : ''}
   </div>`;
 }
 
@@ -14627,6 +14685,19 @@ async function wbConfirmDeleteWorkspace() {
   navigate(companyPath('workspaces', {}, companyId));
 }
 
+// Remove a LIVE-linked app from this workspace only. The shared source and the
+// app's presence in your other workspace(s) are untouched. No name/password
+// confirmation (it's reversible — just re-link).
+async function wbUnlinkApp(companyId, workspaceId, gid) {
+  if (!wbGuard() || !gid) return;
+  if (typeof window.__ROM_UNLINK_APP__ === 'function') { try { await window.__ROM_UNLINK_APP__(gid); } catch (e) { /* best effort */ } }
+  const { workspace } = wbFind(companyId, workspaceId);
+  if (workspace) workspace.apps = (workspace.apps || []).filter((a) => a._gid !== gid);
+  state.builderModal = null;
+  showToast('App unlinked from this workspace.', 'local', 'Workspaces');
+  navigate(companyPath('workspaces', {}, companyId));
+}
+
 async function wbConfirmDeleteApp() {
   const m = state.builderModal;
   if (!m || m.kind !== 'delete-app') return;
@@ -14799,6 +14870,28 @@ function mountWorkspaceBuilder() {
     bind('[data-wb-cal-nav]', (el) => { const c = wbCalCursor(); const d = new Date(c.year, c.month + Number(el.dataset.wbCalNav), 1); state.wbCalMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; render(); });
     bind('[data-wb-install-app]', () => wbInstallAppPrompt(companyId, workspaceId));
     bind('[data-wb-download-app]', () => wbDownloadApp(companyId, workspaceId, appId));
+    // Live-link this app into another workspace (shared structure + records).
+    bind('[data-wb-link-app]', async () => {
+      if (!wbGuard()) return;
+      const sel = document.getElementById('wbLinkWs');
+      const targetWsId = sel ? sel.value : '';
+      if (!targetWsId) { showToast('Choose a workspace to link into.', 'local', 'Workspaces'); return; }
+      if (typeof window.__ROM_LINK_APP_TO_WS__ !== 'function') { showToast('Live sharing is unavailable here.', 'local', 'Workspaces'); return; }
+      const { workspace, app } = wbFind(companyId, workspaceId, appId);
+      if (!app) return;
+      const payload = { name: app.name, description: app.description || '', icon: app.icon || '', color: app.color || '', type: app.type || '', fields: app.fields || [], items: app.items || [], automations: app.automations || [] };
+      const gid = await window.__ROM_LINK_APP_TO_WS__(payload, targetWsId);
+      if (!gid) { showToast('Could not link the app.', 'local', 'Workspaces'); return; }
+      // Turn this local app INTO the linked one: drop the local copy (its data now
+      // lives in the shared source) and open the linked app once it merges in.
+      const idx = (workspace.apps || []).findIndex((a) => a.id === appId);
+      if (idx >= 0) workspace.apps.splice(idx, 1);
+      wbSave(companyId);
+      showToast('App is now linked live across your workspaces.', 'local', 'Workspaces');
+      navigate(companyPath('workspaces', { workspace_id: workspace.id, app_id: gid, tab: 'items' }, companyId));
+    });
+    // Remove a linked app from THIS workspace (the shared source & other workspaces stay).
+    bind('[data-wb-unlink-app]', (el) => wbUnlinkApp(companyId, workspaceId, el.dataset.wbUnlinkApp));
     bind('[data-wb-share-app]', async () => {
       if (!wbGuard()) return;
       const { workspace, app } = wbFind(companyId, workspaceId, appId);
@@ -14903,7 +14996,7 @@ function mountWorkspaceBuilder() {
       el.addEventListener('click', (e) => e.stopPropagation());
     });
     bind('[data-save-app]', () => wbSaveAppSettings(companyId, workspaceId, appId));
-    bind('[data-del-app]', () => { const { app } = wbFind(companyId, workspaceId, appId); if (app) openWbDeleteApp(companyId, workspaceId, app); });
+    bind('[data-del-app]', () => { const { app } = wbFind(companyId, workspaceId, appId); if (!app) return; if (app._gid) wbUnlinkApp(companyId, workspaceId, app._gid); else openWbDeleteApp(companyId, workspaceId, app); });
     bind('[data-add-auto]', () => openWbAutoModal(companyId, workspaceId, appId, ''));
     bind('[data-edit-auto]', (el) => openWbAutoModal(companyId, workspaceId, appId, el.dataset.editAuto));
     bind('[data-dupe-auto]', (el) => wbDuplicateAutomation(companyId, workspaceId, appId, el.dataset.dupeAuto));
