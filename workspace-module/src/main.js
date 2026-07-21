@@ -11955,6 +11955,31 @@ function wbStarsHtml(value, max) {
   }</span>`;
 }
 
+// The workspace object to use as context when rendering a linked record's field.
+// Same-workspace: the current workspace. Cross-workspace: a light shim carrying
+// the other workspace's apps (enough for wbFmtVal's app/value-based renderers).
+function wbRelTargetWorkspace(ctx, config) {
+  if (config && config.targetWs) {
+    const w = (window.__ROM_XWS_APPS__ || []).find((x) => x.wsId === config.targetWs);
+    return w ? { id: w.wsId, name: w.wsName, apps: w.apps || [] } : { apps: [] };
+  }
+  return ctx && ctx.workspace;
+}
+// Render ONE linked record for a relationship cell. When a "Show field" is set we
+// render that field's value in its NATIVE format (a rating shows stars, progress
+// a bar, a checklist its mini-bar, a status its pill, …) by running it through
+// wbFmtVal with a context pointed at the linked record. Falls back to the text
+// label for the item name, or when the shown field is itself a relationship
+// (avoids cross-workspace nested-link recursion).
+function wbRelCellHtml(ctx, ta, it, config) {
+  const df = config && config.displayField ? (ta.fields || []).find((f) => f.id === config.displayField) : null;
+  if (df && df.type !== 'relationship') {
+    const tctx = { workspace: wbRelTargetWorkspace(ctx, config), app: ta, item: it, values: it.values || {}, companyId: ctx && ctx.companyId, canManage: false };
+    return `<span class="wb-rel-native" title="${h(ta.name)} · ${h(df.label)}">${wbFmtVal(tctx, df, (it.values || {})[df.id])}</span>`;
+  }
+  return `<span class="wb-tag wb-rel">${h(wbRelLabel(ta, it, config && config.displayField))}</span>`;
+}
+
 function wbFmtVal(ctx, field, value) {
   // Checkbox renders as an inline toggle (even when unset) so managers can flip
   // it straight from the table — handled before the empty-value guard below.
@@ -12001,7 +12026,7 @@ function wbFmtVal(ctx, field, value) {
       return hasTime ? `${datePart}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : datePart;
     }
     case 'file': { const fv = wbFileValue(value); if (!fv) return '<span class="wb-cell-empty">—</span>'; const kind = fileTypeKind({ file_name: fv.name }); return fv.url ? `<button type="button" class="wb-file-icon-btn" data-wb-view-file data-file-url="${h(fv.url)}" data-file-name="${h(fv.name)}" title="${h(fv.name)}" aria-label="Open ${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></button>` : `<span class="wb-file-icon-btn muted" title="${h(fv.name)}"><i class="ti ${wbFileIcon(kind)}"></i></span>`; }
-    case 'relationship': { const ta = wbRelApp(ctx.workspace, field.config); if (!ta) return h(value); const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return `<span class="wb-tag wb-rel">${h(it ? wbRelLabel(ta, it, field.config.displayField) : '?')}</span>`; }).join(' '); }
+    case 'relationship': { const ta = wbRelApp(ctx.workspace, field.config); if (!ta) return h(value); const arr = field.config.fixedItem ? [field.config.fixedItem] : (Array.isArray(value) ? value : [value]); return arr.map((id) => { const it = ta.items.find((i) => i.id === id); return it ? wbRelCellHtml(ctx, ta, it, field.config) : '<span class="wb-tag wb-rel">?</span>'; }).join(' '); }
     case 'location': return `<a class="wb-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(value))}" target="_blank" rel="noreferrer" title="Open in Google Maps"><i class="ti ti-map-pin"></i>${h(value)}</a>`;
     case 'duration': return h(wbFmtDuration(value));
     case 'image': { const fv = wbFileValue(value); return fv && fv.url ? `<img class="wb-img-avatar" src="${h(fv.url)}" alt="${h(fv.name || 'image')}" loading="lazy">` : '<span class="wb-cell-empty">—</span>'; }

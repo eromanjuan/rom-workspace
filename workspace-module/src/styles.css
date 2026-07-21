@@ -20732,6 +20732,11 @@ button.wb-minical-cell:hover { background: var(--surface-2, #f6efe4); }
 .wb-status-pill.wb-yes { background: var(--success-soft, #dcfce7); color: var(--success, #16a34a); }
 .wb-dot { width: 7px; height: 7px; border-radius: 50%; }
 .wb-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 7px; font-size: .78rem; font-weight: 700; }
+/* A pulled (relationship) value rendered in its source field's native format —
+   stars, progress bar, checklist mini-bar, status pill, etc. Just spaces the
+   inner control; the control brings its own styling. */
+.wb-rel-native { display: inline-flex; align-items: center; }
+.wb-rel-native + .wb-rel-native { margin-left: 6px; }
 /* File cells render as a <button> that opens the open/download chooser — strip
    the native button chrome so it reads as the tag it replaced. */
 button.wb-tag { appearance: none; -webkit-appearance: none; border: 0; background: none; font: inherit; font-weight: 700; color: inherit; cursor: pointer; }
