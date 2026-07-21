@@ -21,10 +21,10 @@ const PREFIX = 'romio_workspace_v1';
 // existing workspace's apps/tiles/feed carry over untouched.
 const LEGACY_PREFIX = 'qhq_workspace_builder_v1';
 // Stable entry name (see vite.config.js). Bump ?v= to bust cache on rebuild.
-const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=48';
+const MODULE_ENTRY = '/workspace-module/assets/rom-module-entry.js?v=49';
 // The iframe's real page. Used to reload the module without picking up whatever
 // path the module's router pushed into this iframe's URL.
-const MODULE_PAGE = '/workspace-module/index.html?v=48';
+const MODULE_PAGE = '/workspace-module/index.html?v=49';
 const MASTER_EMAIL = 'eugenioiromanjuan@gmail.com';
 
 const ALL_PERMS = { viewWorkspace: true, viewPosts: true, viewTiles: true, interactTiles: true, post: true, deleteOwnPost: true, editTiles: true, manage: true };
@@ -392,9 +392,13 @@ async function boot() {
       } catch (e) { /* index missing / offline — no cross-workspace links this session */ }
       const wsNames = {};
       const wsApps = {};
+      let dispatchTimer = null;
       const rebuild = () => {
         window.__ROM_XWS_APPS__ = [...ids].map((id) => ({ wsId: id, wsName: wsNames[id] || 'Workspace', apps: wsApps[id] || [] }));
-        try { window.dispatchEvent(new Event('rom-xws-data')); } catch (e) { /* ignore */ }
+        // Debounce: the initial burst of N workspace snapshots (and rapid edits)
+        // collapses into a single module re-render instead of one per snapshot.
+        clearTimeout(dispatchTimer);
+        dispatchTimer = setTimeout(() => { try { window.dispatchEvent(new Event('rom-xws-data')); } catch (e) { /* ignore */ } }, 150);
       };
       for (const id of ids) {
         getDoc(doc(db, 'workspaces', id)).then((s) => { wsNames[id] = s.exists() ? (s.data().name || 'Workspace') : 'Workspace'; rebuild(); }).catch(() => {});

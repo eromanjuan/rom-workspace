@@ -13002,23 +13002,31 @@ function wbInstallLibraryApp(companyId, workspaceId, appId) {
   navigate(companyPath('workspaces', { workspace_id: workspace.id, app_id: app.id, tab: 'items' }, companyId));
 }
 
+// A reusable app-id → market-entry index. Build ONCE per render and pass it to
+// wbBundleRelatedEntries so rendering N cards stays O(N), not O(N²).
+function wbBuildMarketIndex(library) {
+  const m = new Map();
+  for (const e of library) { if (e && e.app && e.app.id) m.set(e.app.id, e); }
+  return m;
+}
 // Market entries related to `rootEntry` through relationship fields (transitively),
 // limited to the SAME publisher so their internal app ids line up. Returns the
 // related entries (excluding the root), used to offer a "bundle" install.
-function wbBundleRelatedEntries(rootEntry, library) {
-  const byAppId = new Map();
-  for (const e of library) {
-    if (e && e.app && e.app.id && e.companyId === rootEntry.companyId) byAppId.set(e.app.id, e);
-  }
+// Pass a prebuilt `index` (wbBuildMarketIndex) when calling in a loop.
+function wbBundleRelatedEntries(rootEntry, library, index) {
+  const byAppId = index || wbBuildMarketIndex(library);
   const seen = new Set([rootEntry.app.id]);
   const queue = [rootEntry];
   const related = [];
   while (queue.length) {
     const cur = queue.shift();
     for (const f of (cur.app.fields || [])) {
-      const tgtId = f && f.type === 'relationship' && f.config && f.config.targetApp;
+      // Same-workspace links only: a cross-workspace link (targetWs set) points
+      // outside the market, so it can't be part of a bundle.
+      const tgtId = f && f.type === 'relationship' && f.config && !f.config.targetWs && f.config.targetApp;
       if (tgtId && byAppId.has(tgtId) && !seen.has(tgtId)) {
-        seen.add(tgtId); const tgt = byAppId.get(tgtId); related.push(tgt); queue.push(tgt);
+        const tgt = byAppId.get(tgtId);
+        if (tgt.companyId === rootEntry.companyId) { seen.add(tgtId); related.push(tgt); queue.push(tgt); }
       }
     }
   }
@@ -13471,10 +13479,11 @@ function renderWorkspaceBuilderModal() {
       const q = (m.q || '').trim().toLowerCase();
       const all = state.wbAppLibrary || [];
       const apps = q ? all.filter((e) => `${e.app.name} ${e.app.description || ''} ${e.app.type || ''} ${e.companyLabel} ${e.workspaceName}`.toLowerCase().includes(q)) : all;
+      const marketIndex = wbBuildMarketIndex(all);   // built once, reused per card
       // One card, with a "+N linked" badge when the app relates to other apps.
       const cardFor = (e) => {
         const meta = { icon: e.app.icon || WB_APP_ICONS[0], color: e.app.color || WB_PALETTE[1] };
-        const links = wbBundleRelatedEntries(e, all).length;
+        const links = wbBundleRelatedEntries(e, all, marketIndex).length;
         const linkBadge = links ? `<span class="wb-lib-links" title="Links to ${links} other app${links === 1 ? '' : 's'} — installable as a bundle"><i class="ti ti-link"></i>+${links}</span>` : '';
         const stext = h(`${e.app.name} ${e.app.description || ''} ${e.app.type || ''} ${e.companyLabel} ${e.workspaceName}`.toLowerCase());
         return `<div class="wb-lib-card" data-search="${stext}">
